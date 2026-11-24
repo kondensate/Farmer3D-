@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#17251c">
+<title>FarmerBot 3D</title>
+<style>
+:root{--bg:#17251c;--panel:#24372b;--panel2:#314838;--lime:#b6e36a;--cream:#f4f1dc;--muted:#b9c7b5}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
+#game{position:fixed;inset:0}canvas{display:block}
+.hud{position:fixed;z-index:2;top:env(safe-area-inset-top,8px);left:10px;right:10px;display:flex;gap:8px;align-items:flex-start;justify-content:space-between;pointer-events:none}
+.brand,.stat,.panel,.btn{background:rgba(25,43,31,.92);border:1px solid rgba(216,240,189,.18);box-shadow:0 8px 24px #07100955;backdrop-filter:blur(10px)}
+.brand{padding:9px 12px;border-radius:15px;font-weight:900;letter-spacing:.5px}.brand small{display:block;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:1.3px}
+.stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.stat{padding:9px 11px;border-radius:13px;font-size:12px;font-weight:800}
+.bottom{position:fixed;z-index:3;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;justify-content:space-between;align-items:end;gap:10px;pointer-events:none}
+.pad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:43px 43px 43px;gap:4px;pointer-events:auto}
+.btn{border-radius:14px;color:var(--cream);font-weight:800;font-size:17px;min-width:48px;min-height:43px;display:flex;align-items:center;justify-content:center;touch-action:none}
+.btn:active,.btn.active{background:#789b46;color:#102016;transform:scale(.96)}
+.actions{display:flex;gap:7px;pointer-events:auto;align-items:end}.action{min-width:63px;min-height:58px;flex-direction:column;font-size:11px;gap:3px}.action b{font-size:20px}
+#codeToggle{pointer-events:auto;min-height:50px;padding:0 13px;background:#b6e36a;color:#17251c;border:0}
+.panel{position:fixed;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 22px));max-height:min(80vh,680px);overflow:auto;border-radius:20px;padding:15px;display:none;touch-action:pan-y}
+.panel.show{display:block}.panelHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.panel h2{margin:0;font-size:19px}.muted{color:var(--muted);font-size:12px;line-height:1.45}
+textarea{width:100%;height:190px;resize:vertical;background:#101b14;color:#dff4c5;border:1px solid #526b50;border-radius:12px;padding:12px;font:14px/1.65 ui-monospace,SFMono-Regular,monospace;outline:none}
+.row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.primary{background:var(--lime);color:#17251c;border:0}.secondary{background:#3b5742}
+.row button{padding:12px 15px;border-radius:12px;font-weight:900;font-size:13px}
+#toast{position:fixed;z-index:8;left:50%;top:75px;transform:translateX(-50%);background:#15271b;border:1px solid #79975d;padding:10px 15px;border-radius:12px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.legend{position:fixed;z-index:2;left:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);font-size:11px;color:#e2ebd7;background:#1a2d21c9;padding:8px 10px;border-radius:10px;pointer-events:none}
+@media(min-width:700px){.bottom{left:22px;right:22px;bottom:18px}.pad{transform:scale(1.15);transform-origin:bottom left}.action{min-width:76px;min-height:66px}.legend{bottom:120px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div class="hud"><div class="brand">🌱 FARMERBOT <small>3D AUTOMATION FARM</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div></div></div>
+<div class="legend">Подойди к грядке и нажми действие<br>Сначала посади → полей → дождись роста → собери</div>
+<div class="bottom">
+ <div class="pad">
+  <div></div><button class="btn" data-move="forward">▲</button><div></div>
+  <button class="btn" data-move="left">◀</button><button class="btn" data-move="back">▼</button><button class="btn" data-move="right">▶</button>
+  <div></div><div></div><div></div>
+ </div>
+ <div class="actions">
+  <button class="btn action" id="act"><b>✋</b>ДЕЙСТВИЕ</button>
+  <button class="btn action" id="shop"><b>🛒</b>МАГАЗИН</button>
+  <button class="btn" id="codeToggle">⌘ КОД</button>
+ </div>
+</div>
+<div id="toast"></div>
+<div class="panel" id="codePanel">
+ <div class="panelHead"><h2>⌘ Программа робота</h2><button class="btn" id="closeCode">✕</button></div>
+ <p class="muted">Пиши команды по одной на строку. Робот выполнит их по порядку. Команды работают относительно направления робота.</p>
+ <textarea id="code" spellcheck="false">MOVE 1
+PLANT
+MOVE 1
+WATER
+WAIT 5
+MOVE 1
+HARVEST</textarea>
+ <div class="row"><button class="primary" id="run">▶ ЗАПУСТИТЬ</button><button class="secondary" id="stop">■ СТОП</button><button class="secondary" id="example">ПРИМЕР</button></div>
+ <p class="muted">MOVE 1 · TURN LEFT · TURN RIGHT · PLANT · WATER · HARVEST · WAIT 3</p>
+</div>
+<div class="panel" id="shopPanel">
+ <div class="panelHead"><h2>🛒 Лавка фермера</h2><button class="btn" id="closeShop">✕</button></div>
+ <p class="muted">Урожай можно обменять на монеты. Купи запас воды для следующих грядок.</p>
+ <div class="row"><button class="primary" id="sell">ПРОДАТЬ УРОЖАЙ (+5 🪙 за штуку)</button><button class="secondary" id="buyWater">КУПИТЬ ВОДУ (3 🪙)</button></div>
+ <p id="shopInfo" class="muted"></p>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+const root=document.querySelector('#game');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bc7c2); scene.fog=new THREE.Fog(0x9bc7c2,22,48);
+const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,100); camera.position.set(8,11,12);
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.8)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xe6f6ff,0x52613b,2));
+const sun=new THREE.DirectionalLight(0xfff2cf,2.4);sun.position.set(-6,12,7);sun.castShadow=true;scene.add(sun);
+const mat=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+const grass=mat(0x65934e),soil=mat(0x805337),soilDark=mat(0x55351f),leaf=mat(0x4f9c42),gold=mat(0xf2b93b),metal=mat(0xced9d0,.35),blue=mat(0x3989a8,.35),dark=mat(0x20313a),white=mat(0xf2f1dc);
+function box(parent,w,h,d,m,x,y,z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
+const ground=box(scene,38,.4,38,grass,0,-.3,0);
+const grid=new THREE.GridHelper(38,38,0x426d3b,0x5b854c);grid.position.y=-.09;scene.add(grid);
+// distant hills / trees
+for(let i=0;i<22;i++){let a=i*Math.PI*2/22;let x=Math.cos(a)*15,z=Math.sin(a)*15;if(Math.abs(x)<8&&Math.abs(z)<8)continue;
+let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.17,1,7),mat(0x65452b));trunk.position.set(x,.35,z);scene.add(trunk);
+let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,1),mat(i%2?0x397348:0x4e8950));crown.position.set(x,1.25,z);crown.castShadow=true;scene.add(crown);}
+const plots=[];
+for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++){
+ let g=new THREE.Group();g.position.set(x*2.4,0,z*2.4);scene.add(g);
+ box(g,1.65,.22,1.65,soil,0,.12,0);
+ for(let j=-1;j<=1;j++){box(g,1.5,.035,.035,soilDark,0,.25,j*.42);}
+ const crop=new THREE.Group();crop.position.y=.26;g.add(crop);
+ const plot={g,crop,state:'empty',watered:false,growth:0};plots.push(plot);
+}
+function makeCrop(plot){
+ plot.crop.clear();
+ if(plot.state==='empty')return;
+ const h=plot.state==='seed'?.18:plot.state==='growing'?.55: .9;
+ const stem=new THREE.Mesh(new THREE.CylinderGeometry(.045,.07,h,7),leaf);stem.position.y=h/2;stem.castShadow=true;plot.crop.add(stem);
+ for(let k=0;k<3;k++){let l=new THREE.Mesh(new THREE.SphereGeometry(.16,8,6),leaf);l.scale.set(1.3,.55,.7);l.position.set(Math.sin(k*2.1)*.17,h*(.4+k*.16),Math.cos(k*2.1)*.14);plot.crop.add(l);}
+ if(plot.state==='ready'){let fruit=new THREE.Mesh(new THREE.SphereGeometry(.22,12,10),gold);fruit.position.set(0,h+.13,0);fruit.castShadow=true;plot.crop.add(fruit);}
+}
+function setState(p,s){p.state=s;makeCrop(p);}
+const robot=new THREE.Group();scene.add(robot);
+const body=box(robot,.72,.65,.62,blue,0,.78,0);body.material=blue;
+box(robot,.57,.32,.53,metal,0,1.22,0);
+const head=new THREE.Group();head.position.set(0,1.55,.08);robot.add(head);
+box(head,.66,.48,.5,metal,0,0,0);
+box(head,.43,.13,.08,dark,0,.02,.27);
+for(let x of [-.13,.13]){let eye=new THREE.Mesh(new THREE.SphereGeometry(.055,10,8),mat(0x8ce8fa,.2));eye.position.set(x,.03,.325);head.add(eye);}
+box(robot,.13,.35,.13,dark,-.24,.28,-.05);box(robot,.13,.35,.13,dark,.24,.28,-.05);
+for(let x of [-.28,.28]){let arm=box(robot,.16,.48,.18,metal,x,.78,.0);arm.rotation.z=x<0?-.18:.18;}
+let antenna= new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.27,8),dark);antenna.position.set(0,1.95,0);robot.add(antenna);
+let bulb=new THREE.Mesh(new THREE.SphereGeometry(.09,12,8),gold);bulb.position.set(0,2.1,0);robot.add(bulb);
+robot.position.set(0,0,7);
+let coins=0,harvest=0,water=5,keys={},running=false,stopRun=false;
+const $=s=>document.querySelector(s);
+function stats(){$('#coins').textContent=coins;$('#harvest').textContent=harvest;$('#water').textContent=water;}
+let toastTimer;function toast(t){let el=$('#toast');el.textContent=t;el.style.opacity=1;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.style.opacity=0,1800);}
+function nearest(){let best=null,bd=2.25;for(let p of plots){let d=Math.hypot(p.g.position.x-robot.position.x,p.g.position.z-robot.position.z);if(d<bd){bd=d;best=p;}}return best;}
+function interact(){let p=nearest();if(!p){toast('Подойди ближе к грядке');return;}
+ if(p.state==='empty'){setState(p,'seed');toast('🌱 Семена посажены');}
+ else if(p.state==='seed'||(p.state==='growing'&&!p.watered)){if(water<=0){toast('Нет воды! Купи её в магазине');return;}water--;p.watered=true;setState(p,'growing');toast('💧 Грядка полита');stats();}
+ else if(p.state==='ready'){setState(p,'empty');harvest++;coins+=1;toast('🥕 Урожай собран! +1 монета');stats();}
+ else toast('Растение растёт — подожди немного');
+}
+$('#act').addEventListener('pointerdown',e=>{e.preventDefault();interact();});
+$('#shop').onclick=()=>$('#shopPanel').classList.add('show');$('#closeShop').onclick=()=>$('#shopPanel').classList.remove('show');
+$('#sell').onclick=()=>{if(!harvest){toast('Пока нечего продавать');return;}coins+=harvest*5;toast('Продано! +'+harvest*5+' монет');harvest=0;stats();};
+$('#buyWater').onclick=()=>{if(coins<3){toast('Нужно 3 монеты');return;}coins-=3;water+=5;stats();toast('+5 единиц воды');};
+$('#shopInfo').textContent='Продажа урожая даёт монеты. За 3 монеты покупаешь 5 единиц воды.';
+$('#codeToggle').onclick=()=>$('#codePanel').classList.add('show');$('#closeCode').onclick=()=>$('#codePanel').classList.remove('show');
+$('#example').onclick=()=>$('#code').value='MOVE 1\\nPLANT\\nTURN RIGHT\\nMOVE 1\\nWATER\\nWAIT 5\\nTURN LEFT\\nMOVE 1\\nHARVEST';
+const moveBtns=[...document.querySelectorAll('[data-move]')];
+moveBtns.forEach(b=>{let k=b.dataset.move;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;b.classList.add('active');b.setPointerCapture(e.pointerId);});['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>{keys[k]=false;b.classList.remove('active');}));});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function command(line){let [op,arg]=line.trim().toUpperCase().split(/\s+/);let n=Math.max(1,Math.min(5,parseInt(arg)||1));
+ if(op==='WAIT'){await sleep(Math.min(n,10)*1000);return;}
+ if(op==='TURN'){robot.rotation.y+=(arg==='LEFT'?1:-1)*Math.PI/2;await sleep(350);return;}
+ if(op==='MOVE'){for(let i=0;i<n;i++){let dir=new THREE.Vector3(Math.sin(robot.rotation.y),0,Math.cos(robot.rotation.y));let dest=robot.position.clone().add(dir.multiplyScalar(1.15));dest.x=THREE.MathUtils.clamp(dest.x,-10,10);dest.z=THREE.MathUtils.clamp(dest.z,-10,10);await animateTo(dest); }return;}
+ if(op==='PLANT'){let p=nearest();if(p&&p.state==='empty'){setState(p,'seed');toast('Программа: посадка');}else toast('Программа: нет пустой грядки');}
+ if(op==='WATER'){let p=nearest();if(p&&(p.state==='seed'||p.state==='growing')&&water>0){water--;p.watered=true;setState(p,'growing');stats();toast('Программа: полив');}else toast('Программа: полить не удалось');}
+ if(op==='HARVEST'){let p=nearest();if(p&&p.state==='ready'){setState(p,'empty');harvest++;coins++;stats();toast('Программа: урожай собран');}else toast('Программа: урожай не готов');}
+ await sleep(450);
+}
+function animateTo(dest){return new Promise(resolve=>{let start=robot.position.clone(),t=0;let tick=()=>{t+=.035;robot.position.lerpVectors(start,dest,Math.min(1,t));if(t<1&&running)requestAnimationFrame(tick);else resolve();};tick();});}
+$('#run').onclick=async()=>{if(running)return;running=true;stopRun=false;$('#run').textContent='⏳ РАБОТАЕТ';let lines=$('#code').value.split('\n');for(let l of lines){if(stopRun)break;if(!l.trim()||l.trim().startsWith('#'))continue;await command(l);}running=false;$('#run').textContent='▶ ЗАПУСТИТЬ';toast(stopRun?'Программа остановлена':'Программа завершена');};
+$('#stop').onclick=()=>{stopRun=true;running=false;};
+const clock=new THREE.Clock();
+function update(dt){
+ let v=new THREE.Vector3((keys.right?1:0)-(keys.left?1:0),0,(keys.back?1:0)-(keys.forward?1:0));
+ if(v.lengthSq()>0){v.normalize();robot.position.add(v.multiplyScalar(dt*4));robot.position.x=THREE.MathUtils.clamp(robot.position.x,-11,11);robot.position.z=THREE.MathUtils.clamp(robot.position.z,-11,11);robot.rotation.y=Math.atan2(v.x,v.z);}
+ for(let p of plots){if(p.state==='growing'&&p.watered){p.growth+=dt;if(p.growth>9){setState(p,'ready');toast('✨ Урожай созрел!');}}}
+}
+function frame(){requestAnimationFrame(frame);let dt=Math.min(clock.getDelta(),.04);update(dt);
+ let target=new THREE.Vector3(robot.position.x+7,robot.position.y+9,robot.position.z+9);
+ camera.position.lerp(target,.055);camera.lookAt(robot.position.x,0,robot.position.z);
+ renderer.render(scene,camera);}
+frame();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body></html>
