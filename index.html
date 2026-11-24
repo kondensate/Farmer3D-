@@ -100,17 +100,21 @@ function makeCrop(plot){
 }
 function setState(p,s){p.state=s;makeCrop(p);}
 const robot=new THREE.Group();scene.add(robot);
-const body=box(robot,.72,.65,.62,blue,0,.78,0);body.material=blue;
-box(robot,.57,.32,.53,metal,0,1.22,0);
-const head=new THREE.Group();head.position.set(0,1.55,.08);robot.add(head);
+const bodyPivot=new THREE.Group();bodyPivot.position.y=.78;robot.add(bodyPivot);
+const body=box(bodyPivot,.72,.65,.62,blue,0,0,0);body.material=blue;
+box(bodyPivot,.57,.32,.53,metal,0,.44,0);
+const head=new THREE.Group();head.position.set(0,.77,.08);bodyPivot.add(head);
 box(head,.66,.48,.5,metal,0,0,0);
 box(head,.43,.13,.08,dark,0,.02,.27);
 for(let x of [-.13,.13]){let eye=new THREE.Mesh(new THREE.SphereGeometry(.055,10,8),mat(0x8ce8fa,.2));eye.position.set(x,.03,.325);head.add(eye);}
-box(robot,.13,.35,.13,dark,-.24,.28,-.05);box(robot,.13,.35,.13,dark,.24,.28,-.05);
-for(let x of [-.28,.28]){let arm=box(robot,.16,.48,.18,metal,x,.78,.0);arm.rotation.z=x<0?-.18:.18;}
-let antenna= new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.27,8),dark);antenna.position.set(0,1.95,0);robot.add(antenna);
-let bulb=new THREE.Mesh(new THREE.SphereGeometry(.09,12,8),gold);bulb.position.set(0,2.1,0);robot.add(bulb);
+const arms=[];
+for(let x of [-.43,.43]){let pivot=new THREE.Group();pivot.position.set(x,.2,0);bodyPivot.add(pivot);let arm=box(pivot,.16,.48,.18,metal,0,-.2,0);arm.position.y=-.18;arms.push(pivot);}
+const legs=[];
+for(let x of [-.22,.22]){let pivot=new THREE.Group();pivot.position.set(x,-.27,0);robot.add(pivot);box(pivot,.19,.42,.22,dark,0,-.2,0);box(pivot,.25,.11,.34,metal,0,-.4,.07);legs.push(pivot);}
+let antenna= new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.27,8),dark);antenna.position.set(0,.42,0);head.add(antenna);
+let bulb=new THREE.Mesh(new THREE.SphereGeometry(.09,12,8),gold);bulb.position.set(0,.57,0);head.add(bulb);
 robot.position.set(0,0,7);
+let robotMoving=false,robotAction=0,robotAnimTime=0;
 let coins=0,harvest=0,water=5,keys={},running=false,stopRun=false;
 const $=s=>document.querySelector(s);
 function stats(){$('#coins').textContent=coins;$('#harvest').textContent=harvest;$('#water').textContent=water;}
@@ -122,7 +126,7 @@ function loadProgram(){const p=localStorage.getItem(PROGRAM_KEY);if(p!==null){$(
 
 let toastTimer;function toast(t){let el=$('#toast');el.textContent=t;el.style.opacity=1;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.style.opacity=0,1800);}
 function nearest(){let best=null,bd=2.25;for(let p of plots){let d=Math.hypot(p.g.position.x-robot.position.x,p.g.position.z-robot.position.z);if(d<bd){bd=d;best=p;}}return best;}
-function interact(){let p=nearest();if(!p){toast('Подойди ближе к грядке');return;}
+function interact(){robotAction=1;let p=nearest();if(!p){toast('Подойди ближе к грядке');return;}
  if(p.state==='empty'){setState(p,'seed');toast('🌱 Семена посажены');}
  else if(p.state==='seed'||(p.state==='growing'&&!p.watered)){if(water<=0){toast('Нет воды! Купи её в магазине');return;}water--;p.watered=true;setState(p,'growing');toast('💧 Грядка полита');stats();}
  else if(p.state==='ready'){setState(p,'empty');harvest++;coins+=1;toast('🥕 Урожай собран! +1 монета');stats();}
@@ -141,21 +145,32 @@ moveBtns.forEach(b=>{let k=b.dataset.move;b.addEventListener('pointerdown',e=>{e
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function command(line){let [op,arg]=line.trim().toUpperCase().split(/\s+/);let n=Math.max(1,Math.min(5,parseInt(arg)||1));const valid=['MOVE','TURN','PLANT','WATER','HARVEST','WAIT'];if(!valid.includes(op)){toast('Неизвестная команда: '+op);return;}if(op==='TURN'&&!['LEFT','RIGHT'].includes(arg)){toast('TURN: LEFT или RIGHT');return;}
  if(op==='WAIT'){await sleep(Math.min(n,10)*1000);return;}
- if(op==='TURN'){robot.rotation.y+=(arg==='LEFT'?1:-1)*Math.PI/2;await sleep(350);return;}
+ if(op==='TURN'){robot.rotation.y+=(arg==='LEFT'?1:-1)*Math.PI/2;robotAction=1;await sleep(350);return;}
  if(op==='MOVE'){for(let i=0;i<n;i++){let dir=new THREE.Vector3(Math.sin(robot.rotation.y),0,Math.cos(robot.rotation.y));let dest=robot.position.clone().add(dir.multiplyScalar(1.15));dest.x=THREE.MathUtils.clamp(dest.x,-10,10);dest.z=THREE.MathUtils.clamp(dest.z,-10,10);await animateTo(dest); }return;}
- if(op==='PLANT'){let p=nearest();if(p&&p.state==='empty'){setState(p,'seed');toast('Программа: посадка');}else toast('Программа: нет пустой грядки');}
- if(op==='WATER'){let p=nearest();if(p&&(p.state==='seed'||p.state==='growing')&&water>0){water--;p.watered=true;setState(p,'growing');stats();toast('Программа: полив');}else toast('Программа: полить не удалось');}
- if(op==='HARVEST'){let p=nearest();if(p&&p.state==='ready'){setState(p,'empty');harvest++;coins++;stats();toast('Программа: урожай собран');}else toast('Программа: урожай не готов');}
+ if(op==='PLANT'){robotAction=1;let p=nearest();if(p&&p.state==='empty'){setState(p,'seed');toast('Программа: посадка');}else toast('Программа: нет пустой грядки');}
+ if(op==='WATER'){robotAction=1;let p=nearest();if(p&&(p.state==='seed'||p.state==='growing')&&water>0){water--;p.watered=true;setState(p,'growing');stats();toast('Программа: полив');}else toast('Программа: полить не удалось');}
+ if(op==='HARVEST'){robotAction=1;let p=nearest();if(p&&p.state==='ready'){setState(p,'empty');harvest++;coins++;stats();toast('Программа: урожай собран');}else toast('Программа: урожай не готов');}
  await sleep(450);saveGame();
 }
-function animateTo(dest){return new Promise(resolve=>{let start=robot.position.clone(),t=0;let tick=()=>{t+=.035;robot.position.lerpVectors(start,dest,Math.min(1,t));if(t<1&&running)requestAnimationFrame(tick);else resolve();};tick();});}
+function animateTo(dest){return new Promise(resolve=>{robotMoving=true;let start=robot.position.clone(),t=0;let tick=()=>{t+=.035;robot.position.lerpVectors(start,dest,Math.min(1,t));if(t<1&&running)requestAnimationFrame(tick);else{robotMoving=false;resolve();}};tick();});}
 $('#run').onclick=async()=>{if(running)return;running=true;stopRun=false;$('#run').textContent='⏳ РАБОТАЕТ';let lines=$('#code').value.split('\n');for(let l of lines){if(stopRun)break;if(!l.trim()||l.trim().startsWith('#'))continue;await command(l);}running=false;$('#run').textContent='▶ ЗАПУСТИТЬ';toast(stopRun?'Программа остановлена':'Программа завершена');};
 $('#stop').onclick=()=>{stopRun=true;running=false;saveGame();};
 loadGame();loadProgram();
 const clock=new THREE.Clock();
 function update(dt){
+ robotAnimTime+=dt;
+ const moving=robotMoving||keys.right||keys.left||keys.back||keys.forward;
+ const walk=robotAnimTime*10;
+ bodyPivot.position.y=.78+(moving?Math.abs(Math.sin(walk))*.055:Math.sin(robotAnimTime*2.1)*.018);
+ bodyPivot.rotation.z=moving?Math.sin(walk)*.035:Math.sin(robotAnimTime*1.3)*.012;
+ legs.forEach((leg,i)=>{leg.rotation.x=moving?Math.sin(walk+i*Math.PI)*.48:Math.sin(robotAnimTime*1.5+i)*.025;});
+ arms.forEach((arm,i)=>{arm.rotation.x=moving?Math.sin(walk+i*Math.PI+Math.PI)*.42:Math.sin(robotAnimTime*1.7+i)*.035;arm.rotation.z=(i===0?-.12:.12)+(robotAction>0?(i===0?-.55:.55)*Math.sin(robotAction*Math.PI):0);});
+ head.rotation.y=Math.sin(robotAnimTime*.9)*.12;
+ head.rotation.x=Math.sin(robotAnimTime*1.4)*.025;
+ bulb.scale.setScalar(1+Math.sin(robotAnimTime*4)*.12);
+ robotAction=Math.max(0,robotAction-dt*1.5);
  let v=new THREE.Vector3((keys.right?1:0)-(keys.left?1:0),0,(keys.back?1:0)-(keys.forward?1:0));
- if(v.lengthSq()>0){v.normalize();robot.position.add(v.multiplyScalar(dt*4));robot.position.x=THREE.MathUtils.clamp(robot.position.x,-11,11);robot.position.z=THREE.MathUtils.clamp(robot.position.z,-11,11);robot.rotation.y=Math.atan2(v.x,v.z);}
+ robotMoving=v.lengthSq()>0;if(v.lengthSq()>0){v.normalize();robot.position.add(v.multiplyScalar(dt*4));robot.position.x=THREE.MathUtils.clamp(robot.position.x,-11,11);robot.position.z=THREE.MathUtils.clamp(robot.position.z,-11,11);robot.rotation.y=Math.atan2(v.x,v.z);}
  for(let p of plots){if(p.state==='growing'&&p.watered){p.growth+=dt;if(p.growth>9){setState(p,'ready');toast('✨ Урожай созрел!');saveGame();}}}
 }
 let saveAccumulator=0;function frame(){requestAnimationFrame(frame);let dt=Math.min(clock.getDelta(),.04);update(dt);saveAccumulator+=dt;if(saveAccumulator>5){saveAccumulator=0;saveGame();}
