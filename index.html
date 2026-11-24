@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#17251c">
-<title>FarmerBot 3D</title>
+<title>FarmerBot 3D — v4</title>
 <style>
 :root{--bg:#17251c;--panel:#24372b;--panel2:#314838;--lime:#b6e36a;--cream:#f4f1dc;--muted:#b9c7b5}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
@@ -31,7 +31,7 @@
 <body>
 <div id="game"></div>
 <div class="hud"><div class="brand">🌱 FARMERBOT <small>3D AUTOMATION FARM</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div></div></div>
-<div class="legend">Подойди к грядке и нажми действие<br>Сначала посади → полей → дождись роста → собери</div>
+<div class="legend">Нажимай стрелки: одно нажатие = один шаг на клетку<br>Подойди к грядке и нажми ДЕЙСТВИЕ: посади → полей → собери</div>
 <div class="bottom">
  <div class="pad">
   <div></div><button class="btn" data-move="forward">▲</button><div></div>
@@ -140,8 +140,34 @@ $('#shopInfo').textContent='Продажа урожая даёт монеты. �
 $('#codeToggle').onclick=()=>$('#codePanel').classList.add('show');$('#closeCode').onclick=()=>$('#codePanel').classList.remove('show');
 $('#saveProgram').onclick=saveProgram;$('#loadProgram').onclick=loadProgram;
 $('#example').onclick=()=>$('#code').value='MOVE 1\\nPLANT\\nTURN RIGHT\\nMOVE 1\\nWATER\\nWAIT 5\\nTURN LEFT\\nMOVE 1\\nHARVEST';
+// Каждое нажатие стрелки перемещает робота ровно на одну клетку.
+let manualMoveBusy=false;
 const moveBtns=[...document.querySelectorAll('[data-move]')];
-moveBtns.forEach(b=>{let k=b.dataset.move;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;b.classList.add('active');b.setPointerCapture(e.pointerId);});['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>{keys[k]=false;b.classList.remove('active');}));});
+async function moveOneTile(direction,button){
+ if(manualMoveBusy || running) return;
+ manualMoveBusy=true;
+ button.classList.add('active');
+ const step=1.15;
+ const vectors={forward:[0,-1],back:[0,1],left:[-1,0],right:[1,0]};
+ const [dx,dz]=vectors[direction];
+ const dest=robot.position.clone().add(new THREE.Vector3(dx*step,0,dz*step));
+ dest.x=THREE.MathUtils.clamp(dest.x,-11,11);
+ dest.z=THREE.MathUtils.clamp(dest.z,-11,11);
+ robot.rotation.y=Math.atan2(dx,dz);
+ await animateTo(dest);
+ saveGame();
+ button.classList.remove('active');
+ manualMoveBusy=false;
+}
+moveBtns.forEach(b=>{
+ b.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(b.dataset.pressed==='1')return;
+  b.dataset.pressed='1';
+  moveOneTile(b.dataset.move,b);
+ });
+ ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>{b.dataset.pressed='0';}));
+});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function command(line){let [op,arg]=line.trim().toUpperCase().split(/\s+/);let n=Math.max(1,Math.min(5,parseInt(arg)||1));const valid=['MOVE','TURN','PLANT','WATER','HARVEST','WAIT'];if(!valid.includes(op)){toast('Неизвестная команда: '+op);return;}if(op==='TURN'&&!['LEFT','RIGHT'].includes(arg)){toast('TURN: LEFT или RIGHT');return;}
  if(op==='WAIT'){await sleep(Math.min(n,10)*1000);return;}
@@ -152,7 +178,7 @@ async function command(line){let [op,arg]=line.trim().toUpperCase().split(/\s+/)
  if(op==='HARVEST'){robotAction=1;let p=nearest();if(p&&p.state==='ready'){setState(p,'empty');harvest++;coins++;stats();toast('Программа: урожай собран');}else toast('Программа: урожай не готов');}
  await sleep(450);saveGame();
 }
-function animateTo(dest){return new Promise(resolve=>{robotMoving=true;let start=robot.position.clone(),t=0;let tick=()=>{t+=.035;robot.position.lerpVectors(start,dest,Math.min(1,t));if(t<1&&running)requestAnimationFrame(tick);else{robotMoving=false;resolve();}};tick();});}
+function animateTo(dest){return new Promise(resolve=>{robotMoving=true;let start=robot.position.clone(),t=0;let tick=()=>{t+=.055;robot.position.lerpVectors(start,dest,Math.min(1,t));if(t<1)requestAnimationFrame(tick);else{robotMoving=false;resolve();}};tick();});}
 $('#run').onclick=async()=>{if(running)return;running=true;stopRun=false;$('#run').textContent='⏳ РАБОТАЕТ';let lines=$('#code').value.split('\n');for(let l of lines){if(stopRun)break;if(!l.trim()||l.trim().startsWith('#'))continue;await command(l);}running=false;$('#run').textContent='▶ ЗАПУСТИТЬ';toast(stopRun?'Программа остановлена':'Программа завершена');};
 $('#stop').onclick=()=>{stopRun=true;running=false;saveGame();};
 loadGame();loadProgram();
@@ -169,7 +195,7 @@ function update(dt){
  head.rotation.x=Math.sin(robotAnimTime*1.4)*.025;
  bulb.scale.setScalar(1+Math.sin(robotAnimTime*4)*.12);
  robotAction=Math.max(0,robotAction-dt*1.5);
- let v=new THREE.Vector3((keys.right?1:0)-(keys.left?1:0),0,(keys.back?1:0)-(keys.forward?1:0));
+ let v=new THREE.Vector3(0,0,0);
  robotMoving=v.lengthSq()>0;if(v.lengthSq()>0){v.normalize();robot.position.add(v.multiplyScalar(dt*4));robot.position.x=THREE.MathUtils.clamp(robot.position.x,-11,11);robot.position.z=THREE.MathUtils.clamp(robot.position.z,-11,11);robot.rotation.y=Math.atan2(v.x,v.z);}
  for(let p of plots){if(p.state==='growing'&&p.watered){p.growth+=dt;if(p.growth>9){setState(p,'ready');toast('✨ Урожай созрел!');saveGame();}}}
 }
