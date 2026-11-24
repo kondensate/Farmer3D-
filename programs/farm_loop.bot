@@ -1,1 +1,23 @@
+# Пример функций, переменных и циклов
+def take_care_of_plot():
+    if can_plant():
+        plant()
+    elif can_water():
+        water()
+    elif can_harvest():
+        harvest()
+    else:
+        print("Грядка пока не требует действий")
 
+# Подойти к грядке и выполнить цикл ухода
+turn_right()
+turn_right()
+
+for step in range(3):
+    if front_is_clear():
+        move(1)
+    take_care_of_plot()
+
+print("Монеты:", get_coins())
+print("Урожай:", get_harvest())
+print("Вода:", get_water())
