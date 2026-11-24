@@ -20,7 +20,7 @@
 #codeToggle{pointer-events:auto;min-height:50px;padding:0 13px;background:#b6e36a;color:#17251c;border:0}
 .panel{position:fixed;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 22px));max-height:min(80vh,680px);overflow:auto;border-radius:20px;padding:15px;display:none;touch-action:pan-y}
 .panel.show{display:block}.panelHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.panel h2{margin:0;font-size:19px}.muted{color:var(--muted);font-size:12px;line-height:1.45}
-textarea{width:100%;height:190px;resize:vertical;background:#101b14;color:#dff4c5;border:1px solid #526b50;border-radius:12px;padding:12px;font:14px/1.65 ui-monospace,SFMono-Regular,monospace;outline:none}
+.editorTools{display:flex;gap:7px;align-items:center;justify-content:space-between;margin:7px 0;color:var(--muted);font-size:11px}.editorTools button{border:1px solid #526b50;background:#314838;color:var(--cream);padding:7px 10px;border-radius:9px;font-weight:800}#codeStatus{color:#b6e36a;font-weight:800}textarea{width:100%;height:190px;resize:vertical;background:#101b14;color:#dff4c5;border:1px solid #526b50;border-radius:12px;padding:12px;font:14px/1.65 ui-monospace,SFMono-Regular,monospace;outline:none}
 .row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.primary{background:var(--lime);color:#17251c;border:0}.secondary{background:#3b5742}
 .row button{padding:12px 15px;border-radius:12px;font-weight:900;font-size:13px}
 #toast{position:fixed;z-index:8;left:50%;top:75px;transform:translateX(-50%);background:#15271b;border:1px solid #79975d;padding:10px 15px;border-radius:12px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
@@ -48,6 +48,7 @@ textarea{width:100%;height:190px;resize:vertical;background:#101b14;color:#dff4c
 <div class="panel" id="codePanel">
  <div class="panelHead"><h2>⌘ Программа робота</h2><button class="btn" id="closeCode">✕</button></div>
  <p class="muted">Пиши команды по одной на строку. Робот выполнит их по порядку. Команды работают относительно направления робота.</p>
+ <div class="editorTools"><span>Редактор команд · <span id="codeStatus">готов</span></span><div><button id="saveProgram">СОХРАНИТЬ КОД</button> <button id="loadProgram">ЗАГРУЗИТЬ</button></div></div>
  <textarea id="code" spellcheck="false">MOVE 1
 PLANT
 MOVE 1
@@ -56,7 +57,7 @@ WAIT 5
 MOVE 1
 HARVEST</textarea>
  <div class="row"><button class="primary" id="run">▶ ЗАПУСТИТЬ</button><button class="secondary" id="stop">■ СТОП</button><button class="secondary" id="example">ПРИМЕР</button></div>
- <p class="muted">MOVE 1 · TURN LEFT · TURN RIGHT · PLANT · WATER · HARVEST · WAIT 3</p>
+ <p class="muted">Команды: MOVE 1 · TURN LEFT · TURN RIGHT · PLANT · WATER · HARVEST · WAIT 3<br>Комментарии начинаются с #. Код и прогресс фермы сохраняются на этом устройстве.</p>
 </div>
 <div class="panel" id="shopPanel">
  <div class="panelHead"><h2>🛒 Лавка фермера</h2><button class="btn" id="closeShop">✕</button></div>
@@ -113,6 +114,12 @@ robot.position.set(0,0,7);
 let coins=0,harvest=0,water=5,keys={},running=false,stopRun=false;
 const $=s=>document.querySelector(s);
 function stats(){$('#coins').textContent=coins;$('#harvest').textContent=harvest;$('#water').textContent=water;}
+const SAVE_KEY='farmerbot3d_save_v2', PROGRAM_KEY='farmerbot3d_program_v2';
+function saveGame(){const data={coins,harvest,water,robot:{x:robot.position.x,z:robot.position.z,rotation:robot.rotation.y},plots:plots.map(p=>({state:p.state,watered:p.watered,growth:p.growth}))};try{localStorage.setItem(SAVE_KEY,JSON.stringify(data));}catch(e){console.warn('Не удалось сохранить игру',e);}}
+function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return;const d=JSON.parse(raw);coins=Number(d.coins)||0;harvest=Number(d.harvest)||0;water=Number.isFinite(d.water)?d.water:5;if(d.robot){robot.position.set(Number(d.robot.x)||0,0,Number(d.robot.z)||7);robot.rotation.y=Number(d.robot.rotation)||0;}if(Array.isArray(d.plots))d.plots.forEach((v,i)=>{if(!plots[i])return;plots[i].watered=!!v.watered;plots[i].growth=Number(v.growth)||0;setState(plots[i],['empty','seed','growing','ready'].includes(v.state)?v.state:'empty');});stats();}catch(e){console.warn('Ошибка загрузки сохранения',e);}}
+function saveProgram(){try{localStorage.setItem(PROGRAM_KEY,$('#code').value);$('#codeStatus').textContent='сохранено';toast('Код сохранён на устройстве');}catch(e){toast('Не удалось сохранить код');}}
+function loadProgram(){const p=localStorage.getItem(PROGRAM_KEY);if(p!==null){$('#code').value=p;$('#codeStatus').textContent='загружен';}}
+
 let toastTimer;function toast(t){let el=$('#toast');el.textContent=t;el.style.opacity=1;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.style.opacity=0,1800);}
 function nearest(){let best=null,bd=2.25;for(let p of plots){let d=Math.hypot(p.g.position.x-robot.position.x,p.g.position.z-robot.position.z);if(d<bd){bd=d;best=p;}}return best;}
 function interact(){let p=nearest();if(!p){toast('Подойди ближе к грядке');return;}
@@ -127,33 +134,36 @@ $('#sell').onclick=()=>{if(!harvest){toast('Пока нечего продава
 $('#buyWater').onclick=()=>{if(coins<3){toast('Нужно 3 монеты');return;}coins-=3;water+=5;stats();toast('+5 единиц воды');};
 $('#shopInfo').textContent='Продажа урожая даёт монеты. За 3 монеты покупаешь 5 единиц воды.';
 $('#codeToggle').onclick=()=>$('#codePanel').classList.add('show');$('#closeCode').onclick=()=>$('#codePanel').classList.remove('show');
+$('#saveProgram').onclick=saveProgram;$('#loadProgram').onclick=loadProgram;
 $('#example').onclick=()=>$('#code').value='MOVE 1\\nPLANT\\nTURN RIGHT\\nMOVE 1\\nWATER\\nWAIT 5\\nTURN LEFT\\nMOVE 1\\nHARVEST';
 const moveBtns=[...document.querySelectorAll('[data-move]')];
 moveBtns.forEach(b=>{let k=b.dataset.move;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;b.classList.add('active');b.setPointerCapture(e.pointerId);});['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>{keys[k]=false;b.classList.remove('active');}));});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function command(line){let [op,arg]=line.trim().toUpperCase().split(/\s+/);let n=Math.max(1,Math.min(5,parseInt(arg)||1));
+async function command(line){let [op,arg]=line.trim().toUpperCase().split(/\s+/);let n=Math.max(1,Math.min(5,parseInt(arg)||1));const valid=['MOVE','TURN','PLANT','WATER','HARVEST','WAIT'];if(!valid.includes(op)){toast('Неизвестная команда: '+op);return;}if(op==='TURN'&&!['LEFT','RIGHT'].includes(arg)){toast('TURN: LEFT или RIGHT');return;}
  if(op==='WAIT'){await sleep(Math.min(n,10)*1000);return;}
  if(op==='TURN'){robot.rotation.y+=(arg==='LEFT'?1:-1)*Math.PI/2;await sleep(350);return;}
  if(op==='MOVE'){for(let i=0;i<n;i++){let dir=new THREE.Vector3(Math.sin(robot.rotation.y),0,Math.cos(robot.rotation.y));let dest=robot.position.clone().add(dir.multiplyScalar(1.15));dest.x=THREE.MathUtils.clamp(dest.x,-10,10);dest.z=THREE.MathUtils.clamp(dest.z,-10,10);await animateTo(dest); }return;}
  if(op==='PLANT'){let p=nearest();if(p&&p.state==='empty'){setState(p,'seed');toast('Программа: посадка');}else toast('Программа: нет пустой грядки');}
  if(op==='WATER'){let p=nearest();if(p&&(p.state==='seed'||p.state==='growing')&&water>0){water--;p.watered=true;setState(p,'growing');stats();toast('Программа: полив');}else toast('Программа: полить не удалось');}
  if(op==='HARVEST'){let p=nearest();if(p&&p.state==='ready'){setState(p,'empty');harvest++;coins++;stats();toast('Программа: урожай собран');}else toast('Программа: урожай не готов');}
- await sleep(450);
+ await sleep(450);saveGame();
 }
 function animateTo(dest){return new Promise(resolve=>{let start=robot.position.clone(),t=0;let tick=()=>{t+=.035;robot.position.lerpVectors(start,dest,Math.min(1,t));if(t<1&&running)requestAnimationFrame(tick);else resolve();};tick();});}
 $('#run').onclick=async()=>{if(running)return;running=true;stopRun=false;$('#run').textContent='⏳ РАБОТАЕТ';let lines=$('#code').value.split('\n');for(let l of lines){if(stopRun)break;if(!l.trim()||l.trim().startsWith('#'))continue;await command(l);}running=false;$('#run').textContent='▶ ЗАПУСТИТЬ';toast(stopRun?'Программа остановлена':'Программа завершена');};
-$('#stop').onclick=()=>{stopRun=true;running=false;};
+$('#stop').onclick=()=>{stopRun=true;running=false;saveGame();};
+loadGame();loadProgram();
 const clock=new THREE.Clock();
 function update(dt){
  let v=new THREE.Vector3((keys.right?1:0)-(keys.left?1:0),0,(keys.back?1:0)-(keys.forward?1:0));
  if(v.lengthSq()>0){v.normalize();robot.position.add(v.multiplyScalar(dt*4));robot.position.x=THREE.MathUtils.clamp(robot.position.x,-11,11);robot.position.z=THREE.MathUtils.clamp(robot.position.z,-11,11);robot.rotation.y=Math.atan2(v.x,v.z);}
- for(let p of plots){if(p.state==='growing'&&p.watered){p.growth+=dt;if(p.growth>9){setState(p,'ready');toast('✨ Урожай созрел!');}}}
+ for(let p of plots){if(p.state==='growing'&&p.watered){p.growth+=dt;if(p.growth>9){setState(p,'ready');toast('✨ Урожай созрел!');saveGame();}}}
 }
-function frame(){requestAnimationFrame(frame);let dt=Math.min(clock.getDelta(),.04);update(dt);
+let saveAccumulator=0;function frame(){requestAnimationFrame(frame);let dt=Math.min(clock.getDelta(),.04);update(dt);saveAccumulator+=dt;if(saveAccumulator>5){saveAccumulator=0;saveGame();}
  let target=new THREE.Vector3(robot.position.x+7,robot.position.y+9,robot.position.z+9);
  camera.position.lerp(target,.055);camera.lookAt(robot.position.x,0,robot.position.z);
  renderer.render(scene,camera);}
 frame();
+addEventListener('pagehide',saveGame);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveGame();});
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 </script>
 </body></html>
