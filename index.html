@@ -3,23 +3,23 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#17251c">
-<title>FarmerBot 3D — v4</title>
+<title>FarmerBot 3D — Ultimate Edition</title>
 <style>
-:root{--bg:#17251c;--panel:#24372b;--panel2:#314838;--lime:#b6e36a;--cream:#f4f1dc;--muted:#b9c7b5}
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;touch-action:none}
+:root{--bg:#17251c;--panel:#1d3025;--panel2:#294333;--lime:#c4e879;--cream:#f5f0d9;--muted:#bdcbb7;--line:#78936a}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;touch-action:none}
 #game{position:fixed;inset:0}canvas{display:block}
 .hud{position:fixed;z-index:2;top:env(safe-area-inset-top,8px);left:10px;right:10px;display:flex;gap:8px;align-items:flex-start;justify-content:space-between;pointer-events:none}
-.brand,.stat,.panel,.btn{background:rgba(25,43,31,.92);border:1px solid rgba(216,240,189,.18);box-shadow:0 8px 24px #07100955;backdrop-filter:blur(10px)}
+.brand,.stat,.panel,.btn{background:rgba(24,42,30,.96);border:1px solid rgba(196,232,121,.28);box-shadow:0 7px 0 rgba(7,16,9,.28),0 12px 30px #07100955;backdrop-filter:blur(12px)}
 .brand{padding:9px 12px;border-radius:15px;font-weight:900;letter-spacing:.5px}.brand small{display:block;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:1.3px}
 .stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.stat{padding:9px 11px;border-radius:13px;font-size:12px;font-weight:800}
 .bottom{position:fixed;z-index:3;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;justify-content:space-between;align-items:end;gap:10px;pointer-events:none}
 .pad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:43px 43px 43px;gap:4px;pointer-events:auto}
 .btn{border-radius:14px;color:var(--cream);font-weight:800;font-size:17px;min-width:48px;min-height:43px;display:flex;align-items:center;justify-content:center;touch-action:none}
-.btn:active,.btn.active{background:#789b46;color:#102016;transform:scale(.96)}
+.btn{transition:transform .12s ease,background .12s ease,border-color .12s ease;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}.btn:active,.btn.active{background:#c4e879;color:#17251c;transform:translateY(2px) scale(.97);border-color:#e8f8bd}
 .actions{display:flex;gap:7px;pointer-events:auto;align-items:end}.action{min-width:63px;min-height:58px;flex-direction:column;font-size:11px;gap:3px}.action b{font-size:20px}
 #codeToggle{pointer-events:auto;min-height:50px;padding:0 13px;background:#b6e36a;color:#17251c;border:0}
 .panel{position:fixed;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 22px));max-height:min(80vh,680px);overflow:auto;border-radius:20px;padding:15px;display:none;touch-action:pan-y}
-.panel.show{display:block}.panelHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.panel h2{margin:0;font-size:19px}.muted{color:var(--muted);font-size:12px;line-height:1.45}
+.panel.show{display:block;animation:panelIn .18s ease-out}@keyframes panelIn{from{opacity:0;transform:translate(-50%,-47%) scale(.98)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}.panelHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.panel h2{margin:0;font-size:19px}.muted{color:var(--muted);font-size:12px;line-height:1.45}
 .editorTools{display:flex;gap:7px;align-items:center;justify-content:space-between;margin:7px 0;color:var(--muted);font-size:11px}.editorTools button{border:1px solid #526b50;background:#314838;color:var(--cream);padding:7px 10px;border-radius:9px;font-weight:800}#codeStatus{color:#b6e36a;font-weight:800}textarea{width:100%;height:190px;resize:vertical;background:#101b14;color:#dff4c5;border:1px solid #526b50;border-radius:12px;padding:12px;font:14px/1.65 ui-monospace,SFMono-Regular,monospace;outline:none}
 .row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.primary{background:var(--lime);color:#17251c;border:0}.secondary{background:#3b5742}
 .row button{padding:12px 15px;border-radius:12px;font-weight:900;font-size:13px}
@@ -41,7 +41,7 @@
  <div class="actions">
   <button class="btn action" id="act"><b>✋</b>ДЕЙСТВИЕ</button>
   <button class="btn action" id="shop"><b>🛒</b>МАГАЗИН</button>
-  <button class="btn" id="codeToggle">⌘ КОД</button>
+  <button class="btn" id="soundToggle">♫ ЗВУК</button><button class="btn" id="codeToggle">⌘ КОД</button>
  </div>
 </div>
 <div id="toast"></div>
@@ -70,14 +70,21 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 const root=document.querySelector('#game');
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bc7c2); scene.fog=new THREE.Fog(0x9bc7c2,22,48);
 const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,100); camera.position.set(8,11,12);
-const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.8)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; root.appendChild(renderer.domElement);
-scene.add(new THREE.HemisphereLight(0xe6f6ff,0x52613b,2));
-const sun=new THREE.DirectionalLight(0xfff2cf,2.4);sun.position.set(-6,12,7);sun.castShadow=true;scene.add(sun);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.35)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFShadowMap; renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.12; renderer.domElement.style.imageRendering="pixelated"; root.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xe6f6d7,0x52613b,1.65));
+const sun=new THREE.DirectionalLight(0xffedc2,2.0);sun.position.set(-7,14,8);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);sun.shadow.camera.left=-18;sun.shadow.camera.right=18;sun.shadow.camera.top=18;sun.shadow.camera.bottom=-18;sun.shadow.bias=-0.00035;scene.add(sun);
+function pixelTexture(base,accent,seed=1){
+ const c=document.createElement('canvas');c.width=64;c.height=64;const x=c.getContext('2d');x.fillStyle=base;x.fillRect(0,0,64,64);
+ let n=seed;const rnd=()=>{n=(n*1664525+1013904223)>>>0;return n/4294967296;};
+ for(let i=0;i<210;i++){x.fillStyle=accent;x.globalAlpha=.12+rnd()*.32;x.fillRect(Math.floor(rnd()*64),Math.floor(rnd()*64),1+Math.floor(rnd()*4),1+Math.floor(rnd()*3));}
+ x.globalAlpha=1;const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.magFilter=THREE.NearestFilter;t.minFilter=THREE.NearestMipmapNearestFilter;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(7,7);return t;
+}
+const grassTex=pixelTexture('#719b55','#b6c879',12),soilTex=pixelTexture('#80563a','#c18a58',24);
 const mat=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
-const grass=mat(0x65934e),soil=mat(0x805337),soilDark=mat(0x55351f),leaf=mat(0x4f9c42),gold=mat(0xf2b93b),metal=mat(0xced9d0,.35),blue=mat(0x3989a8,.35),dark=mat(0x20313a),white=mat(0xf2f1dc);
+const grass=new THREE.MeshStandardMaterial({map:grassTex,roughness:1}),soil=new THREE.MeshStandardMaterial({map:soilTex,roughness:1}),soilDark=mat(0x563922),leaf=mat(0x5b9a43),gold=mat(0xeebc45),metal=mat(0xd5dfd1,.45),blue=mat(0x397f91,.55),dark=mat(0x20313a),white=mat(0xf2f1dc);
 function box(parent,w,h,d,m,x,y,z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
 const ground=box(scene,38,.4,38,grass,0,-.3,0);
-const grid=new THREE.GridHelper(38,38,0x426d3b,0x5b854c);grid.position.y=-.09;scene.add(grid);
+const grid=new THREE.GridHelper(38,38,0x557b45,0x6f9656);grid.position.y=-.095;grid.material.transparent=true;grid.material.opacity=.28;scene.add(grid);
 // distant hills / trees
 for(let i=0;i<22;i++){let a=i*Math.PI*2/22;let x=Math.cos(a)*15,z=Math.sin(a)*15;if(Math.abs(x)<8&&Math.abs(z)<8)continue;
 let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.17,1,7),mat(0x65452b));trunk.position.set(x,.35,z);scene.add(trunk);
@@ -85,17 +92,24 @@ let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,1),mat(i%2?0x397348:0x
 const plots=[];
 for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++){
  let g=new THREE.Group();g.position.set(x*2.4,0,z*2.4);scene.add(g);
- box(g,1.65,.22,1.65,soil,0,.12,0);
+ box(g,1.72,.24,1.72,soil,0,.12,0);
+ box(g,1.78,.07,1.78,mat(0x5b402b),0,.025,0);
  for(let j=-1;j<=1;j++){box(g,1.5,.035,.035,soilDark,0,.25,j*.42);}
  const crop=new THREE.Group();crop.position.y=.26;g.add(crop);
  const plot={g,crop,state:'empty',watered:false,growth:0};plots.push(plot);
 }
+
+const particleGeo=new THREE.BoxGeometry(.075,.075,.075),particles=[];
+function burst(pos,color=0xf2d36e,count=10){
+ for(let i=0;i<count;i++){const q=new THREE.Mesh(particleGeo,new THREE.MeshBasicMaterial({color}));q.position.copy(pos);q.userData.v=new THREE.Vector3((Math.random()-.5)*2,1+Math.random()*1.8,(Math.random()-.5)*2);q.userData.life=.7+Math.random()*.2;scene.add(q);particles.push(q);}
+}
+
 function makeCrop(plot){
  plot.crop.clear();
  if(plot.state==='empty')return;
  const h=plot.state==='seed'?.18:plot.state==='growing'?.55: .9;
  const stem=new THREE.Mesh(new THREE.CylinderGeometry(.045,.07,h,7),leaf);stem.position.y=h/2;stem.castShadow=true;plot.crop.add(stem);
- for(let k=0;k<3;k++){let l=new THREE.Mesh(new THREE.SphereGeometry(.16,8,6),leaf);l.scale.set(1.3,.55,.7);l.position.set(Math.sin(k*2.1)*.17,h*(.4+k*.16),Math.cos(k*2.1)*.14);plot.crop.add(l);}
+ for(let k=0;k<4;k++){let l=new THREE.Mesh(new THREE.BoxGeometry(.28,.09,.16),leaf);l.rotation.z=(k%2?1:-1)*.42;l.position.set(Math.sin(k*1.7)*.16,h*(.38+k*.12),Math.cos(k*1.7)*.14);plot.crop.add(l);}
  if(plot.state==='ready'){let fruit=new THREE.Mesh(new THREE.SphereGeometry(.22,12,10),gold);fruit.position.set(0,h+.13,0);fruit.castShadow=true;plot.crop.add(fruit);}
 }
 function setState(p,s){p.state=s;makeCrop(p);}
@@ -124,18 +138,23 @@ function loadGame(){try{const raw=localStorage.getItem(SAVE_KEY);if(!raw)return;
 function saveProgram(){try{localStorage.setItem(PROGRAM_KEY,$('#code').value);$('#codeStatus').textContent='сохранено';toast('Код сохранён на устройстве');}catch(e){toast('Не удалось сохранить код');}}
 function loadProgram(){const p=localStorage.getItem(PROGRAM_KEY);if(p!==null){$('#code').value=p;$('#codeStatus').textContent='загружен';}}
 
-let toastTimer;function toast(t){let el=$('#toast');el.textContent=t;el.style.opacity=1;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.style.opacity=0,1800);}
+
+let soundOn=false,audioCtx=null;
+function blip(freq=520,duration=.07,type='sine'){if(!soundOn)return;try{audioCtx ||= new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(.04,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+duration);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+duration);}catch(e){}}
+$('#soundToggle').onclick=()=>{soundOn=!soundOn;$('#soundToggle').textContent=soundOn?'♫ ЗВУК ВКЛ':'♫ ЗВУК';blip(660,.1);};
+
+let toastTimer;function toast(t){blip(560,.055);let el=$('#toast');el.textContent=t;el.style.opacity=1;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.style.opacity=0,1800);}
 function nearest(){let best=null,bd=2.25;for(let p of plots){let d=Math.hypot(p.g.position.x-robot.position.x,p.g.position.z-robot.position.z);if(d<bd){bd=d;best=p;}}return best;}
 function interact(){robotAction=1;let p=nearest();if(!p){toast('Подойди ближе к грядке');return;}
- if(p.state==='empty'){setState(p,'seed');toast('🌱 Семена посажены');}
+ if(p.state==='empty'){setState(p,'seed');burst(p.g.position.clone().add(new THREE.Vector3(0,.55,0)),0x9bcf65,8);toast('🌱 Семена посажены');}
  else if(p.state==='seed'||(p.state==='growing'&&!p.watered)){if(water<=0){toast('Нет воды! Купи её в магазине');return;}water--;p.watered=true;setState(p,'growing');toast('💧 Грядка полита');stats();}
- else if(p.state==='ready'){setState(p,'empty');harvest++;coins+=1;toast('🥕 Урожай собран! +1 монета');stats();}
+ else if(p.state==='ready'){burst(p.g.position.clone().add(new THREE.Vector3(0,1,0)),0xf2c64e,14);setState(p,'empty');harvest++;coins+=1;toast('🥕 Урожай собран! +1 монета');stats();}
  else toast('Растение растёт — подожди немного');
 }
 $('#act').addEventListener('pointerdown',e=>{e.preventDefault();interact();});
 $('#shop').onclick=()=>$('#shopPanel').classList.add('show');$('#closeShop').onclick=()=>$('#shopPanel').classList.remove('show');
-$('#sell').onclick=()=>{if(!harvest){toast('Пока нечего продавать');return;}coins+=harvest*5;toast('Продано! +'+harvest*5+' монет');harvest=0;stats();};
-$('#buyWater').onclick=()=>{if(coins<3){toast('Нужно 3 монеты');return;}coins-=3;water+=5;stats();toast('+5 единиц воды');};
+$('#sell').onclick=()=>{if(!harvest){toast('Пока нечего продавать');return;}coins+=harvest*5;toast('Продано! +'+harvest*5+' монет');harvest=0;stats();saveGame();};
+$('#buyWater').onclick=()=>{if(coins<3){toast('Нужно 3 монеты');return;}coins-=3;water+=5;stats();toast('+5 единиц воды');saveGame();};
 $('#shopInfo').textContent='Продажа урожая даёт монеты. За 3 монеты покупаешь 5 единиц воды.';
 $('#codeToggle').onclick=()=>$('#codePanel').classList.add('show');$('#closeCode').onclick=()=>$('#codePanel').classList.remove('show');
 $('#saveProgram').onclick=saveProgram;$('#loadProgram').onclick=loadProgram;
@@ -196,8 +215,9 @@ function update(dt){
  bulb.scale.setScalar(1+Math.sin(robotAnimTime*4)*.12);
  robotAction=Math.max(0,robotAction-dt*1.5);
  let v=new THREE.Vector3(0,0,0);
- robotMoving=v.lengthSq()>0;if(v.lengthSq()>0){v.normalize();robot.position.add(v.multiplyScalar(dt*4));robot.position.x=THREE.MathUtils.clamp(robot.position.x,-11,11);robot.position.z=THREE.MathUtils.clamp(robot.position.z,-11,11);robot.rotation.y=Math.atan2(v.x,v.z);}
- for(let p of plots){if(p.state==='growing'&&p.watered){p.growth+=dt;if(p.growth>9){setState(p,'ready');toast('✨ Урожай созрел!');saveGame();}}}
+ if(v.lengthSq()>0){v.normalize();robot.position.add(v.multiplyScalar(dt*4));robot.position.x=THREE.MathUtils.clamp(robot.position.x,-11,11);robot.position.z=THREE.MathUtils.clamp(robot.position.z,-11,11);robot.rotation.y=Math.atan2(v.x,v.z);}
+ for(let p of plots){if(p.state==='growing'&&p.watered){p.growth+=dt;if(p.growth>9){setState(p,'ready');burst(p.g.position.clone().add(new THREE.Vector3(0,1,0)),0xe9c34d,10);toast('✨ Урожай созрел!');saveGame();}}}
+ for(let i=particles.length-1;i>=0;i--){const q=particles[i];q.userData.life-=dt;q.position.addScaledVector(q.userData.v,dt);q.userData.v.y-=3*dt;q.scale.multiplyScalar(Math.max(.01,1-dt*1.4));if(q.userData.life<=0){scene.remove(q);q.material.dispose();particles.splice(i,1);}}
 }
 let saveAccumulator=0;function frame(){requestAnimationFrame(frame);let dt=Math.min(clock.getDelta(),.04);update(dt);saveAccumulator+=dt;if(saveAccumulator>5){saveAccumulator=0;saveGame();}
  let target=new THREE.Vector3(robot.position.x+7,robot.position.y+9,robot.position.z+9);
@@ -205,6 +225,6 @@ let saveAccumulator=0;function frame(){requestAnimationFrame(frame);let dt=Math.
  renderer.render(scene,camera);}
 frame();
 addEventListener('pagehide',saveGame);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveGame();});
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.fov=innerHeight>innerWidth?52:45;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});camera.fov=innerHeight>innerWidth?52:45;camera.updateProjectionMatrix();
 </script>
 </body></html>
