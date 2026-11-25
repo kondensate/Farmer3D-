@@ -1,0 +1,8 @@
+# DroneBot: обследование поля
+turn_left()
+turn_left()
+scan()
+for sweep in range(5):
+    move(1)
+    scan()
+return_to_base()
