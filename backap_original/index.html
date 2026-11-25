@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#17251c">
+<title>FarmerBot 3D — Programmer Edition</title>
+<style>
+:root{--bg:#17251c;--panel:#1d3025;--panel2:#294333;--lime:#c4e879;--cream:#f5f0d9;--muted:#bdcbb7;--line:#78936a}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;touch-action:none}
+#game{position:fixed;inset:0}canvas{display:block}
+.hud{position:fixed;z-index:2;top:env(safe-area-inset-top,8px);left:10px;right:10px;display:flex;gap:8px;align-items:flex-start;justify-content:space-between;pointer-events:none}
+.brand,.stat,.panel,.btn{background:rgba(24,42,30,.96);border:1px solid rgba(196,232,121,.28);box-shadow:0 7px 0 rgba(7,16,9,.28),0 12px 30px #07100955;backdrop-filter:blur(12px)}
+.brand{padding:9px 12px;border-radius:15px;font-weight:900;letter-spacing:.5px}.brand small{display:block;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:1.3px}
+.stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.stat{padding:9px 11px;border-radius:13px;font-size:12px;font-weight:800}
+.bottom{position:fixed;z-index:3;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;justify-content:space-between;align-items:end;gap:10px;pointer-events:none}
+.pad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:43px 43px 43px;gap:4px;pointer-events:auto}
+.btn{border-radius:14px;color:var(--cream);font-weight:800;font-size:17px;min-width:48px;min-height:43px;display:flex;align-items:center;justify-content:center;touch-action:none}
+.btn{transition:transform .12s ease,background .12s ease,border-color .12s ease;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}.btn:active,.btn.active{background:#c4e879;color:#17251c;transform:translateY(2px) scale(.97);border-color:#e8f8bd}
+.actions{display:flex;gap:7px;pointer-events:auto;align-items:end}.action{min-width:63px;min-height:58px;flex-direction:column;font-size:11px;gap:3px}.action b{font-size:20px}
+#codeToggle{pointer-events:auto;min-height:50px;padding:0 13px;background:#b6e36a;color:#17251c;border:0}
+.panel{position:fixed;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 22px));max-height:min(80vh,680px);overflow:auto;border-radius:20px;padding:15px;display:none;touch-action:pan-y}
+.panel.show{display:block;animation:panelIn .18s ease-out}@keyframes panelIn{from{opacity:0;transform:translate(-50%,-47%) scale(.98)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}.panelHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.panel h2{margin:0;font-size:19px}.muted{color:var(--muted);font-size:12px;line-height:1.45}
+.editorTools{display:flex;gap:7px;align-items:center;justify-content:space-between;margin:7px 0;color:var(--muted);font-size:11px}.editorTools button{border:1px solid #526b50;background:#314838;color:var(--cream);padding:7px 10px;border-radius:9px;font-weight:800}#codeStatus{color:#b6e36a;font-weight:800}textarea{width:100%;height:190px;resize:vertical;background:#101b14;color:#dff4c5;border:1px solid #526b50;border-radius:12px;padding:12px;font:14px/1.65 ui-monospace,SFMono-Regular,monospace;outline:none}
+.row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}.primary{background:var(--lime);color:#17251c;border:0}.secondary{background:#3b5742}
+.row button{padding:12px 15px;border-radius:12px;font-weight:900;font-size:13px}
+#toast{position:fixed;z-index:8;left:50%;top:75px;transform:translateX(-50%);background:#15271b;border:1px solid #79975d;padding:10px 15px;border-radius:12px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.legend{position:fixed;z-index:2;left:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);font-size:11px;color:#e2ebd7;background:#1a2d21c9;padding:8px 10px;border-radius:10px;pointer-events:none}
+@media(min-width:700px){.bottom{left:22px;right:22px;bottom:18px}.pad{transform:scale(1.15);transform-origin:bottom left}.action{min-width:76px;min-height:66px}.legend{bottom:120px}}
+
+.programOutput{white-space:pre-wrap;word-break:break-word;max-height:120px;overflow:auto;background:#0e1912;border:1px solid #405b43;border-radius:10px;color:#c5e5a0;padding:10px;font:11px/1.55 ui-monospace,monospace;margin:10px 0 0;min-height:48px}
+.languageHelp{margin-top:10px;border:1px solid #405b43;background:#1b2b20;border-radius:10px;padding:9px 11px;color:var(--cream);font-size:12px}
+.languageHelp summary{font-weight:800;cursor:pointer;color:var(--lime)}
+.helpGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+.helpGrid>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.helpGrid code{font:11px ui-monospace,monospace;color:#d8edb8;background:#0f1d14;padding:4px 6px;border-radius:5px;overflow-wrap:anywhere}
+@media(max-width:430px){.helpGrid{grid-template-columns:1fr 1fr}#code{height:220px}}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div class="hud"><div class="brand">🌱 FARMERBOT <small>3D AUTOMATION FARM</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div></div></div>
+<div class="legend">Нажимай стрелки: одно нажатие = один шаг на клетку<br>Подойди к грядке и нажми ДЕЙСТВИЕ: посади → полей → собери</div>
+<div class="bottom">
+ <div class="pad">
+  <div></div><button class="btn" data-move="forward">▲</button><div></div>
+  <button class="btn" data-move="left">◀</button><button class="btn" data-move="back">▼</button><button class="btn" data-move="right">▶</button>
+  <div></div><div></div><div></div>
+ </div>
+ <div class="actions">
+  <button class="btn action" id="act"><b>✋</b>ДЕЙСТВИЕ</button>
+  <button class="btn action" id="shop"><b>🛒</b>МАГАЗИН</button>
+  <button class="btn" id="soundToggle">♫ ЗВУК</button><button class="btn" id="codeToggle">⌘ КОД</button>
+ </div>
+</div>
+<div id="toast"></div>
+<div class="panel" id="codePanel">
+ <div class="panelHead"><h2>⌘ Программа робота</h2><button class="btn" id="closeCode">✕</button></div>
+ <p class="muted">Программируй робота на маленьком Python-подобном языке. Поддерживаются переменные, условия, циклы и собственные функции. Отступы внутри блоков обязательны.</p>
+ <div class="editorTools"><span>FARMBOT SCRIPT · <span id="codeStatus">готов</span></span><div><button id="saveProgram">СОХРАНИТЬ</button> <button id="loadProgram">ЗАГРУЗИТЬ</button></div></div>
+ <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"># Подойди к ближайшей грядке
+turn_right()
+turn_right()
+move(1)
+
+if can_plant():
+    plant()
+
+if can_water():
+    water()
+
+# Растение растёт, пока робот ждёт
+wait(10)
+
+if can_harvest():
+    harvest()</textarea>
+ <div class="row"><button class="primary" id="run">▶ ЗАПУСТИТЬ</button><button class="secondary" id="stop">■ СТОП</button><button class="secondary" id="example">ПРИМЕР</button></div>
+ <pre id="programOutput" class="programOutput" aria-live="polite">Журнал программы появится здесь.</pre>
+ <details class="languageHelp"><summary>Справка по языку</summary>
+  <div class="helpGrid">
+   <div><b>Действия</b><code>move(1)</code><code>turn_left()</code><code>turn_right()</code><code>plant()</code><code>water()</code><code>harvest()</code><code>wait(3)</code></div>
+   <div><b>Условия и датчики</b><code>if can_harvest():</code><code>if can_plant():</code><code>if can_water():</code><code>get_water()</code><code>get_coins()</code><code>tile_state()</code></div>
+   <div><b>Циклы</b><code>for i in range(4):</code><code>while can_plant():</code><code>break</code><code>continue</code></div>
+   <div><b>Функции</b><code>def harvest_row():</code><code>    harvest()</code><code>harvest_row()</code><code>return</code></div>
+  </div>
+  <p class="muted">Можно использовать числа, строки, + - * / %, сравнения == != &lt; &gt; &lt;= &gt;=, and / or / not, переменные и комментарии с #. Для цикла используй range(число). Встроенные функции: abs, min, max, floor, ceil, round, print.</p>
+ </details>
+ <p class="muted">Старые команды MOVE 1, TURN LEFT, PLANT, WATER, HARVEST и WAIT 3 тоже поддерживаются. Код автоматически сохраняется на этом устройстве.</p>
+</div>
+<div class="panel" id="shopPanel">
+ <div class="panelHead"><h2>🛒 Лавка фермера</h2><button class="btn" id="closeShop">✕</button></div>
+ <p class="muted">Урожай можно обменять на монеты. Купи запас воды для следующих грядок.</p>
+ <div class="row"><button class="primary" id="sell">ПРОДАТЬ УРОЖАЙ (+5 🪙 за штуку)</button><button class="secondary" id="buyWater">КУПИТЬ ВОДУ (3 🪙)</button></div>
+ <p id="shopInfo" class="muted"></p>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body></html>
