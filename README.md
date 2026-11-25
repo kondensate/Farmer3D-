@@ -1,63 +1,62 @@
-# FarmerBot 2.1 — Smart Farm Upgrade
+# FarmerBot 3.0 — Smart Automation & Living World
 
-**Milestone:** 2.1 Alpha 1 · Three.js + ES modules · GitHub Pages compatible
+**Версия:** 3.0.0-alpha.1 · текущий milestone: Stage A — IDE и отладчик
 
-FarmerBot 2.1 extends the existing FarmerBot 2.0 repository in place. It keeps the original farm loop, four robot roles, 10 crops, safe Python-like interpreter, mission progress and the v2/v3 save migration path.
+FarmerBot 3.0 развивается непосредственно поверх FarmerBot 2.1. Это не новая игра с нуля: сохраняются Three.js сцена, игровой цикл, четыре роли роботов, десять культур, задания FarmerBot 2.1, строительство, исследования, A* навигация и загрузка старых сохранений.
 
-## 2.1 features added
+## Что действительно реализовано в Alpha 1
 
-- **Placeable construction:** greenhouse, water tank, conveyor, charger and robot service station. Select a building, tap a location in the 3D field, rotate it, move it later or delete it. Placement checks field bounds, other buildings and robot positions.
-- **Functional infrastructure:** greenhouses increase nearby crop growth speed; water tanks extend the farm water capacity; conveyors automatically collect ripe crops into the warehouse; charging/service pads restore nearby robot energy. Existing pump, solar and warehouse equipment remains supported.
-- **Research tree:** five technologies with XP/coin costs and prerequisites unlock the new building categories. Research progress is saved. Sandbox exposes all construction without costs.
-- **A* navigation:** robots route around occupied building cells and other ground robots. Manual arrow movement, `move(n)` and return-to-base now use the route planner. `go_to_plot("ready")`, `go_to_plot("empty")` and `go_to_plot("thirsty")` find a suitable plot and navigate to it.
-- **Interpreter debugger controls:** current source line indicator plus pause, single-step, resume and stop controls. The safe interpreter still uses its own parser and evaluator; it does not use `eval()` or `Function()`.
-- **Distinct mode rules:** CAMPAIGN runs mission rewards; SANDBOX gives free building, seed and technology access; CHALLENGES starts a limited 180-second, 5-harvest task; FREE PLAY keeps the economy but disables campaign mission rewards.
-- **Save v4:** preserves v2/v3 loading and adds buildings, technology unlocks, challenge state and research points. Older saves are migrated forward automatically.
+- IDE с подсветкой синтаксиса, номерами строк и подсветкой текущей команды.
+- Подсказки DSL и автодополнение только поддерживаемых игровых команд и датчиков.
+- Проверка синтаксиса и известных вызовов; runtime-ошибки привязываются к строке.
+- Переменные с разделением глобальной и локальной областей, типами и обновлениями после инструкций.
+- Отдельные списки пользовательских функций, роботов, состояния отладчика и стека вызовов.
+- Реальные точки останова, pause, single-step, resume и stop через callback gate интерпретатора.
+- Без `eval()` и `new Function()`; ограничения DSL по шагам, циклам и глубине вызовов сохранены.
 
-## Project structure
+## Структура проекта
 
 ```text
 index.html
 src/
-  main.js          # Three.js world, simulation, UI and save integration
-  language.js      # safe Python-like parser/interpreter and debugger hooks
-  data.js          # crops, robots, missions, buildings and technologies
-  navigation.js    # grid conversions, occupancy and A* pathfinding
-programs/          # four example robot programs
-tests/             # interpreter, catalog, UI contract and navigation tests
-backup_original/   # original project files from the first programming edition
+  main.js       # Three.js сцена, игровой цикл, UI и сохранения
+  language.js   # безопасный DSL-парсер и интерпретатор, debugger snapshots
+  ide.js        # подсветка, диагностика, completion, панели IDE
+  debugger.js   # точки останова и управление паузой/шагом
+  data.js       # культуры, роботы, задания, здания, технологии
+  navigation.js # A* и занятые клетки
+programs/       # исходные примеры программ роботов
+tests/          # тесты каталога, DSL, навигации, IDE, debugger и UI
+backup_original/ # оригинальные файлы старой редакции, не изменялись
 ```
 
-## Run on GitHub Pages
+## Проверка
 
-The entry point is `index.html` in the repository root. No build step is required. Three.js is loaded from jsDelivr, so the page requires HTTPS and an internet connection.
-
-## Run tests
-
-Use Node.js 18+:
+Требуется Node.js 18+.
 
 ```bash
 npm test
-```
-
-Syntax checks:
-
-```bash
 node --check src/main.js
 node --check src/language.js
+node --check src/ide.js
+node --check src/debugger.js
 node --check src/data.js
 node --check src/navigation.js
 ```
 
-## Controls
+## Сохранения
 
-- Arrow buttons move the selected robot one cell; the route planner avoids buildings and other robots.
-- **СТРОЙКА:** choose a building, tap the field to place it, rotate or cancel; existing buildings can be moved or deleted.
-- **ТЕХНО:** spend research points and coins to unlock construction categories.
-- **КОД:** per-robot program editor with current line, pause, single-step, continue and stop.
-- `go_to_plot("ready")` finds the nearest reachable plot with ripe crops. `go_to_plot("thirsty")` finds a crop waiting for water.
-- **СЕТЬ:** inspect and run/stop robots independently or as a fleet.
+Схема игрового сохранения остаётся v4. Миграция v2/v3 не удалялась и не менялась. Точки останова IDE хранятся отдельно на устройстве.
 
-## Scope and validation
+## Следующие стадии — пока не реализованы
 
-This is **FarmerBot 2.1 Alpha 1**, a substantial functional milestone, not yet the full 2.1 vision. It does not yet include all requested biom/season systems, a full pipe/power graph, conveyor networks with multi-segment routing, multiple challenge scenarios, a breakpoint system, syntax colouring/autocomplete, or a complete campaign chapter map. The 3D build has automated Node tests and static checks; the final deployment still requires a real Safari/iPad playthrough to validate touch placement and WebGL performance on the target device.
+- **Stage B:** игровая электрическая сеть, многоузловые конвейеры, обмен ресурсами роботов, диспетчер.
+- **Stage C:** биомы, сезоны, погода и расширение территории.
+- **Stage D:** сюжетная кампания, испытания, медали и награды.
+- **Stage E:** интеграция и браузерные проверки на целевых устройствах.
+
+Alpha 1 — функциональный первый этап FarmerBot 3.0, а не заявление о готовности всего объёма задания.
+
+## Запуск на GitHub Pages
+
+Точка входа — `index.html` в корне. Сборка не требуется; Three.js подключается с jsDelivr, поэтому нужен HTTPS и доступ к сети.

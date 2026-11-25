@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#17251c">
-<title>FarmerBot 2.1 — Smart Farm</title>
+<title>FarmerBot 3.0 Alpha 1 — Smart Farm</title>
 <style>
 :root{--bg:#17251c;--panel:#1d3025;--panel2:#294333;--lime:#c4e879;--cream:#f5f0d9;--muted:#bdcbb7;--line:#78936a}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;touch-action:none}
@@ -67,11 +67,37 @@
 .codeEditor{display:flex;align-items:stretch;background:#101b14;border:1px solid #526b50;border-radius:12px;overflow:hidden}
 #codeGutter{width:34px;min-width:34px;margin:0;padding:12px 5px;text-align:right;color:#738b70;background:#142319;border-right:1px solid #314a36;font:14px/1.65 ui-monospace,monospace;overflow:hidden;user-select:none}
 .codeEditor textarea{border:0;border-radius:0;flex:1;min-width:0;resize:vertical}
+
+/* FarmerBot 3.0 IDE: layered highlighting, debugger panes and compact mobile layout */
+.codeEditor{height:250px;min-width:0}
+#codeGutter{width:42px;min-width:42px;display:flex;flex-direction:column;align-items:stretch;overflow:auto;scrollbar-width:none;padding:12px 0}
+.gutter-line{position:relative;display:block;height:23.1px;min-height:23.1px;padding:0 7px 0 3px;border:0;background:transparent;color:#718b70;text-align:right;font:12px/23.1px ui-monospace,monospace;cursor:pointer}
+.gutter-line.has-breakpoint{color:#ff8a77;background:#512b25}.gutter-line.has-breakpoint:before{content:"●";position:absolute;left:5px;color:#ff765f}.gutter-line.has-error{color:#ffd0c7;background:#652c2c}
+.codeSurface{position:relative;flex:1;min-width:0;height:250px;overflow:hidden;background:#101b14}
+#codeHighlight,#code{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:12px 12px;font:14px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:normal;tab-size:4;white-space:pre;overflow:auto;word-break:normal;overflow-wrap:normal}
+#codeHighlight{z-index:1;color:#d7e7d1;pointer-events:none;scrollbar-width:none}
+#code{z-index:2;resize:none;border:0;border-radius:0;background:transparent;color:transparent;-webkit-text-fill-color:transparent;caret-color:#f4f6df;outline:none;white-space:pre;}
+#code::selection{background:rgba(153,198,245,.34);-webkit-text-fill-color:transparent}
+.code-line{display:inline-block;min-width:100%;height:23.1px}
+.code-line.is-current{background:rgba(196,232,121,.16);box-shadow:inset 2px 0 #c4e879}.code-line.is-block{background:rgba(128,217,232,.035)}
+.code-line.has-error{background:rgba(238,76,67,.18);box-shadow:inset 2px 0 #ff6b62}
+.tok-kw{color:#e8a8ff;font-weight:700}.tok-cmd{color:#9ee477;font-weight:700}.tok-sensor{color:#80d9e8}.tok-builtin{color:#b3c4ff}.tok-number{color:#f4c878}.tok-str{color:#d6b77c}.tok-comment{color:#718a73;font-style:italic}.tok-op,.tok-punct{color:#d8e6d1}.tok-var{color:#f2f1dc}.tok-fn{color:#8fd0ff;font-weight:700}.tok-ident{color:#c1d2bc}.bracket-match{color:#17251c;background:#c4e879;border-radius:3px}
+.autocomplete-popup{position:absolute;z-index:6;left:8px;right:8px;bottom:8px;max-height:150px;overflow:auto;background:#14251a;border:1px solid #779766;border-radius:10px;box-shadow:0 8px 25px #0008;padding:4px}
+.autocomplete-popup[hidden]{display:none}.completion-item{display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;text-align:left;padding:6px 8px;border:0;border-radius:6px;background:transparent;color:#f5f0d9;cursor:pointer}.completion-item.active,.completion-item:hover{background:#294a32}.completion-item strong{font:700 12px ui-monospace,monospace;color:#c4e879}.completion-item code{font-size:10px;color:#a9d8e7}.completion-item small{grid-column:1/-1;color:#b9c9b0;font-size:10px}
+.ide-error{margin:7px 0;padding:7px 9px;border:1px solid #a84f46;background:#4a2925;color:#ffd3cb;border-radius:8px;font-size:11px}.ide-error[hidden]{display:none}.ide-error.valid{display:none}.ide-hint{min-height:18px;color:#a9c8ae;font-size:10px;margin:5px 2px}
+.ide-workspace{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px}
+.ide-card{min-width:0;max-height:140px;overflow:auto;background:#14251a;border:1px solid #3d5940;border-radius:10px;padding:8px}
+.ide-card h3{font-size:10px;letter-spacing:.7px;color:#c4e879;margin:0 0 6px}.ide-scope{margin-bottom:8px}.ide-scope>b{display:block;color:#b9d69c;font-size:10px;margin-bottom:4px}.ide-scope small{color:#879e86;font-size:10px}
+.ide-value{display:grid;grid-template-columns:minmax(50px,.75fr) minmax(50px,1.4fr) auto;gap:5px;align-items:center;border-top:1px solid #2c4431;padding:4px 0;font-size:10px}.ide-value code{color:#8fd0ff;overflow-wrap:anywhere}.ide-value span{overflow-wrap:anywhere;color:#f3eed5}.ide-value small{color:#829882;font-size:9px}
+.ide-robot{display:flex;flex-direction:column;align-items:flex-start;width:100%;padding:5px 6px;border:0;border-bottom:1px solid #2c4431;background:transparent;color:#f5f0d9;text-align:left}.ide-robot.selected{background:#2a4932}.ide-robot strong{font-size:10px}.ide-robot small{font-size:9px;color:#a6b99e}
+#ideFunctions code{display:inline-block;background:#203729;color:#8fd0ff;padding:3px 5px;border-radius:5px;margin:2px;font-size:10px}#ideCallStack div{font-size:10px;color:#c6d8bd;padding:3px 0;border-bottom:1px solid #2c4431}#ideState{font-size:10px;color:#f5d18d}
+@media(max-width:600px){.codeEditor,.codeSurface{height:220px}.code-line,.gutter-line{height:19.8px;min-height:19.8px;line-height:19.8px}#codeHighlight,#code{font-size:12px;line-height:1.65;padding:10px}.ide-workspace{grid-template-columns:repeat(2,minmax(0,1fr))}.ide-card{max-height:112px;padding:6px}.ide-value{grid-template-columns:1fr 1.2fr}.ide-value small{display:none}.autocomplete-popup{max-height:125px}}
+
 </style>
 </head>
 <body>
 <div id="game"></div>
-<div class="hud"><div class="brand">🌱 FARMERBOT 2.1 <small>SMART FARM AUTOMATION</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">⭐ ур. <span id="level">1</span> · <span id="xp">0</span> XP</div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div><div class="stat">🌤 <span id="weather">Ясно</span></div></div></div>
+<div class="hud"><div class="brand">🌱 FARMERBOT 3.0 <small>SMART AUTOMATION · ALPHA 1</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">⭐ ур. <span id="level">1</span> · <span id="xp">0</span> XP</div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div><div class="stat">🌤 <span id="weather">Ясно</span></div></div></div>
 <div class="legend">Нажимай стрелки: одно нажатие = один шаг на клетку<br>Подойди к грядке и нажми ДЕЙСТВИЕ: посади → полей → собери</div>
 <div class="bottom">
  <div class="pad">
@@ -89,8 +115,8 @@
 <div class="panel" id="codePanel">
  <div class="panelHead"><h2>⌘ Программа робота</h2><button class="btn" id="closeCode">✕</button></div>
  <p class="muted">Программируй робота на маленьком Python-подобном языке. Поддерживаются переменные, условия, циклы и собственные функции. Отступы внутри блоков обязательны.</p>
- <div class="editorTools"><span>SMART FARM SCRIPT · <span id="codeStatus">готов</span> · <span id="currentLine">строка —</span></span><div><button id="saveProgram">СОХРАНИТЬ</button> <button id="loadProgram">ЗАГРУЗИТЬ</button></div></div><div class="editorTools"><label for="robotSelect">РОБОТ</label><select id="robotSelect" class="uiSelect"></select><label for="runSpeed">СКОРОСТЬ</label><select id="runSpeed" class="uiSelect"><option value="1">x1</option><option value="2">x2</option><option value="4">x4</option></select></div>
- <div class="codeEditor"><pre id="codeGutter">1</pre><textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"># FarmerBot 2.0 · первая автономная задача
+ <div class="editorTools"><span>SMART FARM SCRIPT · <span id="codeStatus">готов</span> · <span id="currentLine">строка —</span> · <span id="ideNextLine">следующая: —</span></span><div><button id="saveProgram">СОХРАНИТЬ</button> <button id="loadProgram">ЗАГРУЗИТЬ</button></div></div><div class="editorTools"><label for="robotSelect">РОБОТ</label><select id="robotSelect" class="uiSelect"></select><label for="runSpeed">СКОРОСТЬ</label><select id="runSpeed" class="uiSelect"><option value="1">x1</option><option value="2">x2</option><option value="4">x4</option></select></div>
+ <div class="codeEditor"><div id="codeGutter" aria-label="Номера строк"></div><div class="codeSurface"><pre id="codeHighlight" aria-hidden="true"></pre><textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"># FarmerBot 2.0 · первая автономная задача
 if get_energy() > 10:
     scan()
     if can_plant("carrot"):
@@ -99,8 +125,16 @@ if get_energy() > 10:
         water()
     elif can_harvest():
         harvest()
-return_to_base()</textarea></div>
- <div class="row"><button class="primary" id="run">▶ ЗАПУСТИТЬ</button><button class="secondary" id="pauseProgram">Ⅱ ПАУЗА</button><button class="secondary" id="stepProgram">→ ШАГ</button><button class="secondary" id="resumeProgram">▶ ПРОДОЛЖИТЬ</button><button class="secondary" id="stop">■ СТОП</button><button class="secondary" id="example">ПРИМЕР</button></div>
+return_to_base()</textarea><div id="ideAutocomplete" class="autocomplete-popup" hidden></div></div></div>
+ <div id="codeErrors" class="ide-error" hidden></div><div id="ideHint" class="ide-hint">Подсказка параметров появится внутри вызова команды.</div>
+ <div class="row"><button class="primary" id="run">▶ ЗАПУСТИТЬ</button><button class="secondary" id="pauseProgram">Ⅱ ПАУЗА</button><button class="secondary" id="stepProgram">→ ШАГ</button><button class="secondary" id="resumeProgram">▶ ПРОДОЛЖИТЬ</button><button class="secondary" id="stop">■ СТОП</button><button class="secondary" id="debugReset">↺ СБРОС</button><button class="secondary" id="example">ПРИМЕР</button></div>
+ <div class="ide-workspace">
+  <section class="ide-card"><h3>ПЕРЕМЕННЫЕ</h3><div id="ideVariables">Переменные появятся после старта программы.</div></section>
+  <section class="ide-card"><h3>ФУНКЦИИ</h3><div id="ideFunctions">Функции пользователя не объявлены.</div></section>
+  <section class="ide-card"><h3>РОБОТЫ</h3><div id="ideRobots"></div></section>
+  <section class="ide-card"><h3>СТЕК ВЫЗОВОВ</h3><div id="ideCallStack">Глобальный уровень</div></section>
+  <section class="ide-card"><h3>СОСТОЯНИЕ ОТЛАДЧИКА</h3><div id="ideState">готов</div></section>
+ </div>
  <pre id="programOutput" class="programOutput" aria-live="polite">Журнал программы появится здесь.</pre>
  <details class="languageHelp"><summary>Справка по языку</summary>
   <div class="helpGrid">

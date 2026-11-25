@@ -1,6 +1,6 @@
 {
-  "name": "farmerbot-2-smart-farm",
-  "version": "2.1.0-alpha.1",
+  "name": "farmerbot-3-smart-farm",
+  "version": "3.0.0-alpha.1",
   "private": true,
   "type": "module",
   "scripts": {
