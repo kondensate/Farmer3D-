@@ -1,47 +1,48 @@
-# FarmerBot 2.0 development roadmap
+# FarmerBot 2.1 development roadmap
 
-## Alpha 1 — implemented in this package
+## Alpha 1 — implemented
 
-- Project split into page, game logic, safe language interpreter and content catalog.
-- Preserve the old one-robot/one-crop game and save v2 migration.
-- 10 visible crop species with actual model/stage/harvest loop.
-- Multi-robot fleet (4 roles), independent programs, energy, cargo and collision checks.
-- 30 progress missions, XP/levels, weather, day/night.
-- Working pump, solar charging and warehouse capacity upgrade.
-- Network panel, seed shop and expanded DSL.
+- In-place upgrade of the existing FarmerBot 2.0 codebase and preserved crop, robot, mission and legacy-save behavior.
+- Placeable greenhouse, water tank, conveyor, charger and robot station with placement validation, rotation, relocation, deletion and persistence.
+- Functional building effects: local crop growth boost, increased water capacity, automatic nearby ripe-crop collection and robot energy servicing.
+- Five-node technology tree with research points, coin costs and prerequisites.
+- Grid A* pathfinding integrated into manual movement, `move(n)`, plot-seeking and return-to-base.
+- Safe interpreter debugger hooks, current-line status, pause, single-step, resume and stop.
+- Four distinct mode rules: campaign rewards, free sandbox construction, timed challenge and free-play economy.
+- Save v4 with fallback migration from v3 and v2.
+- Node tests for catalogs, UI contract, interpreter debugger hooks and A* routing.
 
 ## Alpha 2 — next priorities
 
-1. Replace the text-area editor with a real editor component: syntax highlighting, autocomplete, line gutter, multiple program tabs and diagnostics.
-2. Add interpreter debug hooks: current line, pause/resume, single-step, breakpoints and x1/x2/x4 timing.
-3. Implement persistent IndexedDB save slots and robust save migrations.
-4. Add technology tree with unlock prerequisites and research costs.
-5. Buildable irrigation pipes, water tanks, charging stations and conveyors with grid placement and real item transfer.
+1. Add editable build footprints and grid snapping with placement preview collision coloring on Safari and tablets.
+2. Add multi-segment conveyors with directional ports, transfer queues and warehouse input/output rules.
+3. Add real water/power network graphs: pipes, pumps, reservoirs, solar generation and shared charging.
+4. Add route reservations and cooperative traffic management for multiple robots, including deadlock recovery.
+5. Add syntax highlighting, autocomplete, breakpoints, variable inspection and a robust pause/step debugger panel.
+6. Add more challenge scenarios, scoring, medals and campaign chapter progression.
 
 ## Beta — simulation depth
 
-1. More precise plant needs: soil moisture, temperature, soil quality, season, disease and seed quality.
-2. More robot upgrades, battery models, cargo capacity, inventory filters and route reservations.
-3. Production line: plot → robot cargo → conveyor → warehouse → market.
-4. More weather events, seasons and distinct territory modifiers.
-5. 30+ authored campaign/challenge missions with star ratings and solution efficiency.
-6. Audio mixer, procedural ambient sound and accessibility settings.
+1. Biomes (green, desert, mountain, snow, tropical), seasons, temperature and crop-specific conditions.
+2. More crop varieties and crop disease/soil fertility systems.
+3. Robot upgrades, battery models, cargo filters, task boards and cooperative logistics.
+4. Production lines: plot → robot cargo → conveyor network → warehouse → market.
+5. Persistent IndexedDB save slots, backup export/import and automated migration tests.
 
 ## Release candidate — polish
 
-1. Procedural model batching/instancing and device-specific graphics profiles.
-2. Performance profiling on Safari iPad and mid-range mobile devices.
-3. Automated gameplay tests for save/load, crop lifecycle, robot collisions, missions, economy and program execution.
-4. UI walkthrough, tutorial onboarding, responsive layout and localization review.
-5. Final balance pass and release packaging.
+1. Instancing/batching and adaptive graphics settings for low-power mobile devices.
+2. Safari iPad and mid-range Android performance profiling.
+3. Gameplay tests for planting, watering, crop growth, harvesting, sales, construction, research, routefinding, modes and save/load.
+4. Tutorial flow, accessible controls, localization review and balance pass.
 
-## Known alpha limitations
+## Known Alpha 1 limitations
 
-- Crop visuals are procedural silhouettes, not artist-authored high-detail models.
-- Weather is a global cycle; temperature and seasons are not yet modeled.
-- The pump automatically waters one thirsty plot per interval; it is not a pipe network.
-- Solar charging occurs when a robot is near the base pad.
-- The warehouse stores robot cargo on return; there is not yet a conveyor transport system.
-- Robots can execute simultaneously, but routing currently uses local collision rejection rather than a global traffic planner.
-- Campaign/challenges/free-play are mode labels and sandbox resource settings; fully different mode rules are still planned.
-- Code editor has tab indentation, line numbering and error messages, but no syntax colouring, autocomplete or step debugger yet.
+- Building placement uses a snapped world grid; it is not yet a full editor with a placement ghost grid overlay and all rotated collider edge cases.
+- Conveyors automatically collect a ready plot within local range; they are not yet multi-piece transport networks.
+- The water tank expands the farm's shared water capacity, but pipes and network flow are not implemented.
+- Charging pads restore nearby robots; a shared electrical grid and power generation simulation are still planned.
+- A* routes individual robot moves around buildings and other robots; there are no time-reserved paths or deadlock coordinator.
+- The debugger highlights the current line and supports pause/single-step/resume; variable watch, breakpoints and syntax colouring remain planned.
+- Challenges currently has one timed harvest scenario.
+- Full biome, seasonal and campaign chapter systems remain future work.

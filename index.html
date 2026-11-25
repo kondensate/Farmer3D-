@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#17251c">
-<title>FarmerBot 2.0 — Smart Farm</title>
+<title>FarmerBot 2.1 — Smart Farm</title>
 <style>
 :root{--bg:#17251c;--panel:#1d3025;--panel2:#294333;--lime:#c4e879;--cream:#f5f0d9;--muted:#bdcbb7;--line:#78936a}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;touch-action:none}
@@ -50,6 +50,9 @@
 .missionList{display:grid;grid-template-columns:1fr 1fr;gap:7px;max-height:45vh;overflow:auto}
 .missionItem{border:1px solid #405b43;background:#17291e;border-radius:9px;padding:8px;font-size:11px}
 .missionItem.done{border-color:#8eb957;background:#203a29}
+.buildGrid,.techGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.buildCard,.techCard{background:#15261b;border:1px solid #496444;border-radius:11px;padding:10px;min-width:0;font-size:11px}
+.buildCard b,.techCard b{display:block;font-size:12px;margin-bottom:4px}.buildCard small,.techCard small{color:var(--muted);display:block;line-height:1.4}.buildCard button,.techCard button,.buildingRow button{margin-top:7px;border:1px solid #66865b;background:#34513b;color:var(--cream);border-radius:8px;padding:7px 9px;font-weight:800;font-size:10px}.techCard.done{border-color:#a6d76a;background:#203a29}.techCard.locked{opacity:.58}.buildingRow{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #405b43;border-radius:9px;padding:7px 9px;margin:5px 0;font-size:11px}.buildHint{background:#253b2a;border:1px solid #75965d;border-radius:9px;padding:9px;margin:8px 0;font-size:11px;color:#e5f3d3}
 .missionItem b{display:block;margin-bottom:3px}.missionItem small{color:var(--muted)}
 @media(max-width:600px){
  .stats{max-width:60%;gap:4px}.stat{font-size:10px;padding:6px 7px}
@@ -68,7 +71,7 @@
 </head>
 <body>
 <div id="game"></div>
-<div class="hud"><div class="brand">🌱 FARMERBOT 2.0 <small>SMART FARM AUTOMATION</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">⭐ ур. <span id="level">1</span> · <span id="xp">0</span> XP</div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div><div class="stat">🌤 <span id="weather">Ясно</span></div></div></div>
+<div class="hud"><div class="brand">🌱 FARMERBOT 2.1 <small>SMART FARM AUTOMATION</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">⭐ ур. <span id="level">1</span> · <span id="xp">0</span> XP</div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div><div class="stat">🌤 <span id="weather">Ясно</span></div></div></div>
 <div class="legend">Нажимай стрелки: одно нажатие = один шаг на клетку<br>Подойди к грядке и нажми ДЕЙСТВИЕ: посади → полей → собери</div>
 <div class="bottom">
  <div class="pad">
@@ -79,14 +82,14 @@
  <div class="actions">
   <button class="btn action" id="act"><b>✋</b>ДЕЙСТВИЕ</button>
   <button class="btn action" id="shop"><b>🛒</b>МАГАЗИН</button>
-  <button class="btn" id="networkToggle">🤖 СЕТЬ</button><button class="btn" id="missionToggle">🎯 МИССИИ</button><button class="btn" id="soundToggle">♫ ЗВУК</button><button class="btn" id="codeToggle">⌘ КОД</button>
+  <button class="btn" id="networkToggle">🤖 СЕТЬ</button><button class="btn" id="missionToggle">🎯 МИССИИ</button><button class="btn" id="soundToggle">♫ ЗВУК</button><button class="btn" id="buildToggle">🏗 СТРОЙКА</button><button class="btn" id="researchToggle">🔬 ТЕХНО</button><button class="btn" id="codeToggle">⌘ КОД</button>
  </div>
 </div>
 <div id="toast"></div>
 <div class="panel" id="codePanel">
  <div class="panelHead"><h2>⌘ Программа робота</h2><button class="btn" id="closeCode">✕</button></div>
  <p class="muted">Программируй робота на маленьком Python-подобном языке. Поддерживаются переменные, условия, циклы и собственные функции. Отступы внутри блоков обязательны.</p>
- <div class="editorTools"><span>SMART FARM SCRIPT · <span id="codeStatus">готов</span></span><div><button id="saveProgram">СОХРАНИТЬ</button> <button id="loadProgram">ЗАГРУЗИТЬ</button></div></div><div class="editorTools"><label for="robotSelect">РОБОТ</label><select id="robotSelect" class="uiSelect"></select><label for="runSpeed">СКОРОСТЬ</label><select id="runSpeed" class="uiSelect"><option value="1">x1</option><option value="2">x2</option><option value="4">x4</option></select></div>
+ <div class="editorTools"><span>SMART FARM SCRIPT · <span id="codeStatus">готов</span> · <span id="currentLine">строка —</span></span><div><button id="saveProgram">СОХРАНИТЬ</button> <button id="loadProgram">ЗАГРУЗИТЬ</button></div></div><div class="editorTools"><label for="robotSelect">РОБОТ</label><select id="robotSelect" class="uiSelect"></select><label for="runSpeed">СКОРОСТЬ</label><select id="runSpeed" class="uiSelect"><option value="1">x1</option><option value="2">x2</option><option value="4">x4</option></select></div>
  <div class="codeEditor"><pre id="codeGutter">1</pre><textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"># FarmerBot 2.0 · первая автономная задача
 if get_energy() > 10:
     scan()
@@ -97,7 +100,7 @@ if get_energy() > 10:
     elif can_harvest():
         harvest()
 return_to_base()</textarea></div>
- <div class="row"><button class="primary" id="run">▶ ЗАПУСТИТЬ</button><button class="secondary" id="stop">■ СТОП</button><button class="secondary" id="example">ПРИМЕР</button></div>
+ <div class="row"><button class="primary" id="run">▶ ЗАПУСТИТЬ</button><button class="secondary" id="pauseProgram">Ⅱ ПАУЗА</button><button class="secondary" id="stepProgram">→ ШАГ</button><button class="secondary" id="resumeProgram">▶ ПРОДОЛЖИТЬ</button><button class="secondary" id="stop">■ СТОП</button><button class="secondary" id="example">ПРИМЕР</button></div>
  <pre id="programOutput" class="programOutput" aria-live="polite">Журнал программы появится здесь.</pre>
  <details class="languageHelp"><summary>Справка по языку</summary>
   <div class="helpGrid">
@@ -128,10 +131,25 @@ return_to_base()</textarea></div>
  <div class="row"><button class="secondary" id="buildPump">💦 Насос · 45 🪙</button><button class="secondary" id="buildSolar">☀ Панель · 60 🪙</button><button class="secondary" id="buildStorage">📦 Склад · 40 🪙</button></div>
  <p id="networkInfo" class="muted"></p>
 </div>
+
+<div class="panel smartPanel" id="buildPanel">
+ <div class="panelHead"><h2>🏗 СТРОИТЕЛЬСТВО ФЕРМЫ</h2><button class="btn" id="closeBuild">✕</button></div>
+ <p class="muted">Выбери здание, затем коснись свободного места на поле. Перемещение и удаление построек доступны ниже.</p>
+ <div class="buildHint" id="buildHint">Выбери объект для размещения.</div>
+ <div class="buildGrid" id="buildingCatalog"></div>
+ <div class="row"><button class="secondary" id="rotateBuilding">↻ ПОВЕРНУТЬ</button><button class="secondary" id="cancelBuilding">ОТМЕНА</button></div>
+ <h3>ПОСТРОЙКИ НА ФЕРМЕ</h3><div id="placedBuildings"></div>
+</div>
+<div class="panel smartPanel" id="researchPanel">
+ <div class="panelHead"><h2>🔬 ДЕРЕВО ТЕХНОЛОГИЙ</h2><button class="btn" id="closeResearch">✕</button></div>
+ <p class="muted">Исследования тратят очки науки и монеты, открывая новые здания и возможности.</p>
+ <div class="missionSummary" id="researchSummary"></div>
+ <div class="techGrid" id="techCatalog"></div>
+</div>
 <div class="panel smartPanel" id="missionPanel">
  <div class="panelHead"><h2>🎯 МИССИИ ФЕРМЫ</h2><button class="btn" id="closeMissions">✕</button></div>
  <p class="muted">Выполняй задания, чтобы получать монеты и опыт. Прогресс сохраняется.</p><div class="row"><label for="gameMode">РЕЖИМ</label><select id="gameMode" class="uiSelect"><option value="campaign">CAMPAIGN · миссии</option><option value="sandbox">SANDBOX · ресурсы без ограничений</option><option value="challenges">CHALLENGES · испытания</option><option value="freeplay">FREE PLAY · свободная ферма</option></select></div>
- <div id="missionSummary" class="missionSummary"></div>
+ <div class="missionSummary" id="challengeStatus">Режим кампании: выполняй последовательные миссии.</div><div id="missionSummary" class="missionSummary"></div>
  <div id="missionList" class="missionList"></div>
 </div>
 <script type="module" src="./src/main.js"></script>

@@ -1,62 +1,38 @@
-# FarmerBot 2.0 — Smart Farm
+# FarmerBot 2.1 — Smart Farm Upgrade
 
-**Milestone:** 2.0 Alpha 1 · Three.js + ES modules · GitHub Pages ready
+**Milestone:** 2.1 Alpha 1 · Three.js + ES modules · GitHub Pages compatible
 
-FarmerBot 2.0 extends the existing FarmerBot 3D project. It keeps the original Three.js world, manual tile movement, crop plots, store, local progress and safe Python-like interpreter.
+FarmerBot 2.1 extends the existing FarmerBot 2.0 repository in place. It keeps the original farm loop, four robot roles, 10 crops, safe Python-like interpreter, mission progress and the v2/v3 save migration path.
 
-## What's implemented in this milestone
+## 2.1 features added
 
-- 10 crop types with their own procedural 3D silhouettes, seed stock, grow durations and sale prices.
-- Planting, watering, staged growth, weather-modified growth, harvesting into robot cargo and unloading at the base.
-- 4 robot roles: FarmBot Basic, WaterBot, HarvestBot and DroneBot. Additional robots are purchased in the robot hangar.
-- Separate energy, cargo, movement speed and saved program per robot.
-- Independent asynchronous program execution and stop requests; network panel can run/stop the fleet.
-- Collision checks and map bounds for robot movement.
-- New safe DSL actions and sensors: `scan`, `refill_water`, `return_to_base`, `sleep`, `get_energy`, `get_position`, `get_inventory`, `get_plant_age`.
-- Legacy uppercase DSL remains supported.
-- A 30-mission progress/reward system, XP and farm levels.
-- Weather cycle (sunny/rain/drought), day/night lighting, functional irrigation pump, solar charging pad and storage upgrade.
-- Smart Farm Network panel with robot positions, energy, status and cargo.
-- Camera orbit by dragging and zoom by mouse wheel/trackpad.
-- Save format v3, with migration from the original `farmerbot3d_save_v2`.
-- Automated tests for the interpreter, all shipped robot programs, crop/robot/mission catalogs and HTML-to-JavaScript UI selectors (12 tests).
+- **Placeable construction:** greenhouse, water tank, conveyor, charger and robot service station. Select a building, tap a location in the 3D field, rotate it, move it later or delete it. Placement checks field bounds, other buildings and robot positions.
+- **Functional infrastructure:** greenhouses increase nearby crop growth speed; water tanks extend the farm water capacity; conveyors automatically collect ripe crops into the warehouse; charging/service pads restore nearby robot energy. Existing pump, solar and warehouse equipment remains supported.
+- **Research tree:** five technologies with XP/coin costs and prerequisites unlock the new building categories. Research progress is saved. Sandbox exposes all construction without costs.
+- **A* navigation:** robots route around occupied building cells and other ground robots. Manual arrow movement, `move(n)` and return-to-base now use the route planner. `go_to_plot("ready")`, `go_to_plot("empty")` and `go_to_plot("thirsty")` find a suitable plot and navigate to it.
+- **Interpreter debugger controls:** current source line indicator plus pause, single-step, resume and stop controls. The safe interpreter still uses its own parser and evaluator; it does not use `eval()` or `Function()`.
+- **Distinct mode rules:** CAMPAIGN runs mission rewards; SANDBOX gives free building, seed and technology access; CHALLENGES starts a limited 180-second, 5-harvest task; FREE PLAY keeps the economy but disables campaign mission rewards.
+- **Save v4:** preserves v2/v3 loading and adds buildings, technology unlocks, challenge state and research points. Older saves are migrated forward automatically.
 
 ## Project structure
 
 ```text
 index.html
 src/
-  main.js          # Three.js world, controls, farm simulation, game UI integration
-  language.js      # safe indentation-based DSL parser and interpreter
-  data.js          # crop catalog, robot types and 30 missions
-programs/
-  farmbot_smart_row.bot
-  waterbot_auto_irrigation.bot
-  harvestbot_collect.bot
-  dronebot_scan.bot
-tests/
-  language.test.mjs
-backup_original/
-  index.html
-  main.js
-  language.js
-РУКОВОДСТВО_ПО_ЯЗЫКУ.md
-ROADMAP.md
+  main.js          # Three.js world, simulation, UI and save integration
+  language.js      # safe Python-like parser/interpreter and debugger hooks
+  data.js          # crops, robots, missions, buildings and technologies
+  navigation.js    # grid conversions, occupancy and A* pathfinding
+programs/          # four example robot programs
+tests/             # interpreter, catalog, UI contract and navigation tests
+backup_original/   # original project files from the first programming edition
 ```
 
-## GitHub Pages deployment
+## Run on GitHub Pages
 
-Upload the contents of this folder to the **root** of the `main` branch while preserving folder structure. The site entry is `index.html`. No bundler or npm install is required. The page loads Three.js from jsDelivr, so deployment requires HTTPS and an internet connection.
+The entry point is `index.html` in the repository root. No build step is required. Three.js is loaded from jsDelivr, so the page requires HTTPS and an internet connection.
 
-Required:
-- `index.html`
-- `src/main.js`
-- `src/language.js`
-- `src/data.js`
-
-Keep `programs/`, `tests/`, `README.md`, `ROADMAP.md` and `backup_original/` for examples, testing and recovery; they are not required for the browser to start.
-
-## Run tests locally
+## Run tests
 
 Use Node.js 18+:
 
@@ -64,24 +40,24 @@ Use Node.js 18+:
 npm test
 ```
 
-The browser build has no build step. The tests only cover the DSL/interpreter; they are not a substitute for a full Safari/Chrome gameplay test.
+Syntax checks:
+
+```bash
+node --check src/main.js
+node --check src/language.js
+node --check src/data.js
+node --check src/navigation.js
+```
 
 ## Controls
 
-- Tap an arrow once to move the selected robot one tile.
-- Select a robot in the code editor's robot selector, or choose **🤖 СЕТЬ** to inspect the fleet.
-- Program each robot separately and use ▶ to run it.
-- In Smart Farm Network, ▶ / ■ control individual robots; the panel also has Run All / Stop All.
-- Drag on the 3D canvas to orbit; pinch with two fingers on iPad or use the mouse wheel/trackpad to zoom.
-- Choose a seed in the shop; buy more seed packs there.
-- Robot cargo is unloaded at base by calling `return_to_base()`. Then sell warehouse stock in the shop.
+- Arrow buttons move the selected robot one cell; the route planner avoids buildings and other robots.
+- **СТРОЙКА:** choose a building, tap the field to place it, rotate or cancel; existing buildings can be moved or deleted.
+- **ТЕХНО:** spend research points and coins to unlock construction categories.
+- **КОД:** per-robot program editor with current line, pause, single-step, continue and stop.
+- `go_to_plot("ready")` finds the nearest reachable plot with ripe crops. `go_to_plot("thirsty")` finds a crop waiting for water.
+- **СЕТЬ:** inspect and run/stop robots independently or as a fleet.
 
-## Important current scope
+## Scope and validation
 
-This is an alpha vertical slice, not yet the complete vision in the long specification. Research tree, conveyor logistics, full building placement grid, seasons/biomes, IndexedDB save backend, editor syntax colouring/autocomplete, step debugger/breakpoints and a full campaign mode still need later milestones. See `ROADMAP.md`.
-
-## Validation status
-
-- `node --check` passes for `src/main.js`, `src/language.js` and `src/data.js`.
-- `npm test` passes all 12 automated tests.
-- A full Safari-on-iPad playthrough has not yet been performed. A headless Chromium smoke test was attempted in the build environment but the browser process crashed before it could render the page.
+This is **FarmerBot 2.1 Alpha 1**, a substantial functional milestone, not yet the full 2.1 vision. It does not yet include all requested biom/season systems, a full pipe/power graph, conveyor networks with multi-segment routing, multiple challenge scenarios, a breakpoint system, syntax colouring/autocomplete, or a complete campaign chapter map. The 3D build has automated Node tests and static checks; the final deployment still requires a real Safari/iPad playthrough to validate touch placement and WebGL performance on the target device.
