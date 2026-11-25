@@ -1,0 +1,223 @@
+import { parseProgram, DSL_ACTIONS, DSL_BUILTINS } from './language.js';
+
+const KEYWORDS = new Set(['if','elif','else','for','while','def','return','break','continue','and','or','not','True','False','None']);
+const COMMAND_META = {
+  move: ['move(steps=1)', 'Переместиться на 0–20 клеток по маршруту'],
+  turn_left: ['turn_left()', 'Повернуть робота влево на 90°'],
+  turn_right: ['turn_right()', 'Повернуть робота вправо на 90°'],
+  plant: ['plant(crop="carrot")', 'Посадить семена на ближайшей свободной грядке'],
+  water: ['water()', 'Полить ближайшую грядку'],
+  harvest: ['harvest()', 'Собрать зрелую культуру'],
+  wait: ['wait(seconds=1)', 'Подождать заданное число секунд'],
+  scan: ['scan()', 'Просканировать ближайшую область'],
+  refill_water: ['refill_water()', 'Пополнить воду на базе'],
+  return_to_base: ['return_to_base()', 'Вернуться на базу и сдать груз'],
+  sleep: ['sleep(seconds=1)', 'Приостановить программу на заданное время'],
+  go_to_plot: ['go_to_plot(state="ready")', 'Найти ближайшую грядку ready, empty или thirsty'],
+  print: ['print(value, ...)', 'Записать значения в журнал программы'],
+  range: ['range(stop) или range(start, stop, step)', 'Создать целочисленную последовательность для for'],
+  abs: ['abs(value)', 'Модуль числа'], min: ['min(a, b, ...)', 'Минимальное значение'],
+  max: ['max(a, b, ...)', 'Максимальное значение'], floor: ['floor(value)', 'Округление вниз'],
+  ceil: ['ceil(value)', 'Округление вверх'], round: ['round(value)', 'Округление до ближайшего целого']
+};
+
+const SENSOR_META = {
+  can_harvest: 'Есть ли зрелая культура под роботом', can_plant: 'Можно ли посадить выбранную культуру',
+  can_water: 'Нуждается ли грядка в воде', is_ready: 'Созрел ли урожай', get_water: 'Текущий запас воды',
+  get_coins: 'Баланс монет фермы', get_harvest: 'Собранный урожай', tile_state: 'Состояние ближайшей грядки',
+  count_ready: 'Количество зрелых грядок', count_empty: 'Количество пустых грядок',
+  front_is_clear: 'Свободна ли клетка впереди', at_plot: 'Находится ли робот рядом с грядкой',
+  distance_to_plot: 'Расстояние до ближайшей грядки', has_water: 'Есть ли вода в запасе',
+  get_energy: 'Остаток энергии робота', get_position: 'Координаты робота', get_inventory: 'Инвентарь робота',
+  get_plant_age: 'Возраст/прогресс ближайшего растения', scan: 'Количество занятых грядок в радиусе сканирования',
+  has_ready_plot: 'Есть ли зрелые грядки на ферме', has_empty_plot: 'Есть ли пустые грядки',
+  has_thirsty_plot: 'Есть ли растения, ожидающие полива'
+};
+
+function escapeHtml(value) {
+  return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+}
+
+function collectSymbols(ast, source) {
+  const variables=new Set(), functions=new Set();
+  const visit=node=>{
+    if(!node||typeof node!=='object')return;
+    if(Array.isArray(node)){node.forEach(visit);return;}
+    if(node.type==='def'){functions.add(node.name);node.params?.forEach(p=>variables.add(p));}
+    if(node.type==='assign')variables.add(node.name);
+    if(node.type==='for')variables.add(node.name);
+    for(const [key,value] of Object.entries(node)) if(key!=='line'&&key!=='name'&&key!=='params') visit(value);
+  };
+  visit(ast);
+  for(const match of source.matchAll(/^\s*def\s+[A-Za-z_]\w*\s*\((.*?)\)\s*:/gm)) {
+    for(const param of match[1].split(',').map(v=>v.trim()).filter(Boolean)) variables.add(param);
+  }
+  return {variables:[...variables],functions:[...functions]};
+}
+
+function classifyIdentifier(name, symbols, actions, sensors) {
+  if(KEYWORDS.has(name))return 'kw';
+  if(actions.has(name))return 'cmd';
+  if(sensors.has(name))return 'sensor';
+  if(DSL_BUILTINS.includes(name))return 'builtin';
+  if(symbols.functions.has(name))return 'fn';
+  if(symbols.variables.has(name))return 'var';
+  return 'ident';
+}
+
+export function highlightSource(source, {currentLine=null,errorLine=null,caret=0,actions=DSL_ACTIONS,sensors=[]}={}) {
+  const actionSet=new Set(actions),sensorSet=new Set(sensors),symbols={variables:new Set(),functions:new Set()};
+  try { const ast=parseProgram(source); const found=collectSymbols(ast,source); symbols.variables=new Set(found.variables);symbols.functions=new Set(found.functions); }
+  catch { for(const m of source.matchAll(/^\s*([A-Za-z_]\w*)\s*(?:\+=|-=|\*=|\/=|=)/gm))symbols.variables.add(m[1]); for(const m of source.matchAll(/^\s*def\s+([A-Za-z_]\w*)/gm))symbols.functions.add(m[1]); }
+  const caretLine=source.slice(0,caret).split('\n').length;
+  const lines=source.split('\n');
+  const indentOf=line=>(line.match(/^\s*/)||[''])[0].replace(/\t/g,'    ').length;
+  const isHeader=line=>/^(if|elif|else|for|while|def)\b.*:\s*$/.test(line.trim());
+  let blockStart=0,blockEnd=0;
+  const targetLine=lines[caretLine-1]||'',targetIndent=indentOf(targetLine);
+  if(isHeader(targetLine)){blockStart=caretLine;let i=caretLine;while(i<lines.length&&(!lines[i].trim()||indentOf(lines[i])>targetIndent))i++;blockEnd=i;}
+  else if(targetIndent>0){
+    for(let i=caretLine-2;i>=0;i--){if(!lines[i].trim())continue;const indent=indentOf(lines[i]);if(indent<targetIndent&&isHeader(lines[i])){blockStart=i+1;let j=i+1;while(j<lines.length&&(!lines[j].trim()||indentOf(lines[j])>indent))j++;blockEnd=j;break;}if(indent<targetIndent)break;}
+  }
+  const rendered=lines.map((line,index)=>{
+    const n=index+1;let out='',i=0;const stack=[];let bracketMatches=new Set();
+    for(let j=0;j<line.length;j++){
+      if(line[j]==='"'||line[j]==="'"){
+        const quote=line[j];let k=j+1;while(k<line.length){if(line[k]==='\\'){k+=2;continue;}if(line[k]===quote){k++;break;}k++;}stack.push({start:j,end:k,cls:'str'});j=k-1;
+      }else if(line[j]==='#'){stack.push({start:j,end:line.length,cls:'comment'});break;}
+    }
+    const protectedAt=pos=>stack.find(t=>pos>=t.start&&pos<t.end);
+    const pairs=[];for(let j=0;j<line.length;j++){if(protectedAt(j))continue;const c=line[j];if('([{'.includes(c))pairs.push({c,j});else if(')]}'.includes(c)){const open={')':'(',']':'[','}':'{'}[c];for(let k=pairs.length-1;k>=0;k--)if(pairs[k].c===open){const item=pairs.splice(k,1)[0];bracketMatches.add(item.j);bracketMatches.add(j);break;}}}
+    while(i<line.length){
+      const token=protectedAt(i);
+      if(token){const cls=token.cls;out+=`<span class="tok-${cls}">${escapeHtml(line.slice(i,token.end))}</span>`;i=token.end;continue;}
+      const start=i,c=line[i];let cls='punct';
+      if(/[A-Za-z_]/.test(c)){i++;while(i<line.length&&/[A-Za-z0-9_]/.test(line[i]))i++;const word=line.slice(start,i);cls=classifyIdentifier(word,symbols,actionSet,sensorSet);}
+      else if(/[0-9]/.test(c)||(c==='.'&&/[0-9]/.test(line[i+1]||''))){i++;while(i<line.length&&/[0-9.]/.test(line[i]))i++;cls='number';}
+      else if('+-*/%=<>!'.includes(c)){i++;if(i<line.length&&line[i]==='=')i++;cls='op';}
+      else {i++;if('()[]{}'.includes(c))cls=bracketMatches.has(start)&&n===caretLine?'bracket-match':'punct';}
+      out+=`<span class="tok-${cls}">${escapeHtml(line.slice(start,i))}</span>`;
+    }
+    const lineClass=[n===currentLine?'is-current':'',n===errorLine?'has-error':'',blockStart&&n>=blockStart&&n<=blockEnd?'is-block':''].filter(Boolean).join(' ');
+    return `<span class="code-line ${lineClass}" data-line="${n}">${out||' '}</span>`;
+  }).join('\n');
+  return rendered;
+}
+
+export function validateSource(source, sensors=[]) {
+  try {
+    const ast=parseProgram(source), defined=new Set(ast.filter(n=>n.type==='def').map(n=>n.name));
+    const known=new Set([...DSL_ACTIONS,...DSL_BUILTINS,...sensors,...defined]);
+    let problem=null;
+    const visit=node=>{
+      if(problem||!node||typeof node!=='object')return;
+      if(Array.isArray(node)){node.forEach(visit);return;}
+      if(node.type==='call'&&!known.has(node.name))problem={line:node.line||1,message:`Неизвестная команда или функция «${node.name}»`};
+      Object.values(node).forEach(visit);
+    };
+    visit(ast);return problem;
+  } catch(error) { return {line:error.line||1,message:error.message||String(error)}; }
+}
+
+export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectRobot=()=>{}}) {
+  const editor=document.querySelector('#code'), gutter=document.querySelector('#codeGutter');
+  const highlight=document.querySelector('#codeHighlight'), popup=document.querySelector('#ideAutocomplete');
+  const hint=document.querySelector('#ideHint'), errorBox=document.querySelector('#codeErrors');
+  const variables=document.querySelector('#ideVariables'), functions=document.querySelector('#ideFunctions');
+  const robots=document.querySelector('#ideRobots'), stack=document.querySelector('#ideCallStack'), state=document.querySelector('#ideState');
+  const actions=new Set(DSL_ACTIONS);let suggestions=[],suggestionIndex=0,debugByRobot=new Map(),runtimeErrors=new Map(),suppressCompletionOnce=false;
+  const agentBreakpoints=agent=>{
+    if(!(agent.breakpoints instanceof Set)){
+      let saved=[];try{saved=JSON.parse(localStorage.getItem(`farmerbot3d_breakpoints_${agent.id}`)||'[]');}catch{}
+      agent.breakpoints=new Set(saved.filter(n=>Number.isInteger(n)&&n>0));
+    }
+    return agent.breakpoints;
+  };
+  const setText=(el,value)=>{if(el)el.textContent=value;};
+  const active=()=>getAgent();
+  function renderGutter(errorLine=null){
+    if(!gutter)return;const count=editor.value.split('\n').length;gutter.replaceChildren();
+    const bps=agentBreakpoints(active());
+    for(let line=1;line<=count;line++){
+      const button=document.createElement('button');button.type='button';button.className='gutter-line'+(bps.has(line)?' has-breakpoint':'')+(Number(errorLine)===line?' has-error':'');button.dataset.line=String(line);button.textContent=String(line);button.title=bps.has(line)?`Убрать точку останова ${line}`:`Поставить точку останова ${line}`;button.setAttribute('aria-label',button.title);
+      button.addEventListener('click',()=>toggleBreakpoint(line));gutter.append(button);
+    }
+    gutter.scrollTop=editor.scrollTop;
+  }
+  function toggleBreakpoint(line){const agent=active(),bps=agentBreakpoints(agent);if(bps.has(line))bps.delete(line);else bps.add(line);try{localStorage.setItem(`farmerbot3d_breakpoints_${agent.id}`,JSON.stringify([...bps].sort((a,b)=>a-b)));}catch{}render();}
+  function render(){
+    if(!editor||!highlight)return;const agent=active(),debug=debugByRobot.get(agent.id)||{};
+    const issue=validateSource(editor.value,getSensors()),runtimeError=runtimeErrors.get(agent.id),shownError=issue||runtimeError;
+    highlight.innerHTML=highlightSource(editor.value,{currentLine:debug.line,errorLine:shownError?.line||null,caret:editor.selectionStart,actions:DSL_ACTIONS,sensors:getSensors()});
+    renderGutter(issue?.line);
+    if(errorBox){errorBox.hidden=!shownError;errorBox.textContent=shownError?`Строка ${shownError.line}: ${shownError.message}`:'Ошибок нет';errorBox.classList.toggle('valid',!shownError);}
+    if(debug.nextLine)setText(document.querySelector('#ideNextLine'),`следующая: ${debug.nextLine}`);else setText(document.querySelector('#ideNextLine'),'следующая: —');
+    renderHint();renderRobots();
+  }
+  function renderHint(){
+    if(!hint)return;const before=editor.value.slice(0,editor.selectionStart),m=before.match(/([A-Za-z_]\w*)\(([^()\n]*)$/);
+    if(!m){hint.textContent='Подсказка параметров появится внутри вызова команды.';return;}
+    const name=m[1],meta=COMMAND_META[name];let userFn=null;try{userFn=parseProgram(editor.value).find(node=>node.type==='def'&&node.name===name);}catch{}hint.textContent=meta?`${meta[0]} — ${meta[1]}`:SENSOR_META[name]?`${name}() — ${SENSOR_META[name]}`:userFn?`${name}(${userFn.params.join(', ')}) — функция пользователя`:'';
+  }
+  function renderRobots(){if(!robots)return;robots.replaceChildren();for(const agent of getAgents()){
+    const button=document.createElement('button');button.type='button';button.className='ide-robot'+(agent.id===active().id?' selected':'');
+    const title=document.createElement('strong');title.textContent=agent.name;const meta=document.createElement('small');meta.textContent=`${Math.round(agent.energy)}⚡ · ${agent.running?'выполняется':'ожидает'}`;button.append(title,meta);button.addEventListener('click',()=>onSelectRobot(agent.id));robots.append(button);
+  }}
+  function renderValues(snapshot){
+    if(!variables)return;variables.replaceChildren();if(!snapshot){variables.textContent='Переменные появятся после старта программы.';return;}
+    const groups=[snapshot.scopes?.global,...(snapshot.scopes?.locals||[])].filter(Boolean);
+    for(const group of groups){const section=document.createElement('section');section.className='ide-scope';const title=document.createElement('b');title.textContent=group.name==='global'?'Глобальные':`Локальные · ${group.name.replace('local:','')}`;section.append(title);
+      const entries=Object.entries(group.values||{});if(!entries.length){const empty=document.createElement('small');empty.textContent='нет переменных';section.append(empty);}
+      for(const [name,value] of entries){const row=document.createElement('div');row.className='ide-value';const key=document.createElement('code');key.textContent=name;const val=document.createElement('span');const type=value===null?'None':Array.isArray(value)?'list':typeof value;val.textContent=typeof value==='string'?JSON.stringify(value):String(value);const kind=document.createElement('small');kind.textContent=type;row.append(key,val,kind);section.append(row);}variables.append(section);
+    }
+  }
+  function renderFunctions(names=[]){if(!functions)return;functions.replaceChildren();for(const name of names){const item=document.createElement('code');item.textContent=`${name}()`;functions.append(item);}if(!names.length)functions.textContent='Функции пользователя не объявлены.';}
+  function renderStack(frames=[]){if(!stack)return;stack.replaceChildren();if(!frames.length){stack.textContent='Глобальный уровень';return;}for(const frame of [...frames].reverse()){const item=document.createElement('div');item.textContent=`${frame.name}() · вызов из строки ${frame.line}`;stack.append(item);}}
+  function setDebugState(agentId,snapshot,status='выполняется'){
+    debugByRobot.set(agentId,snapshot||{});const agent=active();if(agent.id!==agentId)return;
+    setText(document.querySelector('#codeStatus'),status);setText(document.querySelector('#currentLine'),snapshot?.line?`строка ${snapshot.line}`:'строка —');setText(document.querySelector('#ideNextLine'),snapshot?.nextLine?`следующая: ${snapshot.nextLine}`:'следующая: —');
+    renderValues(snapshot);renderFunctions(snapshot?.functions||[]);renderStack(snapshot?.callStack||[]);setText(state,status);render();
+  }
+  function hidePopup(){if(popup){popup.hidden=true;popup.replaceChildren();}suggestions=[];suggestionIndex=0;}
+  function getSuggestions(){
+    const before=editor.value.slice(0,editor.selectionStart),match=before.match(/([A-Za-z_]\w*)$/);if(!match||match[1].length<1)return [];
+    const prefix=match[1].toLowerCase(),source=editor.value;let ast=null;try{ast=parseProgram(source);}catch{}
+    const symbols=ast?collectSymbols(ast,source):{variables:[...source.matchAll(/^\s*([A-Za-z_]\w*)\s*(?:\+=|-=|\*=|\/=|=)/gm)].map(m=>m[1]),functions:[...source.matchAll(/^\s*def\s+([A-Za-z_]\w*)/gm)].map(m=>m[1])};
+    const options=[];
+    for(const name of [...DSL_ACTIONS,...getSensors(),...DSL_BUILTINS,...KEYWORDS,...symbols.variables,...symbols.functions]){
+      if(name.toLowerCase().startsWith(prefix)&&!options.some(item=>item.name===name)){
+        const meta=COMMAND_META[name],fn=ast?.find(node=>node.type==='def'&&node.name===name);options.push({name,signature:meta?.[0]|| (fn?`${name}(${fn.params.join(', ')})`:`${name}()`),description:meta?.[1]||SENSOR_META[name]|| (fn?'Функция пользователя':symbols.variables.includes(name)?'Переменная программы':'Ключевое слово')});
+      }
+    }
+    return options.slice(0,9);
+  }
+  function renderPopup(){
+    if(!popup)return;popup.replaceChildren();if(!suggestions.length){hidePopup();return;}popup.hidden=false;
+    suggestions.forEach((item,index)=>{const button=document.createElement('button');button.type='button';button.className='completion-item'+(index===suggestionIndex?' active':'');const name=document.createElement('strong');name.textContent=item.name;const signature=document.createElement('code');signature.textContent=item.signature;const desc=document.createElement('small');desc.textContent=item.description;button.append(name,signature,desc);button.addEventListener('mousedown',event=>event.preventDefault());button.addEventListener('click',()=>acceptSuggestion(index));popup.append(button);});
+  }
+  function refreshSuggestions(){suggestions=getSuggestions();suggestionIndex=0;renderPopup();renderHint();}
+  function acceptSuggestion(index=suggestionIndex){const item=suggestions[index];if(!item)return false;const before=editor.value.slice(0,editor.selectionStart),match=before.match(/([A-Za-z_]\w*)$/);if(!match)return false;const start=editor.selectionStart-match[1].length;editor.setRangeText(item.name,start,editor.selectionStart,'end');hidePopup();suppressCompletionOnce=true;editor.dispatchEvent(new Event('input',{bubbles:true}));return true;}
+  function handleKeydown(event){
+    if(!popup?.hidden&&suggestions.length){
+      if(event.key==='ArrowDown'){event.preventDefault();suggestionIndex=(suggestionIndex+1)%suggestions.length;renderPopup();return true;}
+      if(event.key==='ArrowUp'){event.preventDefault();suggestionIndex=(suggestionIndex-1+suggestions.length)%suggestions.length;renderPopup();return true;}
+      if(event.key==='Enter'||event.key==='Tab'){event.preventDefault();acceptSuggestion();return true;}
+      if(event.key==='Escape'){event.preventDefault();hidePopup();return true;}
+    }
+    return false;
+  }
+  editor?.addEventListener('input',()=>{runtimeErrors.delete(active().id);render();if(suppressCompletionOnce){suppressCompletionOnce=false;hidePopup();}else refreshSuggestions();onEdit(editor.value);});
+  editor?.addEventListener('click',render);editor?.addEventListener('keyup',render);
+  editor?.addEventListener('scroll',()=>{if(highlight)highlight.scrollTop=editor.scrollTop;if(gutter)gutter.scrollTop=editor.scrollTop;});
+  editor?.addEventListener('blur',()=>setTimeout(hidePopup,120));
+  function refresh(){render();const agent=active();const saved=debugByRobot.get(agent.id);if(saved){renderValues(saved);renderFunctions(saved.functions||[]);renderStack(saved.callStack||[]);}else{renderValues(null);renderFunctions([]);renderStack([]);} }
+  render();refresh();
+  return {
+    refresh,handleKeydown,setDebugState,
+    clearDebug(agentId){debugByRobot.delete(agentId);if(active().id===agentId){renderValues(null);renderFunctions([]);renderStack([]);setText(state,'сброшено');setText(document.querySelector('#currentLine'),'строка —');setText(document.querySelector('#ideNextLine'),'следующая: —');render();}},
+    setRuntimeError(agentId,line,message){runtimeErrors.set(agentId,{line:Number(line)||1,message:String(message||'Ошибка выполнения').replace(/^Строка\s+\d+[:：]\s*/i,'')});if(active().id===agentId)render();},
+    clearRuntimeError(agentId){runtimeErrors.delete(agentId);if(active().id===agentId)render();},
+    currentLine(){return debugByRobot.get(active().id)?.line||null;},
+    toggleBreakpoint
+  };
+}

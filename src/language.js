@@ -15,7 +15,7 @@ class BreakSignal { constructor(line) { this.line = line; } }
 class ContinueSignal { constructor(line) { this.line = line; } }
 
 class Environment {
-  constructor(parent = null) { this.parent = parent; this.values = new Map(); }
+  constructor(parent = null, name = "global") { this.parent = parent; this.name = name; this.values = new Map(); }
   hasLocal(name) { return this.values.has(name); }
   has(name) { return this.values.has(name) || !!this.parent?.has(name); }
   get(name, line) {
@@ -292,12 +292,34 @@ function evaluate(node, env, api) {
   throw new Error("Unknown expression node: "+node.type);
 }
 
+const DSL_ACTIONS = Object.freeze([
+  "move", "turn_left", "turn_right", "plant", "water", "harvest", "wait",
+  "scan", "refill_water", "return_to_base", "sleep", "go_to_plot"
+]);
+const DSL_BUILTINS = Object.freeze(["print", "range", "abs", "min", "max", "floor", "ceil", "round"]);
+
+function snapshotScopes(scope) {
+  const chain=[];
+  for(let current=scope;current;current=current.parent) {
+    const values={};
+    for(const [name,value] of current.values) values[name]=value;
+    chain.push({name:current.name,values});
+  }
+  chain.reverse();
+  return {global:chain[0]||{name:"global",values:{}},locals:chain.slice(1)};
+}
+
 async function runProgram(source, api = {}) {
   const ast=parseProgram(source);
-  const env=new Environment();
+  const env=new Environment(null,"global");
   const functions=new Map();
+  const callStack=[];
   const MAX_STEPS=5000, MAX_LOOP=1000, MAX_CALL_DEPTH=24;
   let steps=0, callDepth=0;
+  const getDebugSnapshot=(scope,line=null,nextLine=null,statement=null)=>({
+    line,nextLine,statement:statement?.type||null,steps,
+    scopes:snapshotScopes(scope),functions:[...functions.keys()],callStack:callStack.map(frame=>({...frame}))
+  });
   const checkStop=()=>{if(api.shouldStop?.()) throw new LanguageError("Выполнение остановлено");};
   function tick(line) {
     checkStop();
@@ -305,9 +327,18 @@ async function runProgram(source, api = {}) {
     if(steps>MAX_STEPS) throw new LanguageError(`Превышен лимит команд (${MAX_STEPS}). Возможно, цикл бесконечный`,line);
   }
   async function executeBlock(body, scope, insideFunction=false) {
-    for(const stmt of body) {
+    for(let index=0;index<body.length;index++) {
+      const stmt=body[index], nextLine=body[index+1]?.line??null;
       tick(stmt.line);
-      try { await api.beforeStep?.(stmt.line, stmt); checkStop(); await api.onStep?.(stmt.line, stmt); await executeStatement(stmt,scope,insideFunction); }
+      try {
+        const debug=getDebugSnapshot(scope,stmt.line,nextLine,stmt);
+        api.onDebugState?.(debug);
+        await api.beforeStep?.(stmt.line,stmt,debug);
+        checkStop();
+        await api.onStep?.(stmt.line,stmt,nextLine);
+        await executeStatement(stmt,scope,insideFunction);
+        api.onVariables?.(getDebugSnapshot(scope,stmt.line,nextLine,stmt));
+      }
       catch(signal) {
         if(signal instanceof BreakSignal || signal instanceof ContinueSignal || signal instanceof ReturnSignal) throw signal;
         if(signal instanceof LanguageError) throw signal;
@@ -320,12 +351,19 @@ async function runProgram(source, api = {}) {
     if(!fn) throw new LanguageError(`Функция «${name}» не объявлена`,line);
     if(callDepth>=MAX_CALL_DEPTH) throw new LanguageError("Слишком глубокий вызов функций",line);
     if(args.length!==fn.params.length) throw new LanguageError(`Функция ${name} ждёт ${fn.params.length} арг.`,line);
-    const local=new Environment(env);
+    const local=new Environment(env,`local:${name}`);
     fn.params.forEach((p,i)=>local.set(p,args[i]));
     callDepth++;
+    callStack.push({name,line,depth:callDepth});
+    api.onCallStack?.(callStack.map(frame=>({...frame})));
+    api.onVariables?.(getDebugSnapshot(local,line,fn.body[0]?.line??null,fn));
     try { await executeBlock(fn.body,local,true); }
     catch(s) { if(s instanceof ReturnSignal) return s.value; throw s; }
-    finally { callDepth--; }
+    finally {
+      callStack.pop();callDepth--;
+      api.onCallStack?.(callStack.map(frame=>({...frame})));
+      api.onVariables?.(getDebugSnapshot(env,null,null,null));
+    }
     return null;
   }
   async function executeStatement(stmt,scope,insideFunction) {
@@ -372,8 +410,7 @@ async function runProgram(source, api = {}) {
         const args=stmt.args.map(a=>evaluate(a,scope,api));
         if(functions.has(stmt.name)) { await invokeFunction(stmt.name,args,stmt.line); return; }
         if(stmt.name==="print") { api.log?.(args.map(String).join(" ")); return; }
-        const allowed=["move","turn_left","turn_right","plant","water","harvest","wait","scan","refill_water","return_to_base","sleep","go_to_plot"];
-        if(!allowed.includes(stmt.name)) throw new LanguageError(`Неизвестная команда «${stmt.name}»`,stmt.line);
+        if(!DSL_ACTIONS.includes(stmt.name)) throw new LanguageError(`Неизвестная команда «${stmt.name}»`,stmt.line);
         await api.action?.(stmt.name,args);
         return;
       }
@@ -387,6 +424,8 @@ async function runProgram(source, api = {}) {
 
   // Register all top-level functions before running, so calls may appear before their definitions.
   for(const stmt of ast) if(stmt.type==="def") functions.set(stmt.name,stmt);
+  api.onFunctions?.([...functions.keys()]);
+  api.onVariables?.(getDebugSnapshot(env));
   api.log?.("▶ Программа запущена");
   try {
     await executeBlock(ast,env,false);
@@ -403,4 +442,4 @@ async function runProgram(source, api = {}) {
   }
 }
 
-export { parseProgram, runProgram, LanguageError };
+export { parseProgram, runProgram, LanguageError, DSL_ACTIONS, DSL_BUILTINS };

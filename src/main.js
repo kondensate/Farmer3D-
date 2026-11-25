@@ -1,8 +1,11 @@
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { runProgram } from './language.js';
+import { createIde } from './ide.js';
+import { createDebuggerController } from './debugger.js';
 import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from './data.js';
 import { GRID_STEP, worldToCell, cellToWorld, findPath, buildBlockedCells } from './navigation.js';
+let ide=null;
 const root=document.querySelector('#game');
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bc7c2); scene.fog=new THREE.Fog(0x9bc7c2,22,48);
 const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,100); camera.position.set(8,11,12);
@@ -364,7 +367,7 @@ function loadProgram(){
  const a=activeAgent();let saved=null;
  try{saved=localStorage.getItem(`farmerbot3d_program_${a.id}`)||(a.id==='farmbot'?localStorage.getItem('farmerbot3d_program_v2'):null);}catch(e){console.warn('Локальное хранилище программы недоступно',e);}
  if(saved!==null)a.program=saved;
- $('#code').value=a.program||'# Программа робота\nscan()\n';updateCodeGutter();
+ $('#code').value=a.program||'# Программа робота\nscan()\n';ide?.refresh();
  $('#codeStatus').textContent=a.running?'выполняется':'готов';
 }
 function renderFleetUI(){
@@ -390,7 +393,7 @@ function renderFleetUI(){
 }
 function selectAgent(id){
  const a=agents.find(x=>x.id===id);if(!a)return;
- selectedAgent=a;loadProgram();const out=$('#programOutput');out.textContent=(a.logs||[]).join('\n')||'Журнал программы появится здесь.';renderFleetUI();
+ selectedAgent=a;loadProgram();const out=$('#programOutput');out.textContent=(a.logs||[]).join('\n')||'Журнал программы появится здесь.';renderFleetUI();ide?.refresh();
 }
 function buyRobot(type,cost){
  if(agents.some(a=>a.type===type)){toast('Этот робот уже куплен');return;}
@@ -521,12 +524,13 @@ $('#seedType').onchange=e=>{activeSeed=e.target.value;renderSeedStock();};
 $('#shopInfo').textContent='Продажа урожая даёт монеты. За 3 монеты покупаешь 5 единиц воды.';
 $('#codeToggle').onclick=()=>$('#codePanel').classList.add('show');$('#closeCode').onclick=()=>$('#codePanel').classList.remove('show');
 $('#saveProgram').onclick=saveProgram;$('#loadProgram').onclick=loadProgram;
-function updateCodeGutter(){
- const lines=$('#code').value.split('\n').length;$('#codeGutter').textContent=Array.from({length:lines},(_,i)=>i+1).join('\n');
- $('#codeGutter').scrollTop=$('#code').scrollTop;
-}
-$('#code').addEventListener('scroll',()=>{$('#codeGutter').scrollTop=$('#code').scrollTop;});
+ide=createIde({
+ getAgent:activeAgent,getAgents:()=>agents,getSensors:()=>sensorNames,
+ onSelectRobot:id=>selectAgent(id),
+ onEdit:source=>{try{const a=activeAgent();a.program=source;localStorage.setItem(`farmerbot3d_program_${a.id}`,source);$('#codeStatus').textContent='автосохранено';}catch(e){$('#codeStatus').textContent='не сохранено';}}
+});
 $('#code').addEventListener('keydown',e=>{
+ if(ide?.handleKeydown(e))return;
  if(e.key!=='Tab')return;
  e.preventDefault();
  const el=e.currentTarget,start=el.selectionStart,end=el.selectionEnd;
@@ -537,7 +541,6 @@ $('#code').addEventListener('keydown',e=>{
  else {el.setRangeText('    ',start,end,'end');}
  el.dispatchEvent(new Event('input'));
 });
-$('#code').addEventListener('input',()=>{updateCodeGutter();try{const a=activeAgent();a.program=$('#code').value;localStorage.setItem(`farmerbot3d_program_${a.id}`,a.program);$('#codeStatus').textContent='автосохранено';}catch(e){$('#codeStatus').textContent='не сохранено';}});
 
 $('#example').onclick=()=>{$('#code').value=`# Функция ухода за одной грядкой
 def tend_plot():
@@ -745,7 +748,8 @@ async function programAction(name,args=[],agent=activeAgent()){
 }
 async function runAgent(agent){
  if(agent.running)return;
- agent.running=true;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.actionBudget=0;agent.tileBudget=0;
+ agent.running=true;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.pauseReason='';agent.debugSteps=0;agent.actionBudget=0;agent.tileBudget=0;
+ const debuggerController=createDebuggerController(agent,(debug,status)=>{if(agent.id===activeAgent().id)ide?.setDebugState(agent.id,debug,status);});agent.debuggerController=debuggerController;ide?.clearRuntimeError(agent.id);
  programmedBots.add(agent.id);metrics.programs++;metrics.botsProgrammed=programmedBots.size;updateMissions();
  if(agent.id===activeAgent().id){$('#run').textContent='⏳ РАБОТАЕТ';$('#codeStatus').textContent='выполняется';}
  programLogFor(agent,'▶ Запуск программы');
@@ -756,24 +760,29 @@ async function runAgent(agent){
    hasSensor:name=>sensorNames.includes(name),
    log:msg=>programLogFor(agent,msg),
    shouldStop:()=>agent.stopRequested,
-   beforeStep:async()=>{if(agent.pauseRequested&&!agent.stepOnce&&!agent.stopRequested)await new Promise(resolve=>{agent.resumeResolver=resolve;});if(agent.stepOnce){agent.stepOnce=false;agent.pauseRequested=true;}agent.resumeResolver=null;},
-   onStep:line=>{if(agent.id===activeAgent().id)$('#currentLine').textContent=`строка ${line}`;}
+   onDebugState:debug=>{if(agent.id===activeAgent().id)ide?.setDebugState(agent.id,debug,agent.pauseRequested?(agent.pauseReason||'пауза'):'выполняется');},
+   onVariables:debug=>{if(agent.id===activeAgent().id)ide?.setDebugState(agent.id,debug,agent.pauseRequested?(agent.pauseReason||'пауза'):'выполняется');},
+   onFunctions:names=>{if(agent.id===activeAgent().id)ide?.setDebugState(agent.id,{functions:names,scopes:{global:{name:'global',values:{}},locals:[]},callStack:[]},'выполняется');},
+   beforeStep:debuggerController.beforeStep,
+   onStep:(line)=>{if(agent.id===activeAgent().id)$('#currentLine').textContent=`строка ${line}`;}
   });
-  agent.lastError=result.ok||agent.stopRequested?'':result.error||'';
- }catch(error){agent.lastError=error?.message||String(error);programLogFor(agent,'✕ '+agent.lastError);}
- agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.resumeResolver?.();agent.resumeResolver=null;
- if(agent.id===activeAgent().id){$('#run').textContent='▶ ЗАПУСТИТЬ';$('#codeStatus').textContent=agent.lastError?'ошибка':'готово';$('#currentLine').textContent='строка —';}
+  agent.lastError=result.ok||agent.stopRequested?'':result.error||'';if(agent.lastError){const line=Number(agent.lastError.match(/Строка\s+(\d+)/i)?.[1]);if(line)ide?.setRuntimeError(agent.id,line,agent.lastError);}
+ }catch(error){agent.lastError=error?.message||String(error);const line=Number(error?.line)||Number(agent.lastError.match(/Строка\s+(\d+)/i)?.[1]);if(line)ide?.setRuntimeError(agent.id,line,agent.lastError);programLogFor(agent,'✕ '+agent.lastError);}
+ const wasStopped=agent.stopRequested;
+ agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.pauseReason='';agent.resumeResolver?.();agent.resumeResolver=null;agent.debuggerController=null;
+ if(agent.id===activeAgent().id){const finalStatus=agent.lastError?'ошибка':wasStopped?'остановлено':'готово';$('#run').textContent='▶ ЗАПУСТИТЬ';$('#codeStatus').textContent=finalStatus;$('#currentLine').textContent='строка —';$('#ideState').textContent=finalStatus;}
  renderFleetUI();stats();saveGame();
 }
 
 $('#run').onclick=()=>{
  const agent=activeAgent();agent.program=$('#code').value;runAgent(agent);
 };
-$('#pauseProgram').onclick=()=>{const agent=activeAgent();if(!agent.running)return;agent.pauseRequested=true;$('#codeStatus').textContent='пауза после текущей команды';};
-$('#stepProgram').onclick=()=>{const agent=activeAgent();if(!agent.running)return;agent.pauseRequested=true;agent.stepOnce=true;agent.resumeResolver?.();};
-$('#resumeProgram').onclick=()=>{const agent=activeAgent();agent.pauseRequested=false;agent.stepOnce=false;agent.resumeResolver?.();agent.resumeResolver=null;$('#codeStatus').textContent=agent.running?'выполняется':'готов';};
+$('#pauseProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.pause();if(agent.running)$('#codeStatus').textContent=agent.pauseReason;};
+$('#stepProgram').onclick=()=>activeAgent().debuggerController?.step();
+$('#resumeProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.resume();$('#codeStatus').textContent=agent.running?'выполняется':'готов';};
+$('#debugReset').onclick=()=>{const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.stepOnce=false;agent.resumeResolver?.();agent.resumeResolver=null;agent.pauseReason='';agent.lastError='';ide?.clearDebug(agent.id);$('#codeStatus').textContent='сброшено';$('#currentLine').textContent='строка —';$('#programOutput').textContent=(agent.logs||[]).join('\n')||'Отладчик сброшен. Код программы сохранён.';if(!agent.running)agent.stopRequested=false;};
 $('#stop').onclick=()=>{
- const agent=activeAgent();agent.stopRequested=true;agent.pauseRequested=false;agent.resumeResolver?.();agent.resumeResolver=null;programLogFor(agent,'■ Запрошена остановка');$('#codeStatus').textContent='остановка…';saveGame();
+ const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.resumeResolver?.();agent.resumeResolver=null;programLogFor(agent,'■ Запрошена остановка');$('#codeStatus').textContent='остановка…';saveGame();
 };
 $('#robotSelect').onchange=e=>selectAgent(e.target.value);$('#runSpeed').onchange=e=>{programSpeed=Number(e.target.value)||1;};
 $('#networkToggle').onclick=()=>{$('#networkPanel').classList.add('show');renderFleetUI();};
