@@ -50,3 +50,20 @@ export const MISSIONS = [
   ["coins_150","Фермерский бизнес","Получи 150 монет от продажи урожая","sales",150,75],
   ["automated","Умная ферма","Выполни 30 действий программой","programActions",30,100]
 ].map(([id,title,description,stat,target,reward], index)=>({id,title,description,stat,target,reward,order:index+1}));
+
+// FarmerBot 2.1: placeable farm infrastructure and research unlocks.
+export const BUILDINGS = {
+  greenhouse: { name:"Теплица", icon:"🏡", cost:70, width:2.9, depth:2.7, unlock:"horticulture", description:"Ускоряет рост культур рядом на 35%", effect:"growth" },
+  tank: { name:"Водный резервуар", icon:"🛢️", cost:45, width:1.8, depth:1.8, unlock:"waterworks", description:"Увеличивает запас воды фермы на 30", effect:"water" },
+  conveyor: { name:"Конвейер", icon:"🟫", cost:80, width:2.5, depth:1.15, unlock:"logistics", description:"Автоматически собирает зрелые растения рядом", effect:"harvest" },
+  charger: { name:"Зарядная станция", icon:"⚡", cost:65, width:2, depth:2, unlock:"energy", description:"Заряжает роботов поблизости", effect:"charge" },
+  robot_station: { name:"Робостанция", icon:"🤖", cost:110, width:2.6, depth:2.3, unlock:"robotics", description:"Обслуживает роботов и ускоряет восстановление", effect:"service" }
+};
+
+export const TECHNOLOGIES = [
+  { id:"horticulture", name:"Умное садоводство", icon:"🌱", costXP:25, costCoins:15, requires:[], unlocks:["greenhouse"], description:"Открывает теплицу и ускоренное выращивание" },
+  { id:"waterworks", name:"Водная инфраструктура", icon:"💧", costXP:35, costCoins:20, requires:[], unlocks:["tank"], description:"Открывает резервуары и расширенное водоснабжение" },
+  { id:"energy", name:"Энергосистема", icon:"⚡", costXP:40, costCoins:25, requires:[], unlocks:["charger"], description:"Открывает зарядные станции для флота" },
+  { id:"logistics", name:"Умная логистика", icon:"📦", costXP:50, costCoins:30, requires:["waterworks"], unlocks:["conveyor"], description:"Открывает автоматические конвейеры" },
+  { id:"robotics", name:"Робототехника II", icon:"🤖", costXP:60, costCoins:40, requires:["energy"], unlocks:["robot_station"], description:"Открывает робостанцию для обслуживания флота" }
+];

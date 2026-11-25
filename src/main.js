@@ -1,7 +1,8 @@
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { runProgram } from './language.js';
-import { CROPS, ROBOT_TYPES, MISSIONS } from './data.js';
+import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from './data.js';
+import { GRID_STEP, worldToCell, cellToWorld, findPath, buildBlockedCells } from './navigation.js';
 const root=document.querySelector('#game');
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bc7c2); scene.fog=new THREE.Fog(0x9bc7c2,22,48);
 const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,100); camera.position.set(8,11,12);
@@ -115,8 +116,8 @@ function setState(p,s){p.state=s;p.stage=s==='empty'?0:s==='seed'?1:s==='growing
 function plantPlot(plot,type='carrot',agent=selectedAgent){
  const crop=CROPS[type]?type:'carrot';
  if(!plot||plot.state!=='empty')return false;
- if((seedStock[crop]||0)<=0){toast(`Нет семян: ${CROPS[crop].name}`);return false;}
- seedStock[crop]--;plot.cropType=crop;plot.growth=0;plot.watered=false;plot.waterSource=null;plot.stage=1;setState(plot,'seed');
+ if(gameMode!=='sandbox'&&(seedStock[crop]||0)<=0){toast(`Нет семян: ${CROPS[crop].name}`);return false;}
+ if(gameMode!=='sandbox')seedStock[crop]--;plot.cropType=crop;plot.growth=0;plot.watered=false;plot.waterSource=null;plot.stage=1;setState(plot,'seed');
  metrics.planted++;updateMissions();burst(plot.g.position.clone().add(new THREE.Vector3(0,.55,0)),0x9bcf65,8);
  renderSeedStock();saveGame();return true;
 }
@@ -137,7 +138,7 @@ let bulb=new THREE.Mesh(new THREE.SphereGeometry(.09,12,8),gold);bulb.position.s
 robot.position.set(0,0,7);
 let robotMoving=false,robotAction=0,robotAnimTime=0;
 let coins=90,harvest=0,water=8,isLoadingGame=false;
-let xp=0,weather='sunny',weatherClock=0,dayClock=0,activeSeed='carrot',pumpBuilt=false,solarBuilt=false,storageBuilt=false,gameMode='campaign';
+let xp=0,researchPoints=0,weather='sunny',weatherClock=0,dayClock=0,activeSeed='carrot',pumpBuilt=false,solarBuilt=false,storageBuilt=false,gameMode='campaign';
 const seedStock={carrot:8,potato:2,tomato:2,corn:2,strawberry:2,eggplant:1,cucumber:2,cabbage:2,pumpkin:1,sunflower:1};
 const harvestStorage={};
 const metrics={planted:0,watered:0,harvested:0,earned:0,programs:0,tilesMoved:0,robots:1,botsProgrammed:0,programActions:0,waterUsed:0,waterEfficiency:0,cropTypes:0,sales:0};
@@ -165,19 +166,23 @@ function createAuxRobot(type,x,z){
  group.position.set(x,0,z);scene.add(group);
  return group;
 }
-agents.push({id:'farmbot',type:'farmbot',name:'FarmBot Basic',mesh:robot,energy:100,maxEnergy:100,speed:1,water:5,capacity:6,inventory:{},program:robotPrograms.farmbot,running:false,stopRequested:false,moving:false,actionBudget:0,tileBudget:0,level:1});
+agents.push({id:'farmbot',type:'farmbot',name:'FarmBot Basic',mesh:robot,energy:100,maxEnergy:100,speed:1,water:5,capacity:6,inventory:{},program:robotPrograms.farmbot,running:false,stopRequested:false,pauseRequested:false,resumeResolver:null,stepOnce:false,moving:false,actionBudget:0,tileBudget:0,level:1});
 let selectedAgent=agents[0];
 function createAgent(type){
  if(!ROBOT_TYPES[type]||agents.some(a=>a.type===type))return null;
  const cfg=ROBOT_TYPES[type],dock=baseDock({type}),x=dock.x,z=dock.z;
  const mesh=createAuxRobot(type,x,z);
- const a={id:type,type,name:cfg.name,mesh,energy:cfg.energy,maxEnergy:cfg.energy,speed:cfg.speed,water:cfg.water,capacity:type==='harvestbot'?18:type==='waterbot'?3:1,inventory:{},program:`# Программа ${cfg.name}\nscan()\n`,running:false,stopRequested:false,moving:false,actionBudget:0,tileBudget:0,level:1};
+ const a={id:type,type,name:cfg.name,mesh,energy:cfg.energy,maxEnergy:cfg.energy,speed:cfg.speed,water:cfg.water,capacity:type==='harvestbot'?18:type==='waterbot'?3:1,inventory:{},program:`# Программа ${cfg.name}\nscan()\n`,running:false,stopRequested:false,pauseRequested:false,resumeResolver:null,stepOnce:false,moving:false,actionBudget:0,tileBudget:0,level:1};
  agents.push(a);metrics.robots=agents.length;if(!isLoadingGame)updateMissions();renderFleetUI();return a;
 }
 function activeAgent(){return selectedAgent||agents[0];}
-function addXP(amount){xp+=amount;const newLevel=1+Math.floor(xp/100);if(newLevel>lastLevel){lastLevel=newLevel;toast(`⭐ Новый уровень фермы: ${newLevel}`);}stats();}
+function addXP(amount){xp+=amount;researchPoints+=Math.max(0,Number(amount)||0);const newLevel=1+Math.floor(xp/100);if(newLevel>lastLevel){lastLevel=newLevel;toast(`⭐ Новый уровень фермы: ${newLevel}`);}stats();}
 let lastLevel=1;
 const equipmentMeshes={};
+const buildings=[];
+const researchedTechs=new Set();
+let nextBuildingId=1,placingBuilding=null,previewMesh=null,placementRotation=0,challengeSeconds=180,challengeHarvested=0,challengeDone=false,challengeResult='';
+let conveyorClock=0,chargerClock=0;
 function buildEquipment(type){
  if(equipmentMeshes[type])return;
  const g=new THREE.Group();
@@ -194,6 +199,117 @@ function buildEquipment(type){
  }
  scene.add(g);equipmentMeshes[type]=g;
 }
+
+function createBuildingMesh(type,x,z,rotation=0,preview=false){
+ const def=BUILDINGS[type];if(!def)return null;
+ const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotation;
+ if(preview){
+  const material=new THREE.MeshStandardMaterial({color:0x9bd568,transparent:true,opacity:.48,roughness:.5,depthWrite:false});
+  const footprint=new THREE.Mesh(new THREE.BoxGeometry(def.width,.14,def.depth),material);footprint.position.y=.08;g.add(footprint);g.userData.previewMaterial=material;
+ }else if(type==='greenhouse'){
+  const glass=new THREE.MeshStandardMaterial({color:0x8fd4df,transparent:true,opacity:.2,roughness:.25,metalness:.05,depthWrite:false});
+  const frame=mat(0xd9e4cc,.55),floor=mat(0x876341);
+  box(g,def.width,.12,def.depth,floor,0,.06,0);
+  for(const sx of [-1,1])for(const sz of [-1,1])box(g,.09,1.45,.09,frame,sx*(def.width/2-.06),.79,sz*(def.depth/2-.06));
+  for(const sx of [-1,1]){const wall=new THREE.Mesh(new THREE.BoxGeometry(.035,1.35,def.depth-.12),glass);wall.position.set(sx*(def.width/2-.03),.78,0);g.add(wall);}
+  for(const sz of [-1,1]){const wall=new THREE.Mesh(new THREE.BoxGeometry(def.width-.12,1.35,.035),glass);wall.position.set(0,.78,sz*(def.depth/2-.03));g.add(wall);}
+  const roof=box(g,def.width+.12,.1,def.depth+.12,frame,0,1.55,0);roof.rotation.z=.12;
+  box(g,.08,.34,def.depth+.08,frame,0,1.38,0);
+ }else if(type==='tank'){
+  const bodyMat=mat(0x4d8da0,.42),rim=mat(0xc6d9d2,.45);
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.72,.78,1.65,12),bodyMat);body.position.y=.85;body.castShadow=true;g.add(body);
+  const top=new THREE.Mesh(new THREE.CylinderGeometry(.76,.76,.12,12),rim);top.position.y=1.7;g.add(top);
+  const tap=box(g,.42,.12,.16,rim,.65,.55,.22);tap.rotation.z=.2;
+ }else if(type==='conveyor'){
+  const frame=mat(0x5b5140),belt=mat(0x343c37),roller=mat(0xa9b5a2,.5);
+  box(g,def.width,.22,def.depth,frame,0,.28,0);box(g,def.width-.15,.06,def.depth-.2,belt,0,.42,0);
+  for(let x=-def.width/2+.2;x<def.width/2;x+=.32){const r=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,def.depth-.08,8),roller);r.rotation.x=Math.PI/2;r.position.set(x,.43,0);g.add(r);}
+  for(const z of [-1,1])box(g,def.width,.16,.07,roller,0,.55,z*def.depth*.42);
+ }else if(type==='charger'){
+  const base=mat(0x344e58),glow=mat(0x9adf66,.35);
+  const disk=new THREE.Mesh(new THREE.CylinderGeometry(.9,.95,.18,16),base);disk.position.y=.09;disk.castShadow=true;g.add(disk);
+  const pad=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,.08,16),glow);pad.position.y=.22;g.add(pad);
+  for(let i=0;i<4;i++){const p=new THREE.Mesh(new THREE.BoxGeometry(.08,.35,.08),glow);p.position.set(Math.cos(i*Math.PI/2)*.72,.38,Math.sin(i*Math.PI/2)*.72);g.add(p);}
+ }else if(type==='robot_station'){
+  const shell=mat(0x657a79),accent=mat(0xd6b35f),screen=mat(0x1f3739,.25);
+  box(g,1.85,1.45,1.35,shell,0,.73,0);box(g,1.1,.63,.08,screen,0,.96,.72);box(g,.22,.12,.1,accent,0,.3,.74);
+  for(const x0 of [-.7,.7])box(g,.12,1.6,.12,accent,x0,.8,-.62);
+ }
+ scene.add(g);return g;
+}
+function renderBuildingUI(){
+ const catalog=$('#buildingCatalog'),placed=$('#placedBuildings');if(!catalog||!placed)return;
+ catalog.innerHTML=Object.entries(BUILDINGS).map(([id,b])=>{
+  const unlocked=isBuildingUnlocked(id),cost=gameMode==='sandbox'?0:b.cost;
+  return `<div class="buildCard"><b>${b.icon} ${b.name}</b><small>${b.description}</small><small>Стоимость: ${cost} 🪙 ${unlocked?'':'· исследуй технологию'}</small><button data-build-select="${id}" ${unlocked?'':'disabled'}>РАЗМЕСТИТЬ</button></div>`;
+ }).join('');
+ placed.innerHTML=buildings.length?buildings.map(b=>`<div class="buildingRow"><span>${BUILDINGS[b.type].icon} ${BUILDINGS[b.type].name}</span><span><button data-building-move="${b.id}">↔ ПЕРЕМЕСТИТЬ</button> <button data-building-delete="${b.id}">✕</button></span></div>`).join(''):'<p class="muted">Пока нет размещённых построек.</p>';
+ catalog.querySelectorAll('[data-build-select]').forEach(btn=>btn.onclick=()=>startBuildingPlacement(btn.dataset.buildSelect));
+ placed.querySelectorAll('[data-building-move]').forEach(btn=>btn.onclick=()=>startBuildingPlacement(buildings.find(b=>b.id===Number(btn.dataset.buildingMove))?.type,Number(btn.dataset.buildingMove)));
+ placed.querySelectorAll('[data-building-delete]').forEach(btn=>btn.onclick=()=>deleteBuilding(Number(btn.dataset.buildingDelete)));
+}
+function waterCapacity(){return 99+buildings.filter(b=>b.type==='tank').length*30;}
+function isBuildingUnlocked(type){const def=BUILDINGS[type];return !!def&&(gameMode==='sandbox'||researchedTechs.has(def.unlock));}
+function renderTechs(){
+ const list=$('#techCatalog');if(!list)return;
+ $('#researchSummary').textContent=`Очки исследований: ${researchPoints} · Монеты: ${coins} · Открыто технологий: ${researchedTechs.size}/${TECHNOLOGIES.length}`;
+ list.innerHTML=TECHNOLOGIES.map(t=>{
+  const done=researchedTechs.has(t.id),requirements=gameMode==='sandbox'||t.requires.every(r=>researchedTechs.has(r)),affordable=gameMode==='sandbox'||(researchPoints>=t.costXP&&coins>=t.costCoins);
+  return `<div class="techCard ${done?'done':!requirements?'locked':''}"><b>${done?'✓':t.icon} ${t.name}</b><small>${t.description}</small><small>Цена: ${t.costXP} XP · ${t.costCoins} 🪙</small><small>${done?'Исследовано':requirements?'Готово к исследованию':`Нужно: ${t.requires.join(', ')}`}</small><button data-research="${t.id}" ${done||!requirements||(!affordable&&gameMode!=='sandbox')?'disabled':''}>${done?'ИЗУЧЕНО':'ИССЛЕДОВАТЬ'}</button></div>`;
+ }).join('');
+ list.querySelectorAll('[data-research]').forEach(btn=>btn.onclick=()=>researchTechnology(btn.dataset.research));
+}
+function researchTechnology(id){
+ const tech=TECHNOLOGIES.find(t=>t.id===id);if(!tech||researchedTechs.has(id))return;
+ if(gameMode!=='sandbox'&&!tech.requires.every(r=>researchedTechs.has(r))){toast('Сначала изучи необходимые технологии');return;}
+ if(gameMode!=='sandbox'&&(researchPoints<tech.costXP||coins<tech.costCoins)){toast(`Нужно ${tech.costXP} XP и ${tech.costCoins} монет`);return;}
+ if(gameMode!=='sandbox'){researchPoints-=tech.costXP;coins-=tech.costCoins;}
+ researchedTechs.add(id);addXP(0);renderTechs();renderBuildingUI();stats();saveGame();toast(`🔬 Изучено: ${tech.name}`);
+}
+function startBuildingPlacement(type,moveId=null){
+ if(!BUILDINGS[type])return;
+ if(!moveId&&!isBuildingUnlocked(type)){toast('Сначала исследуй технологию для этого здания');return;}
+ if(!moveId&&gameMode!=='sandbox'&&coins<BUILDINGS[type].cost){toast(`Нужно ${BUILDINGS[type].cost} монет`);return;}
+ cancelBuildingPlacement();
+ const record=moveId?buildings.find(b=>b.id===moveId):null;
+ placingBuilding={type,moveId:moveId||null};placementRotation=record?.rotation||0;
+ if(record)record.mesh.visible=false;
+ previewMesh=createBuildingMesh(type,record?.x??0,record?.z??0,placementRotation,true);
+ $('#buildHint').textContent=record?`Перемещение: ${BUILDINGS[type].name}. Коснись нового места.`:`Размещение: ${BUILDINGS[type].name}. Коснись свободного места на поле.`;
+}
+function cancelBuildingPlacement(){
+ if(previewMesh){scene.remove(previewMesh);previewMesh.geometry?.dispose?.();previewMesh.traverse(o=>{if(o.geometry)o.geometry.dispose();});previewMesh.userData.previewMaterial?.dispose?.();previewMesh=null;}
+ if(placingBuilding?.moveId){const record=buildings.find(b=>b.id===placingBuilding.moveId);if(record)record.mesh.visible=true;}
+ placingBuilding=null;$('#buildHint').textContent='Выбери объект для размещения.';
+}
+function rotateBuildingPlacement(){if(!placingBuilding)return;placementRotation=(placementRotation+Math.PI/2)%(Math.PI*2);previewMesh.rotation.y=placementRotation;}
+function buildingFootprint(type,rotation=0){const d=BUILDINGS[type],c=Math.abs(Math.cos(rotation)),s=Math.abs(Math.sin(rotation));return {width:d.width*c+d.depth*s,depth:d.depth*c+d.width*s};}
+function canPlaceBuilding(type,x,z,ignoreId=null,rotation=placementRotation){
+ const d=buildingFootprint(type,rotation);if(Math.abs(x)+d.width/2>10.2||Math.abs(z)+d.depth/2>10.2)return false;
+ for(const b of buildings){if(b.id===ignoreId)continue;const other=buildingFootprint(b.type,b.rotation);if(Math.abs(x-b.x)<(d.width+other.width)/2-.15&&Math.abs(z-b.z)<(d.depth+other.depth)/2-.15)return false;}
+ if(Math.hypot(x,z-7)<1.6)return false;
+ if(agents.some(a=>Math.abs(a.mesh.position.x-x)<d.width/2+.4&&Math.abs(a.mesh.position.z-z)<d.depth/2+.4))return false;
+ return true;
+}
+function placeBuildingAt(x,z){
+ if(!placingBuilding)return;
+ const type=placingBuilding.type,moveId=placingBuilding.moveId;
+ const snappedX=Math.round(x/GRID_STEP)*GRID_STEP,snappedZ=Math.round(z/GRID_STEP)*GRID_STEP;
+ if(!canPlaceBuilding(type,snappedX,snappedZ,moveId,placementRotation)){toast('Здесь нельзя разместить здание: место занято или вне фермы');return;}
+ if(!moveId&&gameMode!=='sandbox'){coins-=BUILDINGS[type].cost;}
+ if(moveId){const b=buildings.find(q=>q.id===moveId);if(b){disposeBuildingMesh(b.mesh);b.x=snappedX;b.z=snappedZ;b.rotation=placementRotation;b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);}}
+ else{const b={id:nextBuildingId++,type,x:snappedX,z:snappedZ,rotation:placementRotation};b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);buildings.push(b);}
+ cancelBuildingPlacement();renderBuildingUI();renderTechs();stats();saveGame();toast(`${BUILDINGS[type].name}: размещено`);
+}
+function disposeBuildingMesh(mesh){if(!mesh)return;scene.remove(mesh);mesh.traverse(o=>{o.geometry?.dispose?.();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose?.());else o.material.dispose?.();}});}
+function deleteBuilding(id){const index=buildings.findIndex(b=>b.id===id);if(index<0)return;const b=buildings[index];disposeBuildingMesh(b.mesh);buildings.splice(index,1);renderBuildingUI();saveGame();toast(`${BUILDINGS[b.type].name}: удалено`);}
+function updatePlacementPreview(e){if(!placingBuilding||!previewMesh)return;const rect=renderer.domElement.getBoundingClientRect();const ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hit=ray.intersectObject(ground,false)[0];if(!hit)return;const x=Math.round(hit.point.x/GRID_STEP)*GRID_STEP,z=Math.round(hit.point.z/GRID_STEP)*GRID_STEP;previewMesh.position.set(x,.02,z);const valid=canPlaceBuilding(placingBuilding.type,x,z,placingBuilding.moveId,placementRotation);previewMesh.userData.previewMaterial.color.set(valid?0x9bd568:0xe56e5c);}
+const buildPointerStarts=new Map();
+renderer.domElement.addEventListener('pointerdown',e=>{if(placingBuilding)buildPointerStarts.set(e.pointerId,{x:e.clientX,y:e.clientY});});
+renderer.domElement.addEventListener('pointermove',e=>{if(placingBuilding)updatePlacementPreview(e);});
+renderer.domElement.addEventListener('pointerup',e=>{const start=buildPointerStarts.get(e.pointerId);buildPointerStarts.delete(e.pointerId);if(!placingBuilding||!start||Math.hypot(e.clientX-start.x,e.clientY-start.y)>10)return;const rect=renderer.domElement.getBoundingClientRect(),ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hit=ray.intersectObject(ground,false)[0];if(hit)placeBuildingAt(hit.point.x,hit.point.z);});
+function recordChallengeHarvest(){if(gameMode!=='challenges'||challengeDone)return;challengeHarvested++;if(challengeHarvested>=5){challengeDone=true;challengeResult='УСПЕХ';coins+=40;addXP(25);toast('🏆 Испытание пройдено: +40 🪙 и 25 XP');}renderChallengeStatus();saveGame();}
+function renderChallengeStatus(){const el=$('#challengeStatus');if(!el)return;if(gameMode==='challenges'){el.textContent=challengeDone?`Испытание завершено: ${challengeResult} · урожай ${challengeHarvested}/5`: `ИСПЫТАНИЕ · ${Math.max(0,Math.ceil(challengeSeconds))} сек. · собери 5 культур (${challengeHarvested}/5)`;}else if(gameMode==='sandbox')el.textContent='SANDBOX: ресурсы и строительство бесплатны, все технологии можно открыть без затрат.';else if(gameMode==='freeplay')el.textContent='FREE PLAY: свободная экономика и развитие фермы без таймера.';else el.textContent='CAMPAIGN: выполняй миссии и открывай технологии за опыт и монеты.';}
 const BASE_POSITION=new THREE.Vector3(0,0,7);
 const BASE_DOCKS={
  farmbot:new THREE.Vector3(0,0,7),waterbot:new THREE.Vector3(-1.5,0,7),
@@ -202,7 +318,7 @@ const BASE_DOCKS={
 function baseDock(agent){return (BASE_DOCKS[agent.type]||BASE_POSITION).clone();}
 const $=s=>document.querySelector(s);
 function stats(){
- $('#coins').textContent=coins;$('#harvest').textContent=harvest;$('#water').textContent=water;
+ $('#coins').textContent=coins;$('#harvest').textContent=harvest;$('#water').textContent=`${water}/${waterCapacity()}`;
  const lvl=1+Math.floor(xp/100);$('#level').textContent=lvl;$('#xp').textContent=xp%100;
  $('#weather').textContent=weather==='rain'?'Дождь':weather==='drought'?'Засуха':'Ясно';
 }
@@ -212,6 +328,7 @@ function metricValue(key){
  return Number(metrics[key]||0);
 }
 function updateMissions(){
+ if(gameMode!=='campaign'){renderMissions();return;}
  let changed=false;
  for(const mission of MISSIONS){
   if(claimedMissions.has(mission.id))continue;
@@ -226,7 +343,7 @@ function updateMissions(){
 function renderMissions(){
  const list=$('#missionList');if(!list)return;
  const completed=claimedMissions.size;
- $('#missionSummary').textContent=`Выполнено ${completed} из ${MISSIONS.length} · награда за каждое задание: монеты и опыт`;
+ $('#missionSummary').textContent=gameMode==='campaign'?`Выполнено ${completed} из ${MISSIONS.length} · награда за каждое задание: монеты и опыт`:`Миссии кампании приостановлены в режиме ${gameMode.toUpperCase()}. Переключись на CAMPAIGN, чтобы продолжить прогресс.`;
  list.innerHTML=MISSIONS.map(m=>{
   const v=Math.min(m.target,metricValue(m.stat)),done=claimedMissions.has(m.id);
   return `<div class="missionItem ${done?'done':''}"><b>${done?'✓':'○'} ${m.order}. ${m.title}</b><small>${m.description}</small><div class="meter"><i style="width:${Math.min(100,v/m.target*100)}%"></i></div><small>${v}/${m.target} · награда ${m.reward} 🪙</small></div>`;
@@ -236,7 +353,7 @@ function renderSeedStock(){
  const select=$('#seedType');if(!select)return;
  if(!select.options.length)select.innerHTML=Object.entries(CROPS).map(([id,c])=>`<option value="${id}">${c.icon} ${c.name} · ${c.seedCost} 🪙</option>`).join('');
  select.value=activeSeed;
- $('#seedStock').textContent=Object.entries(CROPS).map(([id,c])=>`${c.icon} ${seedStock[id]||0}`).join('  ·  ');
+ $('#seedStock').textContent=Object.entries(CROPS).map(([id,c])=>`${c.icon} ${gameMode==='sandbox'?'∞':seedStock[id]||0}`).join('  ·  ');
 }
 function saveProgram(){
  const a=activeAgent();a.program=$('#code').value;
@@ -277,27 +394,29 @@ function selectAgent(id){
 }
 function buyRobot(type,cost){
  if(agents.some(a=>a.type===type)){toast('Этот робот уже куплен');return;}
- if(coins<cost){toast(`Нужно ${cost} монет`);return;}
- coins-=cost;const a=createAgent(type);if(a){toast(`${a.name} присоединился к ферме`);selectAgent(a.id);stats();saveGame();}
+ if(gameMode!=='sandbox'&&coins<cost){toast(`Нужно ${cost} монет`);return;}
+ if(gameMode!=='sandbox')coins-=cost;const a=createAgent(type);if(a){toast(`${a.name} присоединился к ферме`);selectAgent(a.id);stats();saveGame();}
 }
 function buyEquipment(type,cost){
  if((type==='pump'&&pumpBuilt)||(type==='solar'&&solarBuilt)||(type==='storage'&&storageBuilt)){toast('Это оборудование уже построено');return;}
- if(coins<cost){toast(`Нужно ${cost} монет`);return;}
- coins-=cost;
+ if(gameMode!=='sandbox'&&coins<cost){toast(`Нужно ${cost} монет`);return;}
+ if(gameMode!=='sandbox')coins-=cost;
  if(type==='pump')pumpBuilt=true;if(type==='solar')solarBuilt=true;if(type==='storage')storageBuilt=true;
  buildEquipment(type);stats();saveGame();toast(`Оборудование построено: ${type}`);
 }
 function buySeedPack(){
- const c=CROPS[activeSeed];if(coins<c.seedCost){toast(`Нужно ${c.seedCost} монет`);return;}
- coins-=c.seedCost;seedStock[activeSeed]=(seedStock[activeSeed]||0)+5;stats();renderSeedStock();saveGame();toast(`${c.icon} Куплено 5 семян: ${c.name}`);
+ const c=CROPS[activeSeed];if(gameMode!=='sandbox'&&coins<c.seedCost){toast(`Нужно ${c.seedCost} монет`);return;}
+ if(gameMode!=='sandbox')coins-=c.seedCost;seedStock[activeSeed]=(seedStock[activeSeed]||0)+5;stats();renderSeedStock();saveGame();toast(`${c.icon} Куплено 5 семян: ${c.name}`);
 }
 
-const SAVE_KEY='farmerbot3d_save_v3',LEGACY_SAVE_KEY='farmerbot3d_save_v2';
+const SAVE_KEY='farmerbot3d_save_v4',PREVIOUS_SAVE_KEY='farmerbot3d_save_v3',LEGACY_SAVE_KEY='farmerbot3d_save_v2';
 function saveGame(){
  const data={
-  version:3,coins,harvest,water,xp,seedStock,harvestStorage,metrics,gameMode,activeSeed,
+  version:4,coins,harvest,water,xp,researchPoints,seedStock,harvestStorage,metrics,gameMode,activeSeed,
   harvestedTypes:[...harvestedTypes],claimedMissions:[...claimedMissions],programmedBots:[...programmedBots],weather,
   equipment:{pump:pumpBuilt,solar:solarBuilt,storage:storageBuilt},
+  buildings:buildings.map(({mesh,...b})=>b),researchedTechs:[...researchedTechs],
+  challenge:{seconds:challengeSeconds,harvested:challengeHarvested,done:challengeDone,result:challengeResult},
   agents:agents.map(a=>({id:a.id,type:a.type,name:a.name,x:a.mesh.position.x,z:a.mesh.position.z,y:a.mesh.position.y,rotation:a.mesh.rotation.y,energy:a.energy,water:a.water,inventory:a.inventory,program:a.program,level:a.level})),
   plots:plots.map(p=>({state:p.state,watered:p.watered,waterSource:p.waterSource,growth:p.growth,cropType:p.cropType}))
  };
@@ -305,14 +424,16 @@ function saveGame(){
 }
 function loadGame(){
  try{
-  const raw=localStorage.getItem(SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY);if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();return;}
+  const raw=localStorage.getItem(SAVE_KEY)||localStorage.getItem(PREVIOUS_SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY);if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();return;}
   const d=JSON.parse(raw);isLoadingGame=true;
-  coins=Number.isFinite(d.coins)?d.coins:90;harvest=Number(d.harvest)||0;water=Number.isFinite(d.water)?d.water:8;xp=Number(d.xp)||0;
+  coins=Number.isFinite(d.coins)?d.coins:90;harvest=Number(d.harvest)||0;water=Number.isFinite(d.water)?d.water:8;xp=Number(d.xp)||0;researchPoints=Number.isFinite(d.researchPoints)?d.researchPoints:xp;
   if(d.seedStock)Object.assign(seedStock,d.seedStock);
   if(d.harvestStorage)Object.assign(harvestStorage,d.harvestStorage);else if(d.version!==3&&harvest>0)harvestStorage.carrot=harvest;
   if(d.metrics)Object.assign(metrics,d.metrics);
   if(Array.isArray(d.harvestedTypes))d.harvestedTypes.forEach(v=>harvestedTypes.add(v));
   if(Array.isArray(d.claimedMissions))d.claimedMissions.forEach(v=>claimedMissions.add(v));if(Array.isArray(d.programmedBots))d.programmedBots.forEach(v=>programmedBots.add(v));
+  if(Array.isArray(d.researchedTechs))d.researchedTechs.forEach(v=>{if(TECHNOLOGIES.some(t=>t.id===v))researchedTechs.add(v);});
+  if(d.challenge){challengeSeconds=Number.isFinite(d.challenge.seconds)?d.challenge.seconds:180;challengeHarvested=Number(d.challenge.harvested)||0;challengeDone=!!d.challenge.done;challengeResult=String(d.challenge.result||'');}
   activeSeed=CROPS[d.activeSeed]?d.activeSeed:'carrot';weather=['sunny','rain','drought'].includes(d.weather)?d.weather:'sunny';gameMode=['campaign','sandbox','challenges','freeplay'].includes(d.gameMode)?d.gameMode:'campaign';$('#gameMode').value=gameMode;
   const a0=d.agents?.find(a=>a.id==='farmbot');
   if(a0){robot.position.set(Number.isFinite(Number(a0.x))?Number(a0.x):0,0,Number.isFinite(Number(a0.z))?Number(a0.z):7);robot.rotation.y=Number(a0.rotation)||0;agents[0].energy=THREE.MathUtils.clamp(Number.isFinite(Number(a0.energy))?Number(a0.energy):100,0,agents[0].maxEnergy);agents[0].inventory=a0.inventory||{};agents[0].program=a0.program??agents[0].program;}
@@ -325,7 +446,7 @@ function loadGame(){
     agent.mesh.position.set(Number.isFinite(Number(saved.x))?Number(saved.x):0,Number.isFinite(Number(saved.y))?Number(saved.y):0,Number.isFinite(Number(saved.z))?Number(saved.z):7);
     agent.mesh.rotation.y=Number(saved.rotation)||0;agent.energy=THREE.MathUtils.clamp(Number.isFinite(Number(saved.energy))?Number(saved.energy):agent.maxEnergy,0,agent.maxEnergy);
     agent.water=Number.isFinite(saved.water)?saved.water:agent.water;
-    agent.inventory=saved.inventory||{};agent.program=saved.program||agent.program;agent.level=Number(saved.level)||1;
+    agent.inventory=saved.inventory||{};agent.program=saved.program||agent.program;agent.level=Number(saved.level)||1;agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.resumeResolver=null;agent.stepOnce=false;
    }
   }
   if(Array.isArray(d.plots))d.plots.forEach((v,i)=>{
@@ -335,7 +456,8 @@ function loadGame(){
   });
   if(d.equipment){pumpBuilt=!!d.equipment.pump;solarBuilt=!!d.equipment.solar;storageBuilt=!!d.equipment.storage;
    if(pumpBuilt)buildEquipment('pump');if(solarBuilt)buildEquipment('solar');if(storageBuilt)buildEquipment('storage');}
-  lastLevel=1+Math.floor(xp/100);isLoadingGame=false;updateMissions();stats();renderSeedStock();renderFleetUI();renderMissions();
+  buildings.length=0;nextBuildingId=1;if(Array.isArray(d.buildings))for(const saved of d.buildings){if(!BUILDINGS[saved.type])continue;const record={id:Number(saved.id)||nextBuildingId++,type:saved.type,x:Number(saved.x)||0,z:Number(saved.z)||0,rotation:Number(saved.rotation)||0};record.mesh=createBuildingMesh(record.type,record.x,record.z,record.rotation,false);buildings.push(record);nextBuildingId=Math.max(nextBuildingId,record.id+1);}
+  lastLevel=1+Math.floor(xp/100);isLoadingGame=false;updateMissions();stats();renderSeedStock();renderFleetUI();renderMissions();renderBuildingUI();renderTechs();renderChallengeStatus();if(d.version<4)saveGame();
  }catch(e){isLoadingGame=false;console.warn('Ошибка загрузки сохранения',e);stats();}
 }
 
@@ -352,8 +474,8 @@ function nearest(agent=activeAgent()){
 }
 function waterPlot(plot,agent=activeAgent(),source='robot'){
  if(!plot||!['seed','growing'].includes(plot.state)||plot.watered)return false;
- if(agent.type==='waterbot'){if(agent.water<=0)return false;agent.water--;}
- else{if(water<=0)return false;water--;}
+ if(agent.type==='waterbot'){if(gameMode!=='sandbox'&&agent.water<=0)return false;if(gameMode!=='sandbox')agent.water--;}
+ else{if(gameMode!=='sandbox'&&water<=0)return false;if(gameMode!=='sandbox')water--;}
  metrics.watered++;metrics.waterUsed++;plot.watered=true;plot.waterSource=source;plot.growth=0;setState(plot,'growing');
  stats();updateMissions();burst(plot.g.position.clone().add(new THREE.Vector3(0,.45,0)),0x70c9ed,9);saveGame();return true;
 }
@@ -363,7 +485,7 @@ function harvestPlot(plot,agent=activeAgent()){
  if(carried>=agent.capacity){toast(`${agent.name}: инвентарь заполнен — вернись на склад`);return false;}
  const type=plot.cropType||'carrot';
  agent.inventory[type]=(agent.inventory[type]||0)+1;harvest++;coins+=1;metrics.earned+=1;
- harvestedTypes.add(type);metrics.harvested++;metrics[`${type}Harvested`]=(metrics[`${type}Harvested`]||0)+1;if(plot.waterSource==='rain'||plot.waterSource==='pump')metrics.waterEfficiency++;
+ harvestedTypes.add(type);metrics.harvested++;metrics[`${type}Harvested`]=(metrics[`${type}Harvested`]||0)+1;recordChallengeHarvest();if(plot.waterSource==='rain'||plot.waterSource==='pump')metrics.waterEfficiency++;
  burst(plot.g.position.clone().add(new THREE.Vector3(0,1,0)),CROPS[type].color,14);
  setState(plot,'empty');plot.watered=false;plot.waterSource=null;plot.growth=0;
  addXP(2);stats();updateMissions();saveGame();return true;
@@ -393,7 +515,7 @@ $('#sell').onclick=()=>{
  let revenue=0;for(const [type,count] of Object.entries(harvestStorage)){revenue+=count*(CROPS[type]?.price||5);harvestStorage[type]=0;}
  coins+=revenue;metrics.earned+=revenue;metrics.sales+=revenue;addXP(Math.ceil(revenue/3));stats();updateMissions();saveGame();toast(`Продано ${units} ед. урожая · +${revenue} 🪙`);
 };
-$('#buyWater').onclick=()=>{if(coins<3){toast('Нужно 3 монеты');return;}coins-=3;water+=5;stats();toast('+5 единиц воды');saveGame();};
+$('#buyWater').onclick=()=>{if(coins<3){toast('Нужно 3 монеты');return;}coins-=3;water=Math.min(waterCapacity(),water+5);stats();toast('+5 единиц воды');saveGame();};
 $('#buySeeds').onclick=buySeedPack;
 $('#seedType').onchange=e=>{activeSeed=e.target.value;renderSeedStock();};
 $('#shopInfo').textContent='Продажа урожая даёт монеты. За 3 монеты покупаешь 5 единиц воды.';
@@ -441,11 +563,9 @@ const moveBtns=[...document.querySelectorAll('[data-move]')];
 async function moveOneTile(direction,button){
  const agent=activeAgent();if(agent.running||agent.moving)return;
  button.classList.add('active');
- const step=1.15,vectors={forward:[0,-1],back:[0,1],left:[-1,0],right:[1,0]};
- const [dx,dz]=vectors[direction],dest=agent.mesh.position.clone().add(new THREE.Vector3(dx*step,0,dz*step));
- dest.x=THREE.MathUtils.clamp(dest.x,-10.5,10.5);dest.z=THREE.MathUtils.clamp(dest.z,-10.5,10.5);
- agent.mesh.rotation.y=Math.atan2(dx,dz);
- await animateAgentTo(agent,dest);
+ const vectors={forward:[0,-1],back:[0,1],left:[-1,0],right:[1,0]};
+ const [dx,dz]=vectors[direction];agent.mesh.rotation.y=Math.atan2(dx,dz);
+ try{await moveAgent(agent,1);}catch(error){toast(error.message||'Маршрут недоступен');}
  saveGame();button.classList.remove('active');
 }
 moveBtns.forEach(b=>{
@@ -459,8 +579,51 @@ moveBtns.forEach(b=>{
 });
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function isBlocked(agent,dest){
- return agents.some(other=>other!==agent&&Math.hypot(other.mesh.position.x-dest.x,other.mesh.position.z-dest.z)<.72&&
-   (agent.type!=='dronebot'&&other.type!=='dronebot'));
+ const robotBlocked=agents.some(other=>other!==agent&&Math.hypot(other.mesh.position.x-dest.x,other.mesh.position.z-dest.z)<.72&&agent.type!=='dronebot'&&other.type!=='dronebot');
+ const buildingBlocked=buildings.some(b=>{const d=buildingFootprint(b.type,b.rotation);return Math.abs(dest.x-b.x)<d.width/2+.18&&Math.abs(dest.z-b.z)<d.depth/2+.18;});
+ return robotBlocked||buildingBlocked;
+}
+function routeForAgent(agent,target){
+ const start=worldToCell(agent.mesh.position),goal=worldToCell(target);
+ const obstacleBuildings=buildings.map(b=>({...b,...buildingFootprint(b.type,b.rotation)}));
+ const blocked=buildBlockedCells({buildings:obstacleBuildings,agents,ignoreAgentId:agent.id});
+ blocked.delete(`${start.x},${start.z}`);
+ return findPath(start,goal,blocked);
+}
+async function followPath(agent,path,emergency=false){
+ if(!path)return false;
+ for(const cell of path.slice(1)){
+  if(agent.stopRequested)return false;
+  const world=cellToWorld(cell);const dx=world.x-agent.mesh.position.x,dz=world.z-agent.mesh.position.z;agent.mesh.rotation.y=Math.atan2(dx,dz);
+  const dest=new THREE.Vector3(world.x,agent.mesh.position.y,world.z);
+  if(!await animateAgentTo(agent,dest,emergency))return false;
+ }
+ return true;
+}
+async function navigateAgentTo(agent,target,emergency=false){
+ let path=routeForAgent(agent,target);if(!path)return false;
+ for(let attempt=0;attempt<2;attempt++){
+  if(await followPath(agent,path,emergency))return true;
+  if(agent.stopRequested)return false;
+  path=routeForAgent(agent,target);if(!path)return false;
+ }
+ return false;
+}
+async function navigateToNearestPlot(agent,state='any'){
+ const matches=plots.filter(p=>state==='ready'?p.state==='ready':state==='empty'?p.state==='empty':state==='thirsty'?['seed','growing'].includes(p.state)&&!p.watered:p.state!=='empty');
+ if(!matches.length)throw new Error(`Нет подходящих грядок (${state})`);
+ const start=worldToCell(agent.mesh.position),obstacleBuildings=buildings.map(b=>({...b,...buildingFootprint(b.type,b.rotation)}));
+ const blocked=buildBlockedCells({buildings:obstacleBuildings,agents,ignoreAgentId:agent.id});blocked.delete(`${start.x},${start.z}`);
+ let best=null;
+ for(const plot of matches){
+  const c=worldToCell(plot.g.position);
+  for(const stop of [{x:c.x+1,z:c.z},{x:c.x-1,z:c.z},{x:c.x,z:c.z+1},{x:c.x,z:c.z-1}]){
+   const path=findPath(start,stop,blocked);if(path&&(!best||path.length<best.path.length))best={path,plot};
+  }
+ }
+ if(!best)throw new Error('Не удалось найти свободный маршрут к грядке');
+ if(!await followPath(agent,best.path))throw new Error('Маршрут прерван или заблокирован');
+ return best.plot;
 }
 async function animateAgentTo(agent,dest,emergency=false){
  if(agent.energy<=0&&!emergency){toast(`${agent.name}: разряжен — вернись на базу`);return false;}
@@ -480,29 +643,24 @@ async function animateAgentTo(agent,dest,emergency=false){
  renderFleetUI();return true;
 }
 async function moveAgent(agent,count){
- const steps=Math.max(0,Math.min(20,Math.floor(Number(count)||0)));
- for(let i=0;i<steps&&!agent.stopRequested;i++){
-  if(agent.energy<1)return false;
-  const dir=new THREE.Vector3(Math.sin(agent.mesh.rotation.y),0,Math.cos(agent.mesh.rotation.y));
-  const dest=agent.mesh.position.clone().add(dir.multiplyScalar(1.15));
-  dest.x=THREE.MathUtils.clamp(dest.x,-10.5,10.5);dest.z=THREE.MathUtils.clamp(dest.z,-10.5,10.5);
-  const ok=await animateAgentTo(agent,dest);if(!ok)throw new Error('Путь заблокирован или батарея разряжена');
- }
- return true;
+ const steps=Math.max(0,Math.min(20,Math.floor(Number(count)||0)));if(!steps)return true;
+ if(agent.energy<1)return false;
+ const start=worldToCell(agent.mesh.position),dx=Math.round(Math.sin(agent.mesh.rotation.y)),dz=Math.round(Math.cos(agent.mesh.rotation.y));
+ const target={x:THREE.MathUtils.clamp(start.x+dx*steps,-9,9),z:THREE.MathUtils.clamp(start.z+dz*steps,-9,9)};
+ const world=cellToWorld(target);
+ const ok=await navigateAgentTo(agent,world);if(!ok&&!agent.stopRequested)throw new Error('Не удалось построить маршрут: проверь препятствия и заряд');
+ return ok;
 }
 async function returnToBase(agent){
  const target=baseDock(agent);
- const xFirst=agent.mesh.position.clone();xFirst.x=target.x;
- const zFirst=agent.mesh.position.clone();zFirst.z=target.z;
- if(Math.abs(agent.mesh.position.x-target.x)>.2 && !await animateAgentTo(agent,xFirst,true))throw new Error('Не удалось вернуться на базу: путь по X заблокирован');
- if(Math.abs(agent.mesh.position.z-target.z)>.2 && !await animateAgentTo(agent,zFirst,true))throw new Error('Не удалось вернуться на базу: путь по Z заблокирован');
+ if(!await navigateAgentTo(agent,target,true))throw new Error('Не удалось вернуться на базу: путь заблокирован');
  const capacity=storageBuilt?100:20;
  for(const [type,count] of Object.entries(agent.inventory)){
   const current=Object.values(harvestStorage).reduce((a,b)=>a+b,0),space=Math.max(0,capacity-current),moved=Math.min(space,count);
   if(moved){harvestStorage[type]=(harvestStorage[type]||0)+moved;agent.inventory[type]-=moved;if(agent.inventory[type]<=0)delete agent.inventory[type];}
  }
  agent.energy=Math.min(agent.maxEnergy,agent.energy+28);
- water=Math.min(99,water+3);if(agent.type==='waterbot')agent.water=Math.min(ROBOT_TYPES.waterbot.water,agent.water+5);stats();saveGame();toast(`${agent.name}: база достигнута, энергия восстановлена`);
+ water=Math.min(waterCapacity(),water+3);if(agent.type==='waterbot')agent.water=Math.min(ROBOT_TYPES.waterbot.water,agent.water+5);stats();saveGame();toast(`${agent.name}: база достигнута, энергия восстановлена`);
  return true;
 }
 
@@ -514,7 +672,7 @@ function programLogFor(agent,message){
  }
 }
 function programLog(message){programLogFor(activeAgent(),message);}
-const sensorNames=['can_harvest','can_plant','can_water','is_ready','get_water','get_coins','get_harvest','tile_state','count_ready','count_empty','front_is_clear','at_plot','distance_to_plot','has_water','get_energy','get_position','get_inventory','get_plant_age','scan'];
+const sensorNames=['can_harvest','can_plant','can_water','is_ready','get_water','get_coins','get_harvest','tile_state','count_ready','count_empty','front_is_clear','at_plot','distance_to_plot','has_water','get_energy','get_position','get_inventory','get_plant_age','scan','has_ready_plot','has_empty_plot','has_thirsty_plot'];
 function programSense(name,args=[],agent=activeAgent()){
  const p=nearest(agent),pos=agent.mesh.position;
  switch(name){
@@ -540,6 +698,9 @@ function programSense(name,args=[],agent=activeAgent()){
    return Math.abs(nx)<=10.5&&Math.abs(nz)<=10.5&&!isBlocked(agent,dest);
   }
   case 'scan':return plots.filter(q=>Math.hypot(q.g.position.x-pos.x,q.g.position.z-pos.z)<5&&q.state!=='empty').length;
+  case 'has_ready_plot':return plots.some(q=>q.state==='ready');
+  case 'has_empty_plot':return plots.some(q=>q.state==='empty');
+  case 'has_thirsty_plot':return plots.some(q=>['seed','growing'].includes(q.state)&&!q.watered);
   default:return false;
  }
 }
@@ -568,11 +729,14 @@ async function programAction(name,args=[],agent=activeAgent()){
   agent.energy=Math.max(0,agent.energy-.5);
  }else if(name==='scan'){
   const count=programSense('scan',[],agent);programLogFor(agent,`${agent.name}: сканирование завершено · найдено ${count} занятых грядок`);agent.energy=Math.max(0,agent.energy-.25);
+ }else if(name==='go_to_plot'){
+  if(agent.type==='dronebot'){programLogFor(agent,'DroneBot: перемещение по земле недоступно');return;}
+  const state=['ready','empty','thirsty'].includes(String(args[0]||'any'))?String(args[0]):'any';await navigateToNearestPlot(agent,state);
  }else if(name==='return_to_base'){
   await returnToBase(agent);
  }else if(name==='refill_water'){
   if(Math.hypot(agent.mesh.position.x-baseDock(agent).x,agent.mesh.position.z-baseDock(agent).z)>2.5)throw new Error('Для refill_water() вернись на базу');
-  if(agent.type==='waterbot')agent.water=ROBOT_TYPES.waterbot.water;else water=Math.min(99,water+10);stats();toast(`${agent.name}: запас воды пополнен`);
+  if(agent.type==='waterbot')agent.water=ROBOT_TYPES.waterbot.water;else water=Math.min(waterCapacity(),water+10);stats();toast(`${agent.name}: запас воды пополнен`);
  }else if(name==='sleep'||name==='wait'){
   const ms=Math.max(0,Math.min(30,Number(args[0]??1))*1000/programSpeed);
   let remaining=ms;while(remaining>0&&!agent.stopRequested){const slice=Math.min(100,remaining);await sleep(slice);remaining-=slice;}
@@ -581,7 +745,7 @@ async function programAction(name,args=[],agent=activeAgent()){
 }
 async function runAgent(agent){
  if(agent.running)return;
- agent.running=true;agent.stopRequested=false;agent.actionBudget=0;agent.tileBudget=0;
+ agent.running=true;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.actionBudget=0;agent.tileBudget=0;
  programmedBots.add(agent.id);metrics.programs++;metrics.botsProgrammed=programmedBots.size;updateMissions();
  if(agent.id===activeAgent().id){$('#run').textContent='⏳ РАБОТАЕТ';$('#codeStatus').textContent='выполняется';}
  programLogFor(agent,'▶ Запуск программы');
@@ -591,20 +755,25 @@ async function runAgent(agent){
    sense:(name,args)=>programSense(name,args,agent),
    hasSensor:name=>sensorNames.includes(name),
    log:msg=>programLogFor(agent,msg),
-   shouldStop:()=>agent.stopRequested
+   shouldStop:()=>agent.stopRequested,
+   beforeStep:async()=>{if(agent.pauseRequested&&!agent.stepOnce&&!agent.stopRequested)await new Promise(resolve=>{agent.resumeResolver=resolve;});if(agent.stepOnce){agent.stepOnce=false;agent.pauseRequested=true;}agent.resumeResolver=null;},
+   onStep:line=>{if(agent.id===activeAgent().id)$('#currentLine').textContent=`строка ${line}`;}
   });
   agent.lastError=result.ok||agent.stopRequested?'':result.error||'';
  }catch(error){agent.lastError=error?.message||String(error);programLogFor(agent,'✕ '+agent.lastError);}
- agent.running=false;agent.stopRequested=false;
- if(agent.id===activeAgent().id){$('#run').textContent='▶ ЗАПУСТИТЬ';$('#codeStatus').textContent=agent.lastError?'ошибка':'готово';}
+ agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.resumeResolver?.();agent.resumeResolver=null;
+ if(agent.id===activeAgent().id){$('#run').textContent='▶ ЗАПУСТИТЬ';$('#codeStatus').textContent=agent.lastError?'ошибка':'готово';$('#currentLine').textContent='строка —';}
  renderFleetUI();stats();saveGame();
 }
 
 $('#run').onclick=()=>{
  const agent=activeAgent();agent.program=$('#code').value;runAgent(agent);
 };
+$('#pauseProgram').onclick=()=>{const agent=activeAgent();if(!agent.running)return;agent.pauseRequested=true;$('#codeStatus').textContent='пауза после текущей команды';};
+$('#stepProgram').onclick=()=>{const agent=activeAgent();if(!agent.running)return;agent.pauseRequested=true;agent.stepOnce=true;agent.resumeResolver?.();};
+$('#resumeProgram').onclick=()=>{const agent=activeAgent();agent.pauseRequested=false;agent.stepOnce=false;agent.resumeResolver?.();agent.resumeResolver=null;$('#codeStatus').textContent=agent.running?'выполняется':'готов';};
 $('#stop').onclick=()=>{
- const agent=activeAgent();agent.stopRequested=true;programLogFor(agent,'■ Запрошена остановка');$('#codeStatus').textContent='остановка…';saveGame();
+ const agent=activeAgent();agent.stopRequested=true;agent.pauseRequested=false;agent.resumeResolver?.();agent.resumeResolver=null;programLogFor(agent,'■ Запрошена остановка');$('#codeStatus').textContent='остановка…';saveGame();
 };
 $('#robotSelect').onchange=e=>selectAgent(e.target.value);$('#runSpeed').onchange=e=>{programSpeed=Number(e.target.value)||1;};
 $('#networkToggle').onclick=()=>{$('#networkPanel').classList.add('show');renderFleetUI();};
@@ -615,11 +784,20 @@ $('#gameMode').value=gameMode;
 $('#gameMode').onchange=e=>{
  gameMode=e.target.value;
  if(gameMode==='sandbox'){
-  coins=999999;water=999;for(const k of Object.keys(CROPS))seedStock[k]=999;
-  toast('SANDBOX: выданы ресурсы для свободного строительства');
- }else toast(`Режим изменён: ${e.target.options[e.target.selectedIndex].text}`);
- stats();renderSeedStock();saveGame();
+  toast('SANDBOX: ресурсы и строительство бесплатны, семена и вода не расходуются');
+ }else if(gameMode==='challenges'){
+  coins=25;water=6;Object.keys(CROPS).forEach(k=>seedStock[k]=0);seedStock.carrot=8;
+  challengeSeconds=180;challengeHarvested=0;challengeDone=false;challengeResult='';
+  toast('CHALLENGES: 3 минуты, собери 5 культур');
+ }else if(gameMode==='campaign')toast('CAMPAIGN: развивай ферму и выполняй миссии');
+ else toast('FREE PLAY: свободная экономика без таймера');
+ renderChallengeStatus();renderBuildingUI();renderTechs();stats();renderSeedStock();saveGame();
 };
+$('#buildToggle').onclick=()=>{$('#buildPanel').classList.add('show');renderBuildingUI();};
+$('#closeBuild').onclick=()=>{$('#buildPanel').classList.remove('show');cancelBuildingPlacement();};
+$('#rotateBuilding').onclick=rotateBuildingPlacement;$('#cancelBuilding').onclick=cancelBuildingPlacement;
+$('#researchToggle').onclick=()=>{$('#researchPanel').classList.add('show');renderTechs();};
+$('#closeResearch').onclick=()=>$('#researchPanel').classList.remove('show');
 $('#networkRunAll').onclick=()=>agents.forEach(a=>{if(!a.running)runAgent(a);});
 $('#networkStopAll').onclick=()=>agents.forEach(a=>{a.stopRequested=true;});
 $('#buyWaterBot').onclick=()=>buyRobot('waterbot',35);
@@ -650,6 +828,8 @@ function update(dt){
  const skyDay=new THREE.Color(0x9bc7c2),skyNight=new THREE.Color(0x18283c);
  scene.background.copy(skyNight).lerp(skyDay,daylight);scene.fog.color.copy(scene.background);
 
+ // Challenge mode is a real timed scenario with a finite seed/water/coin budget.
+ if(gameMode==='challenges'&&!challengeDone){challengeSeconds=Math.max(0,challengeSeconds-dt);if(challengeSeconds<=0){challengeDone=true;challengeResult=challengeHarvested>=5?'УСПЕХ':'ВРЕМЯ ВЫШЛО';if(challengeHarvested<5)toast('⏱ Время испытания вышло');saveGame();}if(Math.ceil(challengeSeconds)!==Math.ceil(challengeSeconds+dt))renderChallengeStatus();}
  // Weather changes every 45 seconds; rain provides water, drought slows crop growth.
  weatherClock+=dt;
  if(weatherClock>45){
@@ -662,15 +842,16 @@ function update(dt){
  }
  // Pump waters one thirsty plot automatically, consuming the shared water reserve.
  pumpClock+=dt;
- if(pumpBuilt&&pumpClock>14&&water>0){
+ if(pumpBuilt&&pumpClock>14&&(water>0||gameMode==='sandbox')){
   pumpClock=0;const targetPlot=plots.find(p=>['seed','growing'].includes(p.state)&&!p.watered);
   if(targetPlot)waterPlot(targetPlot,agents[0],'pump');
  }
  const growthFactor=weather==='rain'?1.35:weather==='drought'?.55:1;
  for(const p of plots){
   if(p.state==='growing'&&p.watered){
-   p.growth+=dt*growthFactor;
    const crop=CROPS[p.cropType]||CROPS.carrot;
+   const greenhouseBoost=buildings.some(b=>b.type==='greenhouse'&&Math.hypot(b.x-p.g.position.x,b.z-p.g.position.z)<4.4)?1.35:1;
+   p.growth+=dt*growthFactor*greenhouseBoost;
    const progress=Math.min(1,p.growth/crop.growTime);
    const visualStage=progress<.25?0:progress<.42?1:progress<.75?2:3;
    if(p.visualStage!==visualStage){p.visualStage=visualStage;makeCrop(p);}
@@ -680,6 +861,9 @@ function update(dt){
    }
   }
  }
+ // Placeable infrastructure: conveyors collect nearby ripe crops; chargers service nearby robots.
+ conveyorClock+=dt;if(conveyorClock>=4){conveyorClock=0;for(const b of buildings.filter(q=>q.type==='conveyor')){const p=plots.find(q=>q.state==='ready'&&Math.hypot(q.g.position.x-b.x,q.g.position.z-b.z)<2.25);if(p){const total=Object.values(harvestStorage).reduce((a,v)=>a+v,0),capacity=storageBuilt?100:20;if(total<capacity){const type=p.cropType||'carrot';harvestStorage[type]=(harvestStorage[type]||0)+1;harvest++;metrics.harvested++;metrics[`${type}Harvested`]=(metrics[`${type}Harvested`]||0)+1;harvestedTypes.add(type);setState(p,'empty');p.watered=false;p.waterSource=null;p.growth=0;addXP(1);recordChallengeHarvest();updateMissions();stats();saveGame();toast(`🟫 Конвейер доставил ${CROPS[type].name} на склад`);}}}}
+ chargerClock+=dt;if(chargerClock>=.5){const pulse=chargerClock;chargerClock=0;for(const b of buildings.filter(q=>q.type==='charger'||q.type==='robot_station'))for(const a of agents){const distance=Math.hypot(a.mesh.position.x-b.x,a.mesh.position.z-b.z);const range=b.type==='charger'?2.7:3.1;if(distance<range)a.energy=Math.min(a.maxEnergy,a.energy+(b.type==='charger'?pulse*5:pulse*3));}}
  // Solar charging is local: robots must return to the base pad.
  for(const a of agents){
   if(solarBuilt&&Math.hypot(a.mesh.position.x-BASE_POSITION.x,a.mesh.position.z-BASE_POSITION.z)<2.6){

@@ -307,7 +307,7 @@ async function runProgram(source, api = {}) {
   async function executeBlock(body, scope, insideFunction=false) {
     for(const stmt of body) {
       tick(stmt.line);
-      try { await executeStatement(stmt,scope,insideFunction); }
+      try { await api.beforeStep?.(stmt.line, stmt); checkStop(); await api.onStep?.(stmt.line, stmt); await executeStatement(stmt,scope,insideFunction); }
       catch(signal) {
         if(signal instanceof BreakSignal || signal instanceof ContinueSignal || signal instanceof ReturnSignal) throw signal;
         if(signal instanceof LanguageError) throw signal;
@@ -372,7 +372,7 @@ async function runProgram(source, api = {}) {
         const args=stmt.args.map(a=>evaluate(a,scope,api));
         if(functions.has(stmt.name)) { await invokeFunction(stmt.name,args,stmt.line); return; }
         if(stmt.name==="print") { api.log?.(args.map(String).join(" ")); return; }
-        const allowed=["move","turn_left","turn_right","plant","water","harvest","wait","scan","refill_water","return_to_base","sleep"];
+        const allowed=["move","turn_left","turn_right","plant","water","harvest","wait","scan","refill_water","return_to_base","sleep","go_to_plot"];
         if(!allowed.includes(stmt.name)) throw new LanguageError(`Неизвестная команда «${stmt.name}»`,stmt.line);
         await api.action?.(stmt.name,args);
         return;
