@@ -18,3 +18,17 @@ test('HTML contains no duplicate element IDs', () => {
   const duplicates = allIds.filter((id, index) => allIds.indexOf(id) !== index);
   assert.deepEqual([...new Set(duplicates)], []);
 });
+
+test('2.1 construction, research and debugger controls are present', () => {
+  const required = ['buildToggle','researchToggle','buildPanel','researchPanel','buildingCatalog','techCatalog','pauseProgram','stepProgram','resumeProgram','currentLine'];
+  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
+  for (const id of required) assert.ok(ids.has(id), `missing ${id}`);
+});
+
+test('save format keeps v2/v3 fallback paths and adds v4 buildings/research', () => {
+  assert.match(main, /farmerbot3d_save_v4/);
+  assert.match(main, /farmerbot3d_save_v3/);
+  assert.match(main, /farmerbot3d_save_v2/);
+  assert.match(main, /buildings:buildings\.map/);
+  assert.match(main, /researchedTechs:\[\.\.\.researchedTechs\]/);
+});

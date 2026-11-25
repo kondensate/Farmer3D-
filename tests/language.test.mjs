@@ -95,3 +95,25 @@ test("all shipped robot example programs parse successfully", () => {
     assert.doesNotThrow(() => parseProgram(source), file);
   }
 });
+
+test("navigation command and current-line callback are exposed to the debugger", async () => {
+  const api = makeApi(); const stepped = [];
+  api.onStep = line => stepped.push(line);
+  const result = await runProgram(`go_to_plot("ready")\nscan()`, api);
+  assert.equal(result.ok, true);
+  assert.deepEqual(api.actions.map(x => x[0]), ["go_to_plot", "scan"]);
+  assert.deepEqual(stepped, [1, 2]);
+});
+
+test("interpreter awaits debugger gates before executing each line", async () => {
+  const api = makeApi(); let release; let entered = false;
+  api.beforeStep = async () => { entered = true; await new Promise(resolve => { release = resolve; }); };
+  const pending = runProgram(`plant()`, api);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(entered, true);
+  assert.equal(api.actions.length, 0);
+  release();
+  const result = await pending;
+  assert.equal(result.ok, true);
+  assert.equal(api.actions.length, 1);
+});
