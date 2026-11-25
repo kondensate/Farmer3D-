@@ -372,7 +372,7 @@ async function runProgram(source, api = {}) {
         const args=stmt.args.map(a=>evaluate(a,scope,api));
         if(functions.has(stmt.name)) { await invokeFunction(stmt.name,args,stmt.line); return; }
         if(stmt.name==="print") { api.log?.(args.map(String).join(" ")); return; }
-        const allowed=["move","turn_left","turn_right","plant","water","harvest","wait"];
+        const allowed=["move","turn_left","turn_right","plant","water","harvest","wait","scan","refill_water","return_to_base","sleep"];
         if(!allowed.includes(stmt.name)) throw new LanguageError(`Неизвестная команда «${stmt.name}»`,stmt.line);
         await api.action?.(stmt.name,args);
         return;
