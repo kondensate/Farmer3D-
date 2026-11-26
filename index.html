@@ -18,6 +18,8 @@
 .btn{transition:transform .12s ease,background .12s ease,border-color .12s ease;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}.btn:active,.btn.active{background:#c4e879;color:#17251c;transform:translateY(2px) scale(.97);border-color:#e8f8bd}
 .actions{display:flex;gap:7px;pointer-events:auto;align-items:end}.action{min-width:63px;min-height:58px;flex-direction:column;font-size:11px;gap:3px}.action b{font-size:20px}
 #codeToggle{pointer-events:auto;min-height:50px;padding:0 13px;background:#b6e36a;color:#17251c;border:0}
+/* Disable Safari double-tap zoom while keeping normal tap and scroll interactions */
+*{touch-action:manipulation}
 .panel{position:fixed;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 22px));max-height:min(80vh,680px);overflow:auto;border-radius:20px;padding:15px;display:none;touch-action:pan-y}
 .panel.show{display:block;animation:panelIn .18s ease-out}@keyframes panelIn{from{opacity:0;transform:translate(-50%,-47%) scale(.98)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}.panelHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.panel h2{margin:0;font-size:19px}.muted{color:var(--muted);font-size:12px;line-height:1.45}
 .editorTools{display:flex;gap:7px;align-items:center;justify-content:space-between;margin:7px 0;color:var(--muted);font-size:11px}.editorTools button{border:1px solid #526b50;background:#314838;color:var(--cream);padding:7px 10px;border-radius:9px;font-weight:800}#codeStatus{color:#b6e36a;font-weight:800}textarea{width:100%;height:190px;resize:vertical;background:#101b14;color:#dff4c5;border:1px solid #526b50;border-radius:12px;padding:12px;font:14px/1.65 ui-monospace,SFMono-Regular,monospace;outline:none}
