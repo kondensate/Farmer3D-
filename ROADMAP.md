@@ -1,6 +1,6 @@
 # FarmerBot 3.0 — поэтапная разработка
 
-## Stage A — IDE и отладчик · Alpha 1
+## Stage A — IDE и отладчик · Alpha 2
 
 - [x] Подсветка ключевых слов и DSL-команд
 - [x] Номера строк, активная строка и подсветка блоков/скобок
@@ -11,7 +11,7 @@
 - [x] Список функций, роботов и стек вызовов
 - [x] Точки останова, pause, step, resume, stop, reset
 - [x] Тесты callback snapshot и debugger gate
-- [ ] Browser/Safari/iPad end-to-end test
+- [ ] Browser/Safari/iPad end-to-end test перед слиянием
 
 ## Stage B — автоматизация · не начато
 
