@@ -752,6 +752,7 @@ async function runAgent(agent){
  const debuggerController=createDebuggerController(agent,(debug,status)=>{ide?.setDebugState(agent.id,debug,status);});agent.debuggerController=debuggerController;ide?.clearRuntimeError(agent.id);
  programmedBots.add(agent.id);metrics.programs++;metrics.botsProgrammed=programmedBots.size;updateMissions();
  if(agent.id===activeAgent().id){$('#run').textContent='⏳ РАБОТАЕТ';$('#codeStatus').textContent='выполняется';}
+ ide?.setRunStatus(agent.id,'выполняется');
  programLogFor(agent,'▶ Запуск программы');
  try{
   const result=await runProgram(agent.program||'',{
@@ -771,16 +772,18 @@ async function runAgent(agent){
  }catch(error){agent.lastError=error?.message||String(error);const line=Number(error?.line)||Number(agent.lastError.match(/Строка\s+(\d+)/i)?.[1]);if(line)ide?.setRuntimeError(agent.id,line,agent.lastError);programLogFor(agent,'✕ '+agent.lastError);}
  const wasStopped=agent.stopRequested;
  agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.pauseReason='';agent.resumeResolver?.();agent.resumeResolver=null;agent.debuggerController=null;
- if(agent.id===activeAgent().id){const finalStatus=agent.lastError?'ошибка':wasStopped?'остановлено':'готово';$('#run').textContent='▶ ЗАПУСТИТЬ';$('#codeStatus').textContent=finalStatus;$('#currentLine').textContent='строка —';$('#ideState').textContent=finalStatus;}
+ const finalStatus=agent.lastError?'ошибка':wasStopped?'остановлено':'готово';
+ if(agent.id===activeAgent().id)$('#run').textContent='▶ ЗАПУСТИТЬ';
+ ide?.setRunStatus(agent.id,finalStatus,{clearLine:true});
  renderFleetUI();stats();saveGame();
 }
 
 $('#run').onclick=()=>{
  const agent=activeAgent();agent.program=$('#code').value;runAgent(agent);
 };
-$('#pauseProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.pause();if(agent.running)$('#codeStatus').textContent=agent.pauseReason;};
-$('#stepProgram').onclick=()=>activeAgent().debuggerController?.step();
-$('#resumeProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.resume();$('#codeStatus').textContent=agent.running?'выполняется':'готов';};
+$('#pauseProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.pause();if(agent.running)ide?.setRunStatus(agent.id,agent.pauseReason||'пауза запрошена');};
+$('#stepProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.step();if(agent.running)ide?.setRunStatus(agent.id,'выполняется · шаг');};
+$('#resumeProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.resume();ide?.setRunStatus(agent.id,agent.running?'выполняется':'готов');};
 $('#debugReset').onclick=()=>{const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.stepOnce=false;agent.resumeResolver?.();agent.resumeResolver=null;agent.pauseReason='';agent.lastError='';ide?.clearDebug(agent.id);$('#codeStatus').textContent='сброшено';$('#currentLine').textContent='строка —';$('#programOutput').textContent=(agent.logs||[]).join('\n')||'Отладчик сброшен. Код программы сохранён.';if(!agent.running)agent.stopRequested=false;};
 $('#stop').onclick=()=>{
  const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.resumeResolver?.();agent.resumeResolver=null;programLogFor(agent,'■ Запрошена остановка');$('#codeStatus').textContent='остановка…';saveGame();
