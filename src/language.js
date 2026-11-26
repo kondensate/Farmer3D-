@@ -320,6 +320,56 @@ async function runProgram(source, api = {}) {
     line,nextLine,statement:statement?.type||null,steps,
     scopes:snapshotScopes(scope),functions:[...functions.keys()],callStack:callStack.map(frame=>({...frame}))
   });
+  async function evaluateExpression(node,scope) {
+    switch(node.type) {
+      case "literal": return node.value;
+      case "variable": return scope.get(node.name,node.line);
+      case "unary": {
+        const value=await evaluateExpression(node.value,scope);
+        if(node.op==="not") return !truthy(value);
+        if(node.op==="-") return -Number(value);
+        return Number(value);
+      }
+      case "binary": {
+        if(node.op==="and") { const left=await evaluateExpression(node.left,scope); return truthy(left)?evaluateExpression(node.right,scope):left; }
+        if(node.op==="or") { const left=await evaluateExpression(node.left,scope); return truthy(left)?left:evaluateExpression(node.right,scope); }
+        const a=await evaluateExpression(node.left,scope),b=await evaluateExpression(node.right,scope);
+        switch(node.op) {
+          case "+": return typeof a==="string"||typeof b==="string"?String(a)+String(b):Number(a)+Number(b);
+          case "-": return Number(a)-Number(b);
+          case "*": return Number(a)*Number(b);
+          case "/": if(Number(b)===0) throw new LanguageError("Деление на ноль",node.line||1); return Number(a)/Number(b);
+          case "%": if(Number(b)===0) throw new LanguageError("Деление на ноль",node.line||1); return Number(a)%Number(b);
+          case "==": return a===b;
+          case "!=": return a!==b;
+          case "<": return a<b;
+          case ">": return a>b;
+          case "<=": return a<=b;
+          case ">=": return a>=b;
+        }
+        return null;
+      }
+      case "call": {
+        const args=[];
+        for(const arg of node.args) args.push(await evaluateExpression(arg,scope));
+        if(functions.has(node.name)) return invokeFunction(node.name,args,node.line);
+        if(node.name==="range") {
+          const [a,b,c]=args.length===1?[0,Number(args[0]),1]:[Number(args[0]??0),Number(args[1]??0),Number(args[2]??1)];
+          if(!Number.isInteger(a)||!Number.isInteger(b)||!Number.isInteger(c)||c===0) throw new LanguageError("range() принимает целые числа, шаг не должен быть 0",node.line);
+          const len=Math.max(0,Math.ceil((b-a)/c));
+          if(len>1000) throw new LanguageError("range() ограничен 1000 шагами",node.line);
+          return Array.from({length:len},(_,i)=>a+i*c);
+        }
+        const math={abs:Math.abs,min:Math.min,max:Math.max,floor:Math.floor,ceil:Math.ceil,round:Math.round};
+        if(Object.hasOwn(math,node.name)) return math[node.name](...args);
+        if(node.name==="print") { api.log?.(args.map(String).join(" ")); return null; }
+        if(api.sense&&api.hasSensor?.(node.name)) return api.sense(node.name,args);
+        throw new LanguageError(`Неизвестная функция «${node.name}»`,node.line);
+      }
+    }
+    throw new LanguageError("Неизвестное выражение",node.line||1);
+  }
+
   const checkStop=()=>{if(api.shouldStop?.()) throw new LanguageError("Выполнение остановлено");};
   function tick(line) {
     checkStop();
@@ -370,9 +420,7 @@ async function runProgram(source, api = {}) {
     switch(stmt.type) {
       case "def": functions.set(stmt.name,stmt); return;
       case "assign": {
-        const value=stmt.value?.type==="call"&&functions.has(stmt.value.name)
-          ? await invokeFunction(stmt.value.name,stmt.value.args.map(arg=>evaluate(arg,scope,api)),stmt.line)
-          : evaluate(stmt.value,scope,api);
+        const value=await evaluateExpression(stmt.value,scope);
         if(stmt.operator==="=") scope.set(stmt.name,value);
         else {
           const old=scope.get(stmt.name,stmt.line), op=stmt.operator[0];
@@ -383,12 +431,12 @@ async function runProgram(source, api = {}) {
         return;
       }
       case "if":
-        for(const branch of stmt.branches) if(branch.condition===null||truthy(evaluate(branch.condition,scope,api))) {
+        for(const branch of stmt.branches) if(branch.condition===null||truthy(await evaluateExpression(branch.condition,scope))) {
           await executeBlock(branch.body,scope,insideFunction); break;
         }
         return;
       case "for": {
-        const values=evaluate(stmt.iterable,scope,api);
+        const values=await evaluateExpression(stmt.iterable,scope);
         if(!Array.isArray(values)&&typeof values!=="string") throw new LanguageError("for требует range() или строку",stmt.line);
         let count=0;
         for(const value of values) {
@@ -401,7 +449,7 @@ async function runProgram(source, api = {}) {
       }
       case "while": {
         let count=0;
-        while(truthy(evaluate(stmt.condition,scope,api))) {
+        while(truthy(await evaluateExpression(stmt.condition,scope))) {
           checkStop(); if(++count>MAX_LOOP) throw new LanguageError("Цикл while превысил лимит 1000 повторений",stmt.line);
           try { await executeBlock(stmt.body,scope,insideFunction); }
           catch(s) { if(s instanceof BreakSignal) break; if(s instanceof ContinueSignal) continue; throw s; }
@@ -418,7 +466,7 @@ async function runProgram(source, api = {}) {
       }
       case "return":
         if(!insideFunction) throw new LanguageError("return можно использовать только внутри def",stmt.line);
-        throw new ReturnSignal(evaluate(stmt.value,scope,api));
+        throw new ReturnSignal(await evaluateExpression(stmt.value,scope));
       case "break": throw new BreakSignal(stmt.line);
       case "continue": throw new ContinueSignal(stmt.line);
     }
