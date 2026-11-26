@@ -215,6 +215,7 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
   return {
     refresh,handleKeydown,setDebugState,
     clearDebug(agentId){debugByRobot.delete(agentId);if(active().id===agentId){renderValues(null);renderFunctions([]);renderStack([]);setText(state,'сброшено');setText(document.querySelector('#currentLine'),'строка —');setText(document.querySelector('#ideNextLine'),'следующая: —');render();}},
+    setDebugCallStack(agentId,frames=[]){const previous=debugByRobot.get(agentId)||{};const snapshot={...previous,callStack:[...frames]};debugByRobot.set(agentId,snapshot);if(active().id===agentId){renderStack(snapshot.callStack);}},
     setDebugFunctions(agentId,names=[]){const previous=debugByRobot.get(agentId)||{};const snapshot={...previous,functions:[...names]};debugByRobot.set(agentId,snapshot);if(active().id===agentId){renderFunctions(snapshot.functions);render();}},
     setRuntimeError(agentId,line,message){runtimeErrors.set(agentId,{line:Number(line)||1,message:String(message||'Ошибка выполнения').replace(/^Строка\s+\d+[:：]\s*/i,'')});if(active().id===agentId)render();},
     clearRuntimeError(agentId){runtimeErrors.delete(agentId);if(active().id===agentId)render();},
