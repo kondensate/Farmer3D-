@@ -5,6 +5,7 @@ import { createIde } from './ide.js';
 import { createDebuggerController } from './debugger.js';
 import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from './data.js';
 import { GRID_STEP, worldToCell, cellToWorld, findPath, buildBlockedCells } from './navigation.js';
+import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
 let ide=null;
 const sensorNames=['can_harvest','can_plant','can_water','is_ready','get_water','get_coins','get_harvest','tile_state','count_ready','count_empty','front_is_clear','at_plot','distance_to_plot','has_water','get_energy','get_position','get_inventory','get_plant_age','scan','has_ready_plot','has_empty_plot','has_thirsty_plot'];
 const root=document.querySelector('#game');
@@ -184,6 +185,8 @@ function addXP(amount){xp+=amount;researchPoints+=Math.max(0,Number(amount)||0);
 let lastLevel=1;
 const equipmentMeshes={};
 const buildings=[];
+const powerLinks=[],conveyorLinks=[],automationLineMeshes=[];
+let pendingAutomationLink=null,autoDispatchEnabled=false,taskQueue=[],dispatchClock=0,powerState={powered:new Map(),generation:0,consumption:0,stored:0,outages:0};
 const researchedTechs=new Set();
 let nextBuildingId=1,placingBuilding=null,previewMesh=null,placementRotation=0,challengeSeconds=180,challengeHarvested=0,challengeDone=false,challengeResult='';
 let conveyorClock=0,chargerClock=0;
@@ -224,6 +227,33 @@ function createBuildingMesh(type,x,z,rotation=0,preview=false){
   const body=new THREE.Mesh(new THREE.CylinderGeometry(.72,.78,1.65,12),bodyMat);body.position.y=.85;body.castShadow=true;g.add(body);
   const top=new THREE.Mesh(new THREE.CylinderGeometry(.76,.76,.12,12),rim);top.position.y=1.7;g.add(top);
   const tap=box(g,.42,.12,.16,rim,.65,.55,.22);tap.rotation.z=.2;
+ }else if(type==='solar_generator'){
+  box(g,1.55,.12,1.05,mat(0x244d76),0,.55,0);
+  for(let i=-2;i<=2;i++)box(g,.025,.025,1.05,mat(0x8bb9dc),i*.29,.62,0);
+  box(g,.12,.62,.12,mat(0x687b75),0,.28,0);
+ }else if(type==='wind_generator'){
+  box(g,.16,2.15,.16,mat(0x9caeaa),0,1.05,0);
+  const hub=new THREE.Group();hub.position.set(0,2.05,0);g.add(hub);
+  const bladeMat=mat(0xe8eee0);
+  for(let i=0;i<3;i++){const blade=box(hub,.16,.95,.09,bladeMat,0,.58,0);blade.rotation.z=i*Math.PI*2/3;}
+  hub.userData.windHub=true;
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(.19,8,7),mat(0x536b74));hub.add(cap);
+ }else if(type==='battery'){
+  box(g,1.12,.95,.9,mat(0x526b60),0,.5,0);box(g,.66,.62,.08,mat(0x9adf66),0,.56,.48);
+  box(g,.24,.12,.12,mat(0x34443d),0,1.05,0);
+ }else if(type==='power_pole'){
+  box(g,.22,.16,.22,mat(0x6e7770),0,.08,0);box(g,.09,1.75,.09,mat(0x967c51),0,.92,0);
+  box(g,.95,.08,.08,mat(0xb3b8a6),0,1.52,0);
+  for(let x of [-.32,.32])box(g,.07,.18,.07,mat(0x526b60),x,1.42,0);
+ }else if(type==='water_pump'){
+  box(g,1.1,.4,.95,mat(0x477f9e),0,.22,0);box(g,.46,.78,.46,mat(0x9bb5b7),0,.78,0);
+  const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.7,8),mat(0x4c9eb8));pipe.rotation.z=Math.PI/2;pipe.position.set(.6,.9,0);g.add(pipe);
+ }else if(type==='conveyor_splitter'||type==='conveyor_filter'||type==='conveyor_buffer'||type==='conveyor_storage'){
+  const frame=mat(0x5b5140),belt=mat(0x343c37),accent=mat(type==='conveyor_splitter'?0xd3ad54:type==='conveyor_filter'?0x61a4b2:type==='conveyor_buffer'?0x8ea66c:0x96774d);
+  box(g,def.width,.22,def.depth,frame,0,.28,0);box(g,def.width-.14,.06,def.depth-.16,belt,0,.42,0);box(g,.12,.48,.12,accent,0,.72,0);
+  if(type==='conveyor_splitter'){box(g,.95,.08,.1,accent,0,.83,0);box(g,.1,.35,.1,accent,-.42,.7,.25);box(g,.1,.35,.1,accent,.42,.7,-.25);}
+  if(type==='conveyor_filter'){box(g,.32,.18,.28,accent,0,.76,0);}
+  if(type==='conveyor_buffer'||type==='conveyor_storage'){box(g,def.width*.68,.48,def.depth*.68,accent,0,.67,0);}
  }else if(type==='conveyor'){
   const frame=mat(0x5b5140),belt=mat(0x343c37),roller=mat(0xa9b5a2,.5);
   box(g,def.width,.22,def.depth,frame,0,.28,0);box(g,def.width-.15,.06,def.depth-.2,belt,0,.42,0);
@@ -247,10 +277,21 @@ function renderBuildingUI(){
   const unlocked=isBuildingUnlocked(id),cost=gameMode==='sandbox'?0:b.cost;
   return `<div class="buildCard"><b>${b.icon} ${b.name}</b><small>${b.description}</small><small>Стоимость: ${cost} 🪙 ${unlocked?'':'· исследуй технологию'}</small><button data-build-select="${id}" ${unlocked?'':'disabled'}>РАЗМЕСТИТЬ</button></div>`;
  }).join('');
- placed.innerHTML=buildings.length?buildings.map(b=>`<div class="buildingRow"><span>${BUILDINGS[b.type].icon} ${BUILDINGS[b.type].name}</span><span><button data-building-move="${b.id}">↔ ПЕРЕМЕСТИТЬ</button> <button data-building-delete="${b.id}">✕</button></span></div>`).join(''):'<p class="muted">Пока нет размещённых построек.</p>';
+ placed.innerHTML=buildings.length?buildings.map(b=>{
+  const def=BUILDINGS[b.type]||{},links=`${def.powerNode?` <button data-connect-power="${b.id}">⚡ КАБЕЛЬ</button>`:''}${def.logisticsNode?` <button data-connect-conveyor="${b.id}">⇢ ЛЕНТА</button>`:''}`;
+  const status=def.powerNode&&def.powerRole==='consumer'?(b.powered?' · ⚡ ВКЛ':' · ⚠ НЕТ ПИТАНИЯ'):'';
+  const filter=b.type==='conveyor_filter'?`<button data-filter-cycle="${b.id}">ФИЛЬТР: ${b.filterCrop||'all'}</button>`:'';
+  return `<div class="buildingRow"><span>${def.icon||'🏗'} ${def.name||b.type}${status}</span><span>${filter}${links} <button data-building-move="${b.id}">↔ ПЕРЕМЕСТИТЬ</button> <button data-building-delete="${b.id}">✕</button></span></div>`;
+ }).join(''):'<p class="muted">Пока нет размещённых построек.</p>';
  catalog.querySelectorAll('[data-build-select]').forEach(btn=>btn.onclick=()=>startBuildingPlacement(btn.dataset.buildSelect));
  placed.querySelectorAll('[data-building-move]').forEach(btn=>btn.onclick=()=>startBuildingPlacement(buildings.find(b=>b.id===Number(btn.dataset.buildingMove))?.type,Number(btn.dataset.buildingMove)));
  placed.querySelectorAll('[data-building-delete]').forEach(btn=>btn.onclick=()=>deleteBuilding(Number(btn.dataset.buildingDelete)));
+ placed.querySelectorAll('[data-connect-power]').forEach(btn=>btn.onclick=()=>chooseAutomationLink('power',Number(btn.dataset.connectPower)));
+ placed.querySelectorAll('[data-connect-conveyor]').forEach(btn=>btn.onclick=()=>chooseAutomationLink('conveyor',Number(btn.dataset.connectConveyor)));
+ placed.querySelectorAll('[data-filter-cycle]').forEach(btn=>btn.onclick=()=>{
+  const node=buildings.find(b=>b.id===Number(btn.dataset.filterCycle));if(!node)return;
+  const crops=['all',...Object.keys(CROPS)],index=crops.indexOf(node.filterCrop||'all');node.filterCrop=crops[(index+1)%crops.length];renderBuildingUI();saveGame();
+ });
 }
 function waterCapacity(){return 99+buildings.filter(b=>b.type==='tank').length*30;}
 function isBuildingUnlocked(type){const def=BUILDINGS[type];return !!def&&(gameMode==='sandbox'||researchedTechs.has(def.unlock));}
@@ -302,11 +343,36 @@ function placeBuildingAt(x,z){
  if(!canPlaceBuilding(type,snappedX,snappedZ,moveId,placementRotation)){toast('Здесь нельзя разместить здание: место занято или вне фермы');return;}
  if(!moveId&&gameMode!=='sandbox'){coins-=BUILDINGS[type].cost;}
  if(moveId){const b=buildings.find(q=>q.id===moveId);if(b){disposeBuildingMesh(b.mesh);b.x=snappedX;b.z=snappedZ;b.rotation=placementRotation;b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);}}
- else{const b={id:nextBuildingId++,type,x:snappedX,z:snappedZ,rotation:placementRotation};b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);buildings.push(b);}
- cancelBuildingPlacement();renderBuildingUI();renderTechs();stats();saveGame();toast(`${BUILDINGS[type].name}: размещено`);
+ else{const b={id:nextBuildingId++,type,x:snappedX,z:snappedZ,rotation:placementRotation,items:[],batteryCharge:0,filterCrop:'all',routeIndex:0,routeClock:0};b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);buildings.push(b);}
+ cancelBuildingPlacement();renderAutomationLinks();renderBuildingUI();renderTechs();stats();saveGame();toast(`${BUILDINGS[type].name}: размещено`);
 }
 function disposeBuildingMesh(mesh){if(!mesh)return;scene.remove(mesh);mesh.traverse(o=>{o.geometry?.dispose?.();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose?.());else o.material.dispose?.();}});}
-function deleteBuilding(id){const index=buildings.findIndex(b=>b.id===id);if(index<0)return;const b=buildings[index];disposeBuildingMesh(b.mesh);buildings.splice(index,1);renderBuildingUI();saveGame();toast(`${BUILDINGS[b.type].name}: удалено`);}
+function renderAutomationLinks(){
+ for(const line of automationLineMeshes){scene.remove(line);line.geometry.dispose();line.material.dispose();}
+ automationLineMeshes.length=0;
+ const draw=(links,color,y)=>{
+  for(const edge of links){
+   const a=buildings.find(b=>b.id===Number(edge.from)),b=buildings.find(b=>b.id===Number(edge.to));if(!a||!b)continue;
+   const geometry=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a.x,y,a.z),new THREE.Vector3(b.x,y,b.z)]);
+   const line=new THREE.Line(geometry,new THREE.LineDashedMaterial({color,dashSize:.24,gapSize:.12,transparent:true,opacity:.88}));
+   line.computeLineDistances();scene.add(line);automationLineMeshes.push(line);
+  }
+ };
+ draw(powerLinks,0x9ee477,.8);draw(conveyorLinks,0xe5bd60,.58);
+}
+function chooseAutomationLink(kind,id){
+ const node=buildings.find(b=>b.id===id);if(!node)return;
+ const allowed=kind==='power'?BUILDINGS[node.type]?.powerNode:BUILDINGS[node.type]?.logisticsNode;
+ if(!allowed){toast('Этот объект нельзя подключить к такой сети');return;}
+ if(!pendingAutomationLink||pendingAutomationLink.kind!==kind){
+  pendingAutomationLink={kind,from:id};toast(kind==='power'?'Выбран первый узел питания. Теперь выбери второй.':'Выбран источник конвейера. Теперь выбери следующий узел.');return;
+ }
+ if(pendingAutomationLink.from===id){pendingAutomationLink=null;toast('Соединение отменено');return;}
+ const links=kind==='power'?powerLinks:conveyorLinks,from=pendingAutomationLink.from;
+ if(!links.some(e=>Number(e.from)===from&&Number(e.to)===id))links.push({from,to:id});
+ pendingAutomationLink=null;renderAutomationLinks();renderBuildingUI();saveGame();toast(kind==='power'?'⚡ Кабель подключён':'⇢ Конвейерная линия подключена');
+}
+function deleteBuilding(id){const index=buildings.findIndex(b=>b.id===id);if(index<0)return;const b=buildings[index];disposeBuildingMesh(b.mesh);buildings.splice(index,1);powerLinks.splice(0,powerLinks.length,...powerLinks.filter(e=>Number(e.from)!==id&&Number(e.to)!==id));conveyorLinks.splice(0,conveyorLinks.length,...conveyorLinks.filter(e=>Number(e.from)!==id&&Number(e.to)!==id));renderAutomationLinks();renderBuildingUI();saveGame();toast(`${BUILDINGS[b.type].name}: удалено`);}
 function updatePlacementPreview(e){if(!placingBuilding||!previewMesh)return;const rect=renderer.domElement.getBoundingClientRect();const ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hit=ray.intersectObject(ground,false)[0];if(!hit)return;const x=Math.round(hit.point.x/GRID_STEP)*GRID_STEP,z=Math.round(hit.point.z/GRID_STEP)*GRID_STEP;previewMesh.position.set(x,.02,z);const valid=canPlaceBuilding(placingBuilding.type,x,z,placingBuilding.moveId,placementRotation);previewMesh.userData.previewMaterial.color.set(valid?0x9bd568:0xe56e5c);}
 const buildPointerStarts=new Map();
 renderer.domElement.addEventListener('pointerdown',e=>{if(placingBuilding)buildPointerStarts.set(e.pointerId,{x:e.clientX,y:e.clientY});});
@@ -387,7 +453,8 @@ function renderFleetUI(){
    <div class="fleetActions"><button data-bot-select="${a.id}">КОД</button><button data-bot-run="${a.id}" ${a.running?'disabled':''}>▶</button><button data-bot-stop="${a.id}" ${!a.running?'disabled':''}>■</button></div>
   </div>`;
  }).join('');
- $('#networkInfo').textContent=`На связи: ${agents.length} · Активны: ${agents.filter(a=>a.running).length} · Склад: ${Object.values(harvestStorage).reduce((a,b)=>a+b,0)} ед. · Насос: ${pumpBuilt?'ВКЛ':'нет'} · Солнце: ${solarBuilt?'ВКЛ':'нет'}`;
+ $('#networkInfo').textContent=`На связи: ${agents.length} · Активны: ${agents.filter(a=>a.running).length} · Склад: ${Object.values(harvestStorage).reduce((a,b)=>a+b,0)} ед. · Питание: ${Math.round(powerState.generation*10)/10}/${Math.round(powerState.consumption*10)/10} · Отключено: ${powerState.outages}`;
+ renderAutomationPanel();
  cards.querySelectorAll('[data-bot-select]').forEach(b=>b.onclick=()=>{selectAgent(b.dataset.botSelect);$('#networkPanel').classList.remove('show');$('#codePanel').classList.add('show');});
  cards.querySelectorAll('[data-bot-run]').forEach(b=>b.onclick=()=>{const a=agents.find(x=>x.id===b.dataset.botRun);if(a)runAgent(a);});
  cards.querySelectorAll('[data-bot-stop]').forEach(b=>b.onclick=()=>{const a=agents.find(x=>x.id===b.dataset.botStop);if(a){a.stopRequested=true;renderFleetUI();}});
@@ -413,10 +480,10 @@ function buySeedPack(){
  if(gameMode!=='sandbox')coins-=c.seedCost;seedStock[activeSeed]=(seedStock[activeSeed]||0)+5;stats();renderSeedStock();saveGame();toast(`${c.icon} Куплено 5 семян: ${c.name}`);
 }
 
-const SAVE_KEY='farmerbot3d_save_v4',PREVIOUS_SAVE_KEY='farmerbot3d_save_v3',LEGACY_SAVE_KEY='farmerbot3d_save_v2';
+const SAVE_KEY='farmerbot3d_save_v5',PREVIOUS_SAVE_KEY='farmerbot3d_save_v4',LEGACY_SAVE_KEY='farmerbot3d_save_v3',OLDER_SAVE_KEY='farmerbot3d_save_v2';
 function saveGame(){
  const data={
-  version:4,coins,harvest,water,xp,researchPoints,seedStock,harvestStorage,metrics,gameMode,activeSeed,
+  version:5,coins,harvest,water,xp,researchPoints,seedStock,harvestStorage,metrics,gameMode,activeSeed,automation:{powerLinks,conveyorLinks,autoDispatchEnabled},
   harvestedTypes:[...harvestedTypes],claimedMissions:[...claimedMissions],programmedBots:[...programmedBots],weather,
   equipment:{pump:pumpBuilt,solar:solarBuilt,storage:storageBuilt},
   buildings:buildings.map(({mesh,...b})=>b),researchedTechs:[...researchedTechs],
@@ -428,7 +495,7 @@ function saveGame(){
 }
 function loadGame(){
  try{
-  const raw=localStorage.getItem(SAVE_KEY)||localStorage.getItem(PREVIOUS_SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY);if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();return;}
+  const raw=localStorage.getItem(SAVE_KEY)||localStorage.getItem(PREVIOUS_SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY)||localStorage.getItem(OLDER_SAVE_KEY);if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();return;}
   const d=JSON.parse(raw);isLoadingGame=true;
   coins=Number.isFinite(d.coins)?d.coins:90;harvest=Number(d.harvest)||0;water=Number.isFinite(d.water)?d.water:8;xp=Number(d.xp)||0;researchPoints=Number.isFinite(d.researchPoints)?d.researchPoints:xp;
   if(d.seedStock)Object.assign(seedStock,d.seedStock);
@@ -460,8 +527,8 @@ function loadGame(){
   });
   if(d.equipment){pumpBuilt=!!d.equipment.pump;solarBuilt=!!d.equipment.solar;storageBuilt=!!d.equipment.storage;
    if(pumpBuilt)buildEquipment('pump');if(solarBuilt)buildEquipment('solar');if(storageBuilt)buildEquipment('storage');}
-  buildings.length=0;nextBuildingId=1;if(Array.isArray(d.buildings))for(const saved of d.buildings){if(!BUILDINGS[saved.type])continue;const record={id:Number(saved.id)||nextBuildingId++,type:saved.type,x:Number(saved.x)||0,z:Number(saved.z)||0,rotation:Number(saved.rotation)||0};record.mesh=createBuildingMesh(record.type,record.x,record.z,record.rotation,false);buildings.push(record);nextBuildingId=Math.max(nextBuildingId,record.id+1);}
-  lastLevel=1+Math.floor(xp/100);isLoadingGame=false;updateMissions();stats();renderSeedStock();renderFleetUI();renderMissions();renderBuildingUI();renderTechs();renderChallengeStatus();if(d.version<4)saveGame();
+  buildings.length=0;nextBuildingId=1;if(Array.isArray(d.buildings))for(const saved of d.buildings){if(!BUILDINGS[saved.type])continue;const record={...saved,id:Number(saved.id)||nextBuildingId++,type:saved.type,x:Number(saved.x)||0,z:Number(saved.z)||0,rotation:Number(saved.rotation)||0,items:Array.isArray(saved.items)?saved.items:[],batteryCharge:Math.max(0,Number(saved.batteryCharge)||0),filterCrop:CROPS[saved.filterCrop]?saved.filterCrop:'all',routeIndex:Number(saved.routeIndex)||0,routeClock:Number(saved.routeClock)||0};record.mesh=createBuildingMesh(record.type,record.x,record.z,record.rotation,false);buildings.push(record);nextBuildingId=Math.max(nextBuildingId,record.id+1);}if(d.automation){powerLinks.splice(0,powerLinks.length,...(Array.isArray(d.automation.powerLinks)?d.automation.powerLinks:[]));conveyorLinks.splice(0,conveyorLinks.length,...(Array.isArray(d.automation.conveyorLinks)?d.automation.conveyorLinks:[]));autoDispatchEnabled=!!d.automation.autoDispatchEnabled;}renderAutomationLinks();
+  lastLevel=1+Math.floor(xp/100);isLoadingGame=false;updateMissions();stats();renderSeedStock();renderFleetUI();renderMissions();renderBuildingUI();renderTechs();renderChallengeStatus();if(d.version<5)saveGame();
  }catch(e){isLoadingGame=false;console.warn('Ошибка загрузки сохранения',e);stats();}
 }
 
@@ -655,6 +722,62 @@ async function moveAgent(agent,count){
  const ok=await navigateAgentTo(agent,world);if(!ok&&!agent.stopRequested)throw new Error('Не удалось построить маршрут: проверь препятствия и заряд');
  return ok;
 }
+async function navigateToSpecificPlot(agent,plot){
+ const start=worldToCell(agent.mesh.position),obstacleBuildings=buildings.map(b=>({...b,...buildingFootprint(b.type,b.rotation)}));
+ const blocked=buildBlockedCells({buildings:obstacleBuildings,agents,ignoreAgentId:agent.id});blocked.delete(`${start.x},${start.z}`);
+ const c=worldToCell(plot.g.position),stops=[{x:c.x+1,z:c.z},{x:c.x-1,z:c.z},{x:c.x,z:c.z+1},{x:c.x,z:c.z-1}];
+ let best=null;for(const stop of stops){const path=findPath(start,stop,blocked);if(path&&(!best||path.length<best.length))best=path;}
+ if(!best||!await followPath(agent,best))throw new Error('Не удалось добраться до назначенной грядки');
+ return true;
+}
+function renderAutomationPanel(){
+ const button=$('#autoDispatchToggle'),status=$('#automationStatus'),list=$('#taskQueue');
+ if(button)button.textContent=autoDispatchEnabled?'⏸ ОСТАНОВИТЬ ДИСПЕТЧЕР':'▶ АВТОДИСПЕТЧЕР';
+ if(!status||!list)return;
+ const active=agents.filter(a=>a.autoTaskBusy).length;
+ status.textContent=`Энергия: выработка ${powerState.generation.toFixed(1)} ед/с · нагрузка ${powerState.consumption.toFixed(1)} ед/с · аккумуляторы ${powerState.stored.toFixed(0)} · отключено потребителей: ${powerState.outages}. Диспетчер: ${autoDispatchEnabled?'включён':'выключен'} · назначено задач: ${active}`;
+ const tasks=buildFarmTaskQueue(plots,activeSeed,{...seedStock,unlimited:gameMode==='sandbox'});
+ const assigned=new Set(agents.map(a=>a.autoTaskTaskId).filter(Boolean));
+ list.innerHTML=tasks.slice(0,10).map(t=>{
+  const labels={harvest:'Сбор урожая',water:'Полив',plant:'Посадка'};
+  return `<div class="missionItem"><b>${assigned.has(t.id)?'◉':'○'} ${labels[t.type]} · грядка ${t.plotIndex+1}</b><small>${CROPS[t.crop]?.name||t.crop} · приоритет ${t.priority}${assigned.has(t.id)?' · назначено':''}</small></div>`;
+ }).join('')||'<p class="muted">Нет доступных задач. Проверь свободные грядки, воду и семена.</p>';
+}
+async function executeAutomationTask(agent,task){
+ const plot=plots[task.plotIndex];if(!plot)return;
+ if(agent.energy<18||Object.values(agent.inventory).reduce((sum,n)=>sum+n,0)>=agent.capacity-1)await returnToBase(agent);
+ if(agent.stopRequested)return;
+ await navigateToSpecificPlot(agent,plot);
+ if(agent.stopRequested)return;
+ if(task.type==='plant'&&plot.state==='empty'){
+  if(plantPlot(plot,task.crop,agent))agent.energy=Math.max(0,agent.energy-.5);
+ }else if(task.type==='water'&&['seed','growing'].includes(plot.state)&&!plot.watered){
+  if(!waterPlot(plot,agent))throw new Error('Нет воды для автоматического полива');agent.energy=Math.max(0,agent.energy-.35);
+ }else if(task.type==='harvest'&&plot.state==='ready'){
+  if(!harvestPlot(plot,agent))throw new Error('Не удалось собрать назначенный урожай');agent.energy=Math.max(0,agent.energy-.5);
+ }
+ const load=Object.values(agent.inventory).reduce((sum,n)=>sum+n,0);
+ if(load>=agent.capacity-1||agent.energy<18)await returnToBase(agent);
+ programLogFor(agent,`Автодиспетчер: задача «${task.type}» завершена`);
+}
+function dispatchAutomationTasks(){
+ if(!autoDispatchEnabled)return;
+ taskQueue=buildFarmTaskQueue(plots,activeSeed,{...seedStock,unlimited:gameMode==='sandbox'});
+ const idle=agents.filter(a=>!a.running&&!a.autoTaskBusy&&!a.stopRequested);
+ const reserved=new Set(agents.map(a=>a.autoTaskTaskId).filter(Boolean));
+ for(const task of taskQueue){
+  if(!idle.length)break;if(reserved.has(task.id))continue;
+  const plot=plots[task.plotIndex],best=selectAgentForTask(idle,task,plot?.g?.position||{x:0,z:0});
+  if(!best)continue;
+  best.autoTaskBusy=true;best.autoTaskTaskId=task.id;reserved.add(task.id);
+  const index=idle.indexOf(best);if(index>=0)idle.splice(index,1);
+  executeAutomationTask(best,task).catch(error=>programLogFor(best,`⚠ Автозадача: ${error.message||error}`)).finally(()=>{
+   best.autoTaskBusy=false;best.autoTaskTaskId=null;renderFleetUI();renderAutomationPanel();saveGame();
+  });
+ }
+ renderAutomationPanel();
+}
+
 async function returnToBase(agent){
  const target=baseDock(agent);
  if(!await navigateAgentTo(agent,target,true))throw new Error('Не удалось вернуться на базу: путь заблокирован');
@@ -737,6 +860,11 @@ async function programAction(name,args=[],agent=activeAgent()){
   const state=['ready','empty','thirsty'].includes(String(args[0]||'any'))?String(args[0]):'any';await navigateToNearestPlot(agent,state);
  }else if(name==='return_to_base'){
   await returnToBase(agent);
+ }else if(name==='transfer_to'||name==='transfer_from'){
+  const target=agents.find(a=>a.id===String(args[0]));if(!target)throw new Error(`Робот «${args[0]}» не найден`);
+  const result=name==='transfer_to'?transferInventory(agent,target,args[1],args[2]):transferInventory(target,agent,args[1],args[2]);
+  if(!result.ok){const reasons={'insufficient-resource':'у отправителя недостаточно ресурса','destination-full':'у получателя нет места','invalid-amount':'количество должно быть положительным целым числом'};throw new Error(`Передача не выполнена: ${reasons[result.reason]||'проверь параметры'}`);}
+  programLogFor(agent,`Передано ${result.moved} ед. ${args[1]} ${name==='transfer_to'?'роботу':'от робота'} ${target.name}`);renderFleetUI();
  }else if(name==='refill_water'){
   if(Math.hypot(agent.mesh.position.x-baseDock(agent).x,agent.mesh.position.z-baseDock(agent).z)>2.5)throw new Error('Для refill_water() вернись на базу');
   if(agent.type==='waterbot')agent.water=ROBOT_TYPES.waterbot.water;else water=Math.min(waterCapacity(),water+10);stats();toast(`${agent.name}: запас воды пополнен`);
@@ -747,7 +875,7 @@ async function programAction(name,args=[],agent=activeAgent()){
  addXP(name==='harvest'?2:0);if($('#networkPanel').classList.contains('show'))renderFleetUI();stats();saveGame();
 }
 async function runAgent(agent){
- if(agent.running)return;
+ if(agent.running||agent.autoTaskBusy)return;
  agent.running=true;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.pauseReason='';agent.debugSteps=0;agent.actionBudget=0;agent.tileBudget=0;
  const debuggerController=createDebuggerController(agent,(debug,status)=>{ide?.setDebugState(agent.id,debug,status);});agent.debuggerController=debuggerController;ide?.clearDebug(agent.id);
  programmedBots.add(agent.id);metrics.programs++;metrics.botsProgrammed=programmedBots.size;updateMissions();
@@ -811,8 +939,9 @@ $('#closeBuild').onclick=()=>{$('#buildPanel').classList.remove('show');cancelBu
 $('#rotateBuilding').onclick=rotateBuildingPlacement;$('#cancelBuilding').onclick=cancelBuildingPlacement;
 $('#researchToggle').onclick=()=>{$('#researchPanel').classList.add('show');renderTechs();};
 $('#closeResearch').onclick=()=>$('#researchPanel').classList.remove('show');
-$('#networkRunAll').onclick=()=>agents.forEach(a=>{if(!a.running)runAgent(a);});
+$('#networkRunAll').onclick=()=>agents.forEach(a=>{if(!a.running&&!a.autoTaskBusy)runAgent(a);});
 $('#networkStopAll').onclick=()=>agents.forEach(a=>{a.stopRequested=true;});
+$('#autoDispatchToggle').onclick=()=>{autoDispatchEnabled=!autoDispatchEnabled;$('#autoDispatchToggle').textContent=autoDispatchEnabled?'⏸ ОСТАНОВИТЬ ДИСПЕТЧЕР':'▶ АВТОДИСПЕТЧЕР';toast(autoDispatchEnabled?'Диспетчер задач включён':'Диспетчер задач остановлен');renderAutomationPanel();saveGame();};
 $('#buyWaterBot').onclick=()=>buyRobot('waterbot',35);
 $('#buyHarvestBot').onclick=()=>buyRobot('harvestbot',50);
 $('#buyDroneBot').onclick=()=>buyRobot('dronebot',70);
@@ -874,9 +1003,37 @@ function update(dt){
    }
   }
  }
- // Placeable infrastructure: conveyors collect nearby ripe crops; chargers service nearby robots.
- conveyorClock+=dt;if(conveyorClock>=4){conveyorClock=0;for(const b of buildings.filter(q=>q.type==='conveyor')){const p=plots.find(q=>q.state==='ready'&&Math.hypot(q.g.position.x-b.x,q.g.position.z-b.z)<2.25);if(p){const total=Object.values(harvestStorage).reduce((a,v)=>a+v,0),capacity=storageBuilt?100:20;if(total<capacity){const type=p.cropType||'carrot';harvestStorage[type]=(harvestStorage[type]||0)+1;harvest++;metrics.harvested++;metrics[`${type}Harvested`]=(metrics[`${type}Harvested`]||0)+1;harvestedTypes.add(type);setState(p,'empty');p.watered=false;p.waterSource=null;p.growth=0;addXP(1);recordChallengeHarvest();updateMissions();stats();saveGame();toast(`🟫 Конвейер доставил ${CROPS[type].name} на склад`);}}}}
- chargerClock+=dt;if(chargerClock>=.5){const pulse=chargerClock;chargerClock=0;for(const b of buildings.filter(q=>q.type==='charger'||q.type==='robot_station'))for(const a of agents){const distance=Math.hypot(a.mesh.position.x-b.x,a.mesh.position.z-b.z);const range=b.type==='charger'?2.7:3.1;if(distance<range)a.energy=Math.min(a.maxEnergy,a.energy+(b.type==='charger'?pulse*5:pulse*3));}}
+ // Stage B grid: generate, route, buffer and allocate energy each simulation tick.
+ powerState=updatePowerGrid(buildings,powerLinks,dt,{solarFactor:Math.max(.12,daylight)*(weather==='rain'?.55:1),windFactor:weather==='rain'?1.15:weather==='drought'?.75:.9});
+ for(const b of buildings)b.powered=!!powerState.powered.get(String(b.id));
+ // Powered pumps irrigate one thirsty plot at a time.
+ pumpClock+=dt;
+ if(pumpClock>=8){
+  pumpClock=0;const targetPlot=buildings.some(b=>b.type==='water_pump'&&b.powered)&&plots.find(p=>['seed','growing'].includes(p.state)&&!p.watered);
+  if(targetPlot&&(water>0||gameMode==='sandbox'))waterPlot(targetPlot,agents[0],'pump');
+ }
+ // Powered source conveyors pick ripe crops and push them into the directed belt graph.
+ conveyorClock+=dt;
+ if(conveyorClock>=4){
+  conveyorClock=0;
+  for(const b of buildings.filter(q=>q.type==='conveyor'&&q.powered)){
+   const p=plots.find(q=>q.state==='ready'&&Math.hypot(q.g.position.x-b.x,q.g.position.z-b.z)<2.25);if(!p)continue;
+   const linked=conveyorLinks.some(edge=>Number(edge.from)===b.id);if(linked&&(b.items||[]).length>=4)continue;
+   const total=Object.values(harvestStorage).reduce((a,v)=>a+v,0),capacity=storageBuilt?100:20;if(!linked&&total>=capacity)continue;
+   const type=p.cropType||'carrot';if(linked)b.items.push({crop:type,count:1});else harvestStorage[type]=(harvestStorage[type]||0)+1;
+   harvest++;metrics.harvested++;metrics[`${type}Harvested`]=(metrics[`${type}Harvested`]||0)+1;harvestedTypes.add(type);
+   setState(p,'empty');p.watered=false;p.waterSource=null;p.growth=0;addXP(1);recordChallengeHarvest();updateMissions();stats();saveGame();toast(`🟫 Конвейер забрал ${CROPS[type].name}`);
+  }
+ }
+ // Branches split, filters hold mismatched crops, buffers queue, and sinks deliver to storage.
+ const storageTotal=Object.values(harvestStorage).reduce((a,v)=>a+v,0),storageLimit=storageBuilt?100:20;
+ const delivered=stepConveyorNetwork(buildings.filter(b=>b.powered||b.type==='conveyor_storage'),conveyorLinks,dt,Math.max(0,storageLimit-storageTotal));
+ if(delivered.length){for(const item of delivered){const type=CROPS[item.crop]?item.crop:'carrot';harvestStorage[type]=(harvestStorage[type]||0)+(Number(item.count)||1);}stats();saveGame();toast(`📦 Логистика доставила ${delivered.length} ед. на склад`);}
+ // Connected chargers and robot stations draw power; an outage switches them off.
+ chargerClock+=dt;if(chargerClock>=.5){const pulse=chargerClock;chargerClock=0;for(const b of buildings.filter(q=>(q.type==='charger'||q.type==='robot_station')&&q.powered))for(const a of agents){const distance=Math.hypot(a.mesh.position.x-b.x,a.mesh.position.z-b.z);const range=b.type==='charger'?2.7:3.1;if(distance<range)a.energy=Math.min(a.maxEnergy,a.energy+(b.type==='charger'?pulse*5:pulse*3));}}
+ // Automatic dispatcher ranks and assigns unclaimed work to idle specialist robots.
+ dispatchClock+=dt;if(dispatchClock>=1.25){dispatchClock=0;dispatchAutomationTasks();}
+ if($('#networkPanel').classList.contains('show'))renderAutomationPanel();
  // Solar charging is local: robots must return to the base pad.
  for(const a of agents){
   if(solarBuilt&&Math.hypot(a.mesh.position.x-BASE_POSITION.x,a.mesh.position.z-BASE_POSITION.z)<2.6){
