@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - farmerbot-3.0
+      - farmerbot-3.0-stage-b
   pull_request:
     branches:
       - main
