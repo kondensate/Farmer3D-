@@ -762,6 +762,7 @@ async function runAgent(agent){
    shouldStop:()=>agent.stopRequested,
    onDebugState:debug=>{ide?.setDebugState(agent.id,debug,agent.pauseRequested?(agent.pauseReason||'пауза'):'выполняется');},
    onVariables:debug=>{ide?.setDebugState(agent.id,debug,agent.pauseRequested?(agent.pauseReason||'пауза'):'выполняется');},
+   onCallStack:frames=>{ide?.setDebugCallStack(agent.id,frames);},
    onFunctions:names=>{ide?.setDebugFunctions(agent.id,names);},
    beforeStep:debuggerController.beforeStep,
    onStep:(line)=>{if(agent.id===activeAgent().id)$('#currentLine').textContent=`строка ${line}`;}
