@@ -40,6 +40,39 @@ print("ok", 1 + 2 * 3)
   assert.ok(api.logs.some(x => x.includes("ok 7")));
 });
 
+test("user function return values can be assigned to variables", async () => {
+  const api = makeApi();
+  const result = await runProgram(`x = 3
+def test_robot(n):
+    print("Шаг", n)
+    return n
+result = test_robot(x)
+print("Результат", result)
+`, api);
+  assert.equal(result.ok, true);
+  assert.ok(api.logs.includes("Шаг 3"));
+  assert.ok(api.logs.includes("Результат 3"));
+});
+
+test("nested user function calls work in arithmetic and command arguments", async () => {
+  const api = makeApi();
+  const result = await runProgram(`def add_one(n):
+    return n + 1
+def double(n):
+    return n * 2
+x = 3
+total = double(add_one(x))
+if double(add_one(x)) == 8:
+    print("nested condition ok")
+print("total", total)
+move(add_one(x))
+`, api);
+  assert.equal(result.ok, true);
+  assert.ok(api.logs.includes("nested condition ok"));
+  assert.ok(api.logs.includes("total 8"));
+  assert.deepEqual(api.actions.at(-1),["move",4]);
+});
+
 test("legacy uppercase program remains supported", async () => {
   const api = makeApi();
   const result = await runProgram(`MOVE 1

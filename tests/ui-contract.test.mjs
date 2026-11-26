@@ -25,6 +25,21 @@ test('2.1 construction, research and debugger controls are present', () => {
   for (const id of required) assert.ok(ids.has(id), `missing ${id}`);
 });
 
+test('runtime debugger forwards real call-stack frames into the IDE', () => {
+  assert.match(main, /onCallStack:frames=>\{ide\?\.setDebugCallStack\(agent\.id,frames\);\}/);
+  assert.match(readFileSync(new URL('../src/ide.js', import.meta.url), 'utf8'), /setDebugCallStack\(agentId,frames=\[\]\)/);
+});
+
+test('IDE exposes per-robot debugger state, variables, next command and changed values', () => {
+  const ide = readFileSync(new URL('../src/ide.js', import.meta.url), 'utf8');
+  assert.ok(ide.includes('statusByRobot=new Map'));
+  assert.ok(ide.includes('setRunStatus(agentId,status'));
+  assert.ok(ide.includes('setDebugCallStack(agentId,frames'));
+  assert.ok(ide.includes('changedByRobot'));
+  assert.ok(ide.includes('debug.nextLine'));
+  assert.ok(html.includes('ide-value.changed'));
+});
+
 test('save format keeps v2/v3 fallback paths and adds v4 buildings/research', () => {
   assert.match(main, /farmerbot3d_save_v4/);
   assert.match(main, /farmerbot3d_save_v3/);

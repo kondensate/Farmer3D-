@@ -1,0 +1,30 @@
+name: FarmerBot tests
+
+on:
+  push:
+    branches:
+      - farmerbot-3.0
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run test suite
+        run: npm test
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/main.js
+          node --check src/language.js
+          node --check src/ide.js
+          node --check src/debugger.js
+          node --check src/data.js
+          node --check src/navigation.js

@@ -749,9 +749,10 @@ async function programAction(name,args=[],agent=activeAgent()){
 async function runAgent(agent){
  if(agent.running)return;
  agent.running=true;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.pauseReason='';agent.debugSteps=0;agent.actionBudget=0;agent.tileBudget=0;
- const debuggerController=createDebuggerController(agent,(debug,status)=>{if(agent.id===activeAgent().id)ide?.setDebugState(agent.id,debug,status);});agent.debuggerController=debuggerController;ide?.clearRuntimeError(agent.id);
+ const debuggerController=createDebuggerController(agent,(debug,status)=>{ide?.setDebugState(agent.id,debug,status);});agent.debuggerController=debuggerController;ide?.clearDebug(agent.id);
  programmedBots.add(agent.id);metrics.programs++;metrics.botsProgrammed=programmedBots.size;updateMissions();
  if(agent.id===activeAgent().id){$('#run').textContent='⏳ РАБОТАЕТ';$('#codeStatus').textContent='выполняется';}
+ ide?.setRunStatus(agent.id,'выполняется',{clearLine:true,resetChanges:true});
  programLogFor(agent,'▶ Запуск программы');
  try{
   const result=await runProgram(agent.program||'',{
@@ -760,9 +761,10 @@ async function runAgent(agent){
    hasSensor:name=>sensorNames.includes(name),
    log:msg=>programLogFor(agent,msg),
    shouldStop:()=>agent.stopRequested,
-   onDebugState:debug=>{if(agent.id===activeAgent().id)ide?.setDebugState(agent.id,debug,agent.pauseRequested?(agent.pauseReason||'пауза'):'выполняется');},
-   onVariables:debug=>{if(agent.id===activeAgent().id)ide?.setDebugState(agent.id,debug,agent.pauseRequested?(agent.pauseReason||'пауза'):'выполняется');},
-   onFunctions:names=>{if(agent.id===activeAgent().id)ide?.setDebugState(agent.id,{functions:names,scopes:{global:{name:'global',values:{}},locals:[]},callStack:[]},'выполняется');},
+   onDebugState:debug=>{ide?.setDebugState(agent.id,debug,agent.pauseRequested?(agent.pauseReason||'пауза'):'выполняется');},
+   onVariables:debug=>{ide?.setDebugState(agent.id,debug,agent.pauseRequested?(agent.pauseReason||'пауза'):'выполняется');},
+   onCallStack:frames=>{ide?.setDebugCallStack(agent.id,frames);},
+   onFunctions:names=>{ide?.setDebugFunctions(agent.id,names);},
    beforeStep:debuggerController.beforeStep,
    onStep:(line)=>{if(agent.id===activeAgent().id)$('#currentLine').textContent=`строка ${line}`;}
   });
@@ -770,19 +772,21 @@ async function runAgent(agent){
  }catch(error){agent.lastError=error?.message||String(error);const line=Number(error?.line)||Number(agent.lastError.match(/Строка\s+(\d+)/i)?.[1]);if(line)ide?.setRuntimeError(agent.id,line,agent.lastError);programLogFor(agent,'✕ '+agent.lastError);}
  const wasStopped=agent.stopRequested;
  agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.stepOnce=false;agent.pauseReason='';agent.resumeResolver?.();agent.resumeResolver=null;agent.debuggerController=null;
- if(agent.id===activeAgent().id){const finalStatus=agent.lastError?'ошибка':wasStopped?'остановлено':'готово';$('#run').textContent='▶ ЗАПУСТИТЬ';$('#codeStatus').textContent=finalStatus;$('#currentLine').textContent='строка —';$('#ideState').textContent=finalStatus;}
+ const finalStatus=agent.lastError?'ошибка':wasStopped?'остановлено':'готово';
+ if(agent.id===activeAgent().id)$('#run').textContent='▶ ЗАПУСТИТЬ';
+ ide?.setRunStatus(agent.id,finalStatus,{clearLine:true});
  renderFleetUI();stats();saveGame();
 }
 
 $('#run').onclick=()=>{
  const agent=activeAgent();agent.program=$('#code').value;runAgent(agent);
 };
-$('#pauseProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.pause();if(agent.running)$('#codeStatus').textContent=agent.pauseReason;};
-$('#stepProgram').onclick=()=>activeAgent().debuggerController?.step();
-$('#resumeProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.resume();$('#codeStatus').textContent=agent.running?'выполняется':'готов';};
+$('#pauseProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.pause();if(agent.running)ide?.setRunStatus(agent.id,agent.pauseReason||'пауза запрошена');};
+$('#stepProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.step();if(agent.running)ide?.setRunStatus(agent.id,'выполняется · шаг');};
+$('#resumeProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.resume();ide?.setRunStatus(agent.id,agent.running?'выполняется':'готов');};
 $('#debugReset').onclick=()=>{const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.stepOnce=false;agent.resumeResolver?.();agent.resumeResolver=null;agent.pauseReason='';agent.lastError='';ide?.clearDebug(agent.id);$('#codeStatus').textContent='сброшено';$('#currentLine').textContent='строка —';$('#programOutput').textContent=(agent.logs||[]).join('\n')||'Отладчик сброшен. Код программы сохранён.';if(!agent.running)agent.stopRequested=false;};
 $('#stop').onclick=()=>{
- const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.resumeResolver?.();agent.resumeResolver=null;programLogFor(agent,'■ Запрошена остановка');$('#codeStatus').textContent='остановка…';saveGame();
+ const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.resumeResolver?.();agent.resumeResolver=null;programLogFor(agent,'■ Запрошена остановка');ide?.setRunStatus(agent.id,'остановка…');saveGame();
 };
 $('#robotSelect').onchange=e=>selectAgent(e.target.value);$('#runSpeed').onchange=e=>{programSpeed=Number(e.target.value)||1;};
 $('#networkToggle').onclick=()=>{$('#networkPanel').classList.add('show');renderFleetUI();};

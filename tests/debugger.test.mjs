@@ -44,3 +44,28 @@ test('stop releases an interpreter paused at a breakpoint',async()=>{
   assert.equal(agent.stopRequested,true);
   assert.equal(agent.pauseRequested,false);
 });
+
+import { runProgram } from '../src/language.js';
+
+test('step enters a user function and pauses before its first body statement',async()=>{
+  const agent={id:'farmbot',running:true,stopRequested:false,pauseRequested:false,stepOnce:false,breakpoints:new Set([3])};
+  const pauses=[];const actions=[];
+  const controller=createDebuggerController(agent,(snapshot,status)=>pauses.push({snapshot,status}));
+  const pending=runProgram(`def do_work():
+    move(1)
+do_work()`,{
+    beforeStep:controller.beforeStep,
+    action:async(name,args)=>actions.push([name,...args]),
+    shouldStop:()=>agent.stopRequested
+  });
+  for(let i=0;i<20&&!pauses.length;i++) await tick();
+  assert.equal(pauses[0]?.snapshot.line,3);
+  controller.step();
+  for(let i=0;i<20&&pauses.length<2;i++) await tick();
+  assert.equal(pauses[1]?.snapshot.line,2);
+  assert.deepEqual(actions,[]);
+  controller.resume();
+  const result=await pending;
+  assert.equal(result.ok,true);
+  assert.deepEqual(actions,[['move',1]]);
+});
