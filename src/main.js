@@ -730,17 +730,31 @@ async function navigateToSpecificPlot(agent,plot){
  if(!best||!await followPath(agent,best))throw new Error('Не удалось добраться до назначенной грядки');
  return true;
 }
+function getAutomationQueue(){
+ const tasks=buildFarmTaskQueue(plots,activeSeed,{...seedStock,unlimited:gameMode==='sandbox'}).filter(t=>t.type!=='water'||gameMode==='sandbox'||water>0||agents.some(a=>a.type==='waterbot'&&a.water>0&&a.energy>8));
+ tasks.forEach(t=>{t.sharedWaterAvailable=water>0||gameMode==='sandbox';});
+ const stored=Object.values(harvestStorage).reduce((sum,n)=>sum+n,0),storageCap=storageBuilt?100:20;
+ for(const agent of agents){
+  if(agent.running||agent.autoTaskBusy)continue;
+  const load=Object.values(agent.inventory||{}).reduce((sum,n)=>sum+Math.max(0,Number(n)||0),0);
+  if(agent.energy<18||(load>=agent.capacity-1&&load>0&&stored<storageCap)){
+   tasks.unshift({id:`return:${agent.id}`,type:'return',agentId:agent.id,priority:110});
+  }
+ }
+ return tasks;
+}
 function renderAutomationPanel(){
  const button=$('#autoDispatchToggle'),status=$('#automationStatus'),list=$('#taskQueue');
  if(button)button.textContent=autoDispatchEnabled?'⏸ ОСТАНОВИТЬ ДИСПЕТЧЕР':'▶ АВТОДИСПЕТЧЕР';
  if(!status||!list)return;
  const active=agents.filter(a=>a.autoTaskBusy).length;
  status.textContent=`Энергия: выработка ${powerState.generation.toFixed(1)} ед/с · нагрузка ${powerState.consumption.toFixed(1)} ед/с · аккумуляторы ${powerState.stored.toFixed(0)} · отключено потребителей: ${powerState.outages}. Диспетчер: ${autoDispatchEnabled?'включён':'выключен'} · назначено задач: ${active}`;
- const tasks=buildFarmTaskQueue(plots,activeSeed,{...seedStock,unlimited:gameMode==='sandbox'}).filter(t=>t.type!=='water'||gameMode==='sandbox'||water>0||agents.some(a=>a.type==='waterbot'&&a.water>0&&a.energy>8));
+ const tasks=getAutomationQueue();taskQueue=tasks;
  const assigned=new Set(agents.map(a=>a.autoTaskTaskId).filter(Boolean));
  list.innerHTML=tasks.slice(0,10).map(t=>{
-  const labels={harvest:'Сбор урожая',water:'Полив',plant:'Посадка'};
-  return `<div class="missionItem"><b>${assigned.has(t.id)?'◉':'○'} ${labels[t.type]} · грядка ${t.plotIndex+1}</b><small>${CROPS[t.crop]?.name||t.crop} · приоритет ${t.priority}${assigned.has(t.id)?' · назначено':''}</small></div>`;
+  const labels={harvest:'Сбор урожая',water:'Полив',plant:'Посадка',return:'Возврат на базу / разгрузка'};
+  const detail=t.type==='return'?agents.find(a=>a.id===t.agentId)?.name||t.agentId:`грядка ${t.plotIndex+1} · ${CROPS[t.crop]?.name||t.crop}`;
+  return `<div class="missionItem"><b>${assigned.has(t.id)?'◉':'○'} ${labels[t.type]} · ${detail}</b><small>Приоритет ${t.priority}${assigned.has(t.id)?' · назначено':''}</small></div>`;
  }).join('')||'<p class="muted">Нет доступных задач. Проверь свободные грядки, воду и семена.</p>';
 }
 async function executeAutomationTask(agent,task){
@@ -762,18 +776,25 @@ async function executeAutomationTask(agent,task){
 }
 function dispatchAutomationTasks(){
  if(!autoDispatchEnabled)return;
- taskQueue=buildFarmTaskQueue(plots,activeSeed,{...seedStock,unlimited:gameMode==='sandbox'}).filter(t=>t.type!=='water'||gameMode==='sandbox'||water>0||agents.some(a=>a.type==='waterbot'&&a.water>0&&a.energy>8));
- taskQueue.forEach(t=>{t.sharedWaterAvailable=water>0||gameMode==='sandbox';});
+ taskQueue=getAutomationQueue();
  const idle=agents.filter(a=>!a.running&&!a.autoTaskBusy&&!a.stopRequested);
  const reserved=new Set(agents.map(a=>a.autoTaskTaskId).filter(Boolean));
- for(const task of taskQueue){
+ // Return, unload and recharge before assigning new field work.
+ for(const task of taskQueue.filter(t=>t.type==='return')){
+  const agent=idle.find(a=>a.id===task.agentId);if(!agent||reserved.has(task.id))continue;
+  agent.autoTaskBusy=true;agent.autoTaskTaskId=task.id;reserved.add(task.id);idle.splice(idle.indexOf(agent),1);
+  returnToBase(agent).then(()=>programLogFor(agent,'Автодиспетчер: разгрузка и подзарядка завершены')).catch(error=>programLogFor(agent,`⚠ Возврат: ${error.message||error}`)).finally(()=>{
+   agent.autoTaskBusy=false;agent.autoTaskTaskId=null;agent.stopRequested=false;renderFleetUI();renderAutomationPanel();saveGame();
+  });
+ }
+ for(const task of taskQueue.filter(t=>t.type!=='return')){
   if(!idle.length)break;if(reserved.has(task.id))continue;
   const plot=plots[task.plotIndex],best=selectAgentForTask(idle,task,plot?.g?.position||{x:0,z:0});
   if(!best)continue;
   best.autoTaskBusy=true;best.autoTaskTaskId=task.id;reserved.add(task.id);
   const index=idle.indexOf(best);if(index>=0)idle.splice(index,1);
   executeAutomationTask(best,task).catch(error=>programLogFor(best,`⚠ Автозадача: ${error.message||error}`)).finally(()=>{
-   best.autoTaskBusy=false;best.autoTaskTaskId=null;renderFleetUI();renderAutomationPanel();saveGame();
+   best.autoTaskBusy=false;best.autoTaskTaskId=null;best.stopRequested=false;renderFleetUI();renderAutomationPanel();saveGame();
   });
  }
  renderAutomationPanel();
@@ -941,8 +962,8 @@ $('#rotateBuilding').onclick=rotateBuildingPlacement;$('#cancelBuilding').onclic
 $('#researchToggle').onclick=()=>{$('#researchPanel').classList.add('show');renderTechs();};
 $('#closeResearch').onclick=()=>$('#researchPanel').classList.remove('show');
 $('#networkRunAll').onclick=()=>agents.forEach(a=>{if(!a.running&&!a.autoTaskBusy)runAgent(a);});
-$('#networkStopAll').onclick=()=>{autoDispatchEnabled=false;agents.forEach(a=>{a.stopRequested=true;});renderAutomationPanel();saveGame();};
-$('#autoDispatchToggle').onclick=()=>{autoDispatchEnabled=!autoDispatchEnabled;$('#autoDispatchToggle').textContent=autoDispatchEnabled?'⏸ ОСТАНОВИТЬ ДИСПЕТЧЕР':'▶ АВТОДИСПЕТЧЕР';toast(autoDispatchEnabled?'Диспетчер задач включён':'Диспетчер задач остановлен');renderAutomationPanel();saveGame();};
+$('#networkStopAll').onclick=()=>{autoDispatchEnabled=false;agents.forEach(a=>{if(a.running||a.autoTaskBusy)a.stopRequested=true;else a.stopRequested=false;});renderAutomationPanel();saveGame();};
+$('#autoDispatchToggle').onclick=()=>{autoDispatchEnabled=!autoDispatchEnabled;if(autoDispatchEnabled)agents.filter(a=>!a.running&&!a.autoTaskBusy).forEach(a=>a.stopRequested=false);$('#autoDispatchToggle').textContent=autoDispatchEnabled?'⏸ ОСТАНОВИТЬ ДИСПЕТЧЕР':'▶ АВТОДИСПЕТЧЕР';toast(autoDispatchEnabled?'Диспетчер задач включён':'Диспетчер задач остановлен');renderAutomationPanel();saveGame();};
 $('#buyWaterBot').onclick=()=>buyRobot('waterbot',35);
 $('#buyHarvestBot').onclick=()=>buyRobot('harvestbot',50);
 $('#buyDroneBot').onclick=()=>buyRobot('dronebot',70);
