@@ -786,7 +786,7 @@ $('#stepProgram').onclick=()=>{const agent=activeAgent();agent.debuggerControlle
 $('#resumeProgram').onclick=()=>{const agent=activeAgent();agent.debuggerController?.resume();ide?.setRunStatus(agent.id,agent.running?'выполняется':'готов');};
 $('#debugReset').onclick=()=>{const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.stepOnce=false;agent.resumeResolver?.();agent.resumeResolver=null;agent.pauseReason='';agent.lastError='';ide?.clearDebug(agent.id);$('#codeStatus').textContent='сброшено';$('#currentLine').textContent='строка —';$('#programOutput').textContent=(agent.logs||[]).join('\n')||'Отладчик сброшен. Код программы сохранён.';if(!agent.running)agent.stopRequested=false;};
 $('#stop').onclick=()=>{
- const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.resumeResolver?.();agent.resumeResolver=null;programLogFor(agent,'■ Запрошена остановка');$('#codeStatus').textContent='остановка…';saveGame();
+ const agent=activeAgent();agent.debuggerController?.stop();agent.stopRequested=true;agent.pauseRequested=false;agent.resumeResolver?.();agent.resumeResolver=null;programLogFor(agent,'■ Запрошена остановка');ide?.setRunStatus(agent.id,'остановка…');saveGame();
 };
 $('#robotSelect').onchange=e=>selectAgent(e.target.value);$('#runSpeed').onchange=e=>{programSpeed=Number(e.target.value)||1;};
 $('#networkToggle').onclick=()=>{$('#networkPanel').classList.add('show');renderFleetUI();};
