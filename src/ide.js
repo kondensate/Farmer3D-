@@ -246,7 +246,8 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
     renderGutter(shownError?.line||null);
     if(errorBox){errorBox.hidden=!shownError;errorBox.textContent=shownError?`Строка ${shownError.line}: ${shownError.message}`:'Ошибок нет';errorBox.classList.toggle('valid',!shownError);}
     setText(document.querySelector('#currentLine'),debug.line?`строка ${debug.line}`:'строка —');
-    setText(document.querySelector('#ideNextLine'),debug.nextLine?`следующая: ${debug.nextLine}`:'следующая: —');
+    const nextSource=debug.nextLine?editor.value.split('\n')[debug.nextLine-1]?.trim():'';
+    setText(document.querySelector('#ideNextLine'),debug.nextLine?`следующая: ${debug.nextLine}${nextSource?` · ${nextSource.slice(0,54)}`:''}`:'следующая: —');
     setText(document.querySelector('#codeStatus'),status);setText(state,status);
     renderValues(debug,changedByRobot.get(agent.id));renderFunctions(debug.functions||[]);renderStack(debug.callStack||[]);
     renderHint();renderRobots();
@@ -278,7 +279,7 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
     }
   }
   function renderFunctions(names=[]){if(!functions)return;functions.replaceChildren();let definitions=[];try{definitions=parseProgram(editor.value).filter(node=>node.type==='def');}catch{}for(const name of names){const fn=definitions.find(node=>node.name===name),item=document.createElement('code');item.textContent=fn?`${name}(${fn.params.join(', ')})`:`${name}()`;functions.append(item);}if(!names.length)functions.textContent='Функции пользователя не объявлены.';}
-  function renderStack(frames=[]){if(!stack)return;stack.replaceChildren();if(!frames.length){stack.textContent='Глобальный уровень';return;}for(const frame of [...frames].reverse()){const item=document.createElement('div');item.textContent=`${frame.name}() · вызов из строки ${frame.line}`;stack.append(item);}}
+  function renderStack(frames=[]){if(!stack)return;stack.replaceChildren();if(!frames.length){stack.textContent='Глобальный уровень';return;}for(const frame of [...frames].reverse()){const item=document.createElement('div');item.textContent=`${frame.name}() · строка ${frame.line} · уровень ${frame.depth??1}`;stack.append(item);}}
   function setDebugState(agentId,snapshot,status='выполняется'){
     const previous=debugByRobot.get(agentId),before=snapshotValues(previous),after=snapshotValues(snapshot);
     const changed=new Set(changedByRobot.get(agentId)||[]);for(const [key,value] of after)if(before.has(key)&&before.get(key)!==value)changed.add(key);
