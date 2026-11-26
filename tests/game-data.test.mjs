@@ -30,7 +30,7 @@ test("placeable buildings have costs, dimensions and actual effects", () => {
   for (const [id, building] of Object.entries(BUILDINGS)) {
     assert.ok(building.name && building.icon && building.description, id);
     assert.ok(building.cost > 0 && building.width > 0 && building.depth > 0, id);
-    assert.ok(["growth","water","harvest","charge","service"].includes(building.effect), id);
+    assert.ok(["growth","water","harvest","charge","service","generation","storage","logistics"].includes(building.effect), id);
   }
 });
 
@@ -42,5 +42,17 @@ test("research tree has unique technology IDs and valid dependencies", () => {
     assert.ok(tech.costXP > 0 && tech.costCoins > 0, tech.id);
     assert.ok(tech.requires.every(dep => ids.has(dep)), tech.id);
     assert.ok(tech.unlocks.length > 0, tech.id);
+  }
+});
+
+test("Stage B exposes power generators, buffers, consumers and conveyor graph nodes", () => {
+  for (const id of ["solar_generator","wind_generator","battery","power_pole","charger","robot_station"]) {
+    assert.equal(BUILDINGS[id].powerNode, true, id);
+  }
+  assert.ok(BUILDINGS.solar_generator.powerOutput > 0);
+  assert.ok(BUILDINGS.wind_generator.powerOutput > 0);
+  assert.ok(BUILDINGS.battery.batteryCapacity > 0);
+  for (const id of ["conveyor","conveyor_splitter","conveyor_filter","conveyor_buffer","conveyor_storage"]) {
+    assert.equal(BUILDINGS[id].logisticsNode, true, id);
   }
 });
