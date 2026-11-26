@@ -130,12 +130,42 @@ function classifyIdentifier(name, symbols, actions, sensors) {
   return 'ident';
 }
 
+function getMatchingBracketPositions(source,caret) {
+  const pairs={')':'(',']':'[','}':'{'},opens=new Set(['(','[','{']),closes=new Set([')',']','}']);
+  const selected=[caret-1,caret].find(index=>index>=0&&index<source.length&&'()[]{}'.includes(source[index]));
+  if(selected===undefined)return new Set();
+  const stack=[];let quote=null,escaped=false,comment=false;
+  const matched=new Map();
+  for(let i=0;i<source.length;i++) {
+    const ch=source[i];
+    if(comment) { if(ch==="\n")comment=false;continue; }
+    if(quote) {
+      if(escaped){escaped=false;continue;}
+      if(ch==="\\"){escaped=true;continue;}
+      if(ch===quote)quote=null;
+      continue;
+    }
+    if(ch==="#"){comment=true;continue;}
+    if(ch==="'"||ch==='"'){quote=ch;continue;}
+    if(opens.has(ch))stack.push({char:ch,index:i});
+    else if(closes.has(ch)&&stack.length) {
+      const last=stack[stack.length-1];
+      if(last.char===pairs[ch]) {
+        stack.pop();matched.set(last.index,i);matched.set(i,last.index);
+      }
+    }
+  }
+  if(!matched.has(selected))return new Set();
+  return new Set([selected,matched.get(selected)]);
+}
+
 export function highlightSource(source, {currentLine=null,errorLine=null,caret=0,actions=DSL_ACTIONS,sensors=[]}={}) {
   const actionSet=new Set(actions),sensorSet=new Set(sensors),symbols={variables:new Set(),functions:new Set()};
   try { const ast=parseProgram(source); const found=collectSymbols(ast,source); symbols.variables=new Set(found.variables);symbols.functions=new Set(found.functions); }
   catch { for(const m of source.matchAll(/^\s*([A-Za-z_]\w*)\s*(?:\+=|-=|\*=|\/=|=)/gm))symbols.variables.add(m[1]); for(const m of source.matchAll(/^\s*def\s+([A-Za-z_]\w*)/gm))symbols.functions.add(m[1]); }
   const caretLine=source.slice(0,caret).split('\n').length;
-  const lines=source.split('\n');
+  const lines=source.split('\n'),matchedBrackets=getMatchingBracketPositions(source,caret);
+  let sourceOffset=0;
   const indentOf=line=>(line.match(/^\s*/)||[''])[0].replace(/\t/g,'    ').length;
   const isHeader=line=>/^(if|elif|else|for|while|def)\b.*:\s*$/.test(line.trim());
   let blockStart=0,blockEnd=0;
@@ -145,14 +175,13 @@ export function highlightSource(source, {currentLine=null,errorLine=null,caret=0
     for(let i=caretLine-2;i>=0;i--){if(!lines[i].trim())continue;const indent=indentOf(lines[i]);if(indent<targetIndent&&isHeader(lines[i])){blockStart=i+1;let j=i+1;while(j<lines.length&&(!lines[j].trim()||indentOf(lines[j])>indent))j++;blockEnd=j;break;}if(indent<targetIndent)break;}
   }
   const rendered=lines.map((line,index)=>{
-    const n=index+1;let out='',i=0;const stack=[];let bracketMatches=new Set();
+    const n=index+1,lineOffset=sourceOffset;sourceOffset+=line.length+1;let out='',i=0;const stack=[];
     for(let j=0;j<line.length;j++){
       if(line[j]==='"'||line[j]==="'"){
         const quote=line[j];let k=j+1;while(k<line.length){if(line[k]==='\\'){k+=2;continue;}if(line[k]===quote){k++;break;}k++;}stack.push({start:j,end:k,cls:'str'});j=k-1;
       }else if(line[j]==='#'){stack.push({start:j,end:line.length,cls:'comment'});break;}
     }
     const protectedAt=pos=>stack.find(t=>pos>=t.start&&pos<t.end);
-    const pairs=[];for(let j=0;j<line.length;j++){if(protectedAt(j))continue;const c=line[j];if('([{'.includes(c))pairs.push({c,j});else if(')]}'.includes(c)){const open={')':'(',']':'[','}':'{'}[c];for(let k=pairs.length-1;k>=0;k--)if(pairs[k].c===open){const item=pairs.splice(k,1)[0];bracketMatches.add(item.j);bracketMatches.add(j);break;}}}
     while(i<line.length){
       const token=protectedAt(i);
       if(token){const cls=token.cls;out+=`<span class="tok-${cls}">${escapeHtml(line.slice(i,token.end))}</span>`;i=token.end;continue;}
@@ -160,7 +189,7 @@ export function highlightSource(source, {currentLine=null,errorLine=null,caret=0
       if(/[A-Za-z_]/.test(c)){i++;while(i<line.length&&/[A-Za-z0-9_]/.test(line[i]))i++;const word=line.slice(start,i);cls=classifyIdentifier(word,symbols,actionSet,sensorSet);}
       else if(/[0-9]/.test(c)||(c==='.'&&/[0-9]/.test(line[i+1]||''))){i++;while(i<line.length&&/[0-9.]/.test(line[i]))i++;cls='number';}
       else if('+-*/%=<>!'.includes(c)){i++;if(i<line.length&&line[i]==='=')i++;cls='op';}
-      else {i++;if('()[]{}'.includes(c))cls=bracketMatches.has(start)&&n===caretLine?'bracket-match':'punct';}
+      else {i++;if('()[]{}'.includes(c))cls=matchedBrackets.has(lineOffset+start)?'bracket-match':'punct';}
       out+=`<span class="tok-${cls}">${escapeHtml(line.slice(start,i))}</span>`;
     }
     const lineClass=[n===currentLine?'is-current':'',n===errorLine?'has-error':'',blockStart&&n>=blockStart&&n<=blockEnd?'is-block':''].filter(Boolean).join(' ');
