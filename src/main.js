@@ -752,7 +752,7 @@ async function runAgent(agent){
  const debuggerController=createDebuggerController(agent,(debug,status)=>{ide?.setDebugState(agent.id,debug,status);});agent.debuggerController=debuggerController;ide?.clearRuntimeError(agent.id);
  programmedBots.add(agent.id);metrics.programs++;metrics.botsProgrammed=programmedBots.size;updateMissions();
  if(agent.id===activeAgent().id){$('#run').textContent='⏳ РАБОТАЕТ';$('#codeStatus').textContent='выполняется';}
- ide?.setRunStatus(agent.id,'выполняется');
+ ide?.setRunStatus(agent.id,'выполняется',{resetChanges:true});
  programLogFor(agent,'▶ Запуск программы');
  try{
   const result=await runProgram(agent.program||'',{
