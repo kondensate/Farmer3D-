@@ -240,7 +240,7 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
   }
   function toggleBreakpoint(line){const agent=active(),bps=agentBreakpoints(agent);if(bps.has(line))bps.delete(line);else bps.add(line);try{localStorage.setItem(`farmerbot3d_breakpoints_${agent.id}`,JSON.stringify([...bps].sort((a,b)=>a-b)));}catch{}render();}
   function render(){
-    if(!editor||!highlight)return;const agent=active(),debug=debugByRobot.get(agent.id)||{},status=statusByRobot.get(agent.id)||(agent.running?'выполняется':'готов');
+    if(!editor||!highlight)return;const agent=active(),storedDebug=debugByRobot.get(agent.id)||null,debug=storedDebug||{},status=statusByRobot.get(agent.id)||(agent.running?'выполняется':'готов');
     const issue=validateSource(editor.value,getSensors()),runtimeError=runtimeErrors.get(agent.id),shownError=issue||runtimeError;
     highlight.innerHTML=highlightSource(editor.value,{currentLine:debug.line,errorLine:shownError?.line||null,caret:editor.selectionStart,actions:DSL_ACTIONS,sensors:getSensors()});
     renderGutter(shownError?.line||null);
@@ -249,7 +249,7 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
     const nextSource=debug.nextLine?editor.value.split('\n')[debug.nextLine-1]?.trim():'';
     setText(document.querySelector('#ideNextLine'),debug.nextLine?`следующая: ${debug.nextLine}${nextSource?` · ${nextSource.slice(0,54)}`:''}`:'следующая: —');
     setText(document.querySelector('#codeStatus'),status);setText(state,status);
-    renderValues(debug,changedByRobot.get(agent.id));renderFunctions(debug.functions||[]);renderStack(debug.callStack||[]);
+    renderValues(storedDebug,changedByRobot.get(agent.id));renderFunctions(storedDebug?.functions||[]);renderStack(storedDebug?.callStack||[]);
     renderHint();renderRobots();
   }
   function renderHint(){
