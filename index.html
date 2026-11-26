@@ -93,6 +93,11 @@
 #ideFunctions code{display:inline-block;background:#203729;color:#8fd0ff;padding:3px 5px;border-radius:5px;margin:2px;font-size:10px}#ideCallStack div{font-size:10px;color:#c6d8bd;padding:3px 0;border-bottom:1px solid #2c4431}#ideState{font-size:10px;color:#f5d18d}
 @media(max-width:600px){.codeEditor,.codeSurface{height:220px}.code-line,.gutter-line{height:19.8px;min-height:19.8px;line-height:19.8px}#codeHighlight,#code{font-size:12px;line-height:1.65;padding:10px}.ide-workspace{grid-template-columns:repeat(2,minmax(0,1fr))}.ide-card{max-height:112px;padding:6px}.ide-value{grid-template-columns:1fr 1.2fr}.ide-value small{display:none}.autocomplete-popup{max-height:125px}}
 
+
+/* Stage B automation status and link controls */
+#automationStatus{line-height:1.5;font-size:11px}
+#taskQueue{max-height:190px;overflow:auto}
+.buildingRow button{padding:5px 6px;font-size:9px;margin:2px}
 </style>
 </head>
 <body>
@@ -138,7 +143,7 @@ return_to_base()</textarea><div id="ideAutocomplete" class="autocomplete-popup" 
  <pre id="programOutput" class="programOutput" aria-live="polite">Журнал программы появится здесь.</pre>
  <details class="languageHelp"><summary>Справка по языку</summary>
   <div class="helpGrid">
-   <div><b>Действия</b><code>move(1)</code><code>turn_left()</code><code>turn_right()</code><code>plant()</code><code>water()</code><code>harvest()</code><code>wait(3)</code><code>scan()</code><code>refill_water()</code><code>return_to_base()</code><code>sleep(2)</code></div>
+   <div><b>Действия</b><code>move(1)</code><code>turn_left()</code><code>turn_right()</code><code>plant()</code><code>water()</code><code>harvest()</code><code>wait(3)</code><code>scan()</code><code>refill_water()</code><code>return_to_base()</code><code>transfer_to("waterbot","carrot",2)</code><code>transfer_from("harvestbot","carrot",1)</code><code>sleep(2)</code></div>
    <div><b>Условия и датчики</b><code>if can_harvest():</code><code>if can_plant():</code><code>if can_water():</code><code>get_water()</code><code>get_energy()</code><code>get_position()</code><code>get_inventory()</code><code>get_plant_age()</code><code>tile_state()</code></div>
    <div><b>Циклы</b><code>for i in range(4):</code><code>while can_plant():</code><code>break</code><code>continue</code></div>
    <div><b>Функции</b><code>def harvest_row():</code><code>    harvest()</code><code>harvest_row()</code><code>return</code></div>
@@ -159,6 +164,10 @@ return_to_base()</textarea><div id="ideAutocomplete" class="autocomplete-popup" 
  <p class="muted">Состояние флота. У каждого робота собственные координаты, энергия, инвентарь и программа.</p>
  <div id="fleetCards" class="fleetCards"></div>
  <div class="row"><button class="primary" id="networkRunAll">▶ ЗАПУСТИТЬ ВСЕ ПРОГРАММЫ</button><button class="secondary" id="networkStopAll">■ ОСТАНОВИТЬ ВСЕХ</button></div>
+ <h3>ДИСПЕТЧЕР ФЕРМЫ</h3>
+ <div class="row"><button class="primary" id="autoDispatchToggle">▶ АВТОДИСПЕТЧЕР</button></div>
+ <div class="missionSummary" id="automationStatus">Энергосеть и очередь задач появятся здесь.</div>
+ <div id="taskQueue" class="missionList"></div>
  <h3>АНГАР РОБОТОВ</h3>
  <div class="row"><button class="secondary" id="buyWaterBot">💧 WaterBot · 35 🪙</button><button class="secondary" id="buyHarvestBot">📦 HarvestBot · 50 🪙</button><button class="secondary" id="buyDroneBot">🚁 DroneBot · 70 🪙</button></div>
  <h3>ОБОРУДОВАНИЕ</h3>
