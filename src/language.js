@@ -457,7 +457,8 @@ async function runProgram(source, api = {}) {
         return;
       }
       case "call": {
-        const args=stmt.args.map(a=>evaluate(a,scope,api));
+        const args=[];
+        for(const arg of stmt.args) args.push(await evaluateExpression(arg,scope));
         if(functions.has(stmt.name)) { await invokeFunction(stmt.name,args,stmt.line); return; }
         if(stmt.name==="print") { api.log?.(args.map(String).join(" ")); return; }
         if(!DSL_ACTIONS.includes(stmt.name)) throw new LanguageError(`Неизвестная команда «${stmt.name}»`,stmt.line);
