@@ -343,7 +343,7 @@ function placeBuildingAt(x,z){
  if(!canPlaceBuilding(type,snappedX,snappedZ,moveId,placementRotation)){toast('Здесь нельзя разместить здание: место занято или вне фермы');return;}
  if(!moveId&&gameMode!=='sandbox'){coins-=BUILDINGS[type].cost;}
  if(moveId){const b=buildings.find(q=>q.id===moveId);if(b){disposeBuildingMesh(b.mesh);b.x=snappedX;b.z=snappedZ;b.rotation=placementRotation;b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);}}
- else{const b={id:nextBuildingId++,type,x:snappedX,z:snappedZ,rotation:placementRotation,items:[],batteryCharge:0,filterCrop:'all',routeIndex:0,routeClock:0};b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);buildings.push(b);}
+ else{const b={...BUILDINGS[type],id:nextBuildingId++,type,x:snappedX,z:snappedZ,rotation:placementRotation,items:[],batteryCharge:0,filterCrop:'all',routeIndex:0,routeClock:0};b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);buildings.push(b);}
  cancelBuildingPlacement();renderAutomationLinks();renderBuildingUI();renderTechs();stats();saveGame();toast(`${BUILDINGS[type].name}: размещено`);
 }
 function disposeBuildingMesh(mesh){if(!mesh)return;scene.remove(mesh);mesh.traverse(o=>{o.geometry?.dispose?.();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose?.());else o.material.dispose?.();}});}
@@ -527,7 +527,7 @@ function loadGame(){
   });
   if(d.equipment){pumpBuilt=!!d.equipment.pump;solarBuilt=!!d.equipment.solar;storageBuilt=!!d.equipment.storage;
    if(pumpBuilt)buildEquipment('pump');if(solarBuilt)buildEquipment('solar');if(storageBuilt)buildEquipment('storage');}
-  buildings.length=0;nextBuildingId=1;if(Array.isArray(d.buildings))for(const saved of d.buildings){if(!BUILDINGS[saved.type])continue;const record={...saved,id:Number(saved.id)||nextBuildingId++,type:saved.type,x:Number(saved.x)||0,z:Number(saved.z)||0,rotation:Number(saved.rotation)||0,items:Array.isArray(saved.items)?saved.items:[],batteryCharge:Math.max(0,Number(saved.batteryCharge)||0),filterCrop:CROPS[saved.filterCrop]?saved.filterCrop:'all',routeIndex:Number(saved.routeIndex)||0,routeClock:Number(saved.routeClock)||0};record.mesh=createBuildingMesh(record.type,record.x,record.z,record.rotation,false);buildings.push(record);nextBuildingId=Math.max(nextBuildingId,record.id+1);}if(d.automation){powerLinks.splice(0,powerLinks.length,...(Array.isArray(d.automation.powerLinks)?d.automation.powerLinks:[]));conveyorLinks.splice(0,conveyorLinks.length,...(Array.isArray(d.automation.conveyorLinks)?d.automation.conveyorLinks:[]));autoDispatchEnabled=!!d.automation.autoDispatchEnabled;}renderAutomationLinks();
+  buildings.length=0;nextBuildingId=1;if(Array.isArray(d.buildings))for(const saved of d.buildings){if(!BUILDINGS[saved.type])continue;const record={...BUILDINGS[saved.type],...saved,id:Number(saved.id)||nextBuildingId++,type:saved.type,x:Number(saved.x)||0,z:Number(saved.z)||0,rotation:Number(saved.rotation)||0,items:Array.isArray(saved.items)?saved.items:[],batteryCharge:Math.max(0,Number(saved.batteryCharge)||0),filterCrop:CROPS[saved.filterCrop]?saved.filterCrop:'all',routeIndex:Number(saved.routeIndex)||0,routeClock:Number(saved.routeClock)||0};record.mesh=createBuildingMesh(record.type,record.x,record.z,record.rotation,false);buildings.push(record);nextBuildingId=Math.max(nextBuildingId,record.id+1);}if(d.automation){powerLinks.splice(0,powerLinks.length,...(Array.isArray(d.automation.powerLinks)?d.automation.powerLinks:[]));conveyorLinks.splice(0,conveyorLinks.length,...(Array.isArray(d.automation.conveyorLinks)?d.automation.conveyorLinks:[]));autoDispatchEnabled=!!d.automation.autoDispatchEnabled;}renderAutomationLinks();
   lastLevel=1+Math.floor(xp/100);isLoadingGame=false;updateMissions();stats();renderSeedStock();renderFleetUI();renderMissions();renderBuildingUI();renderTechs();renderChallengeStatus();if(d.version<5)saveGame();
  }catch(e){isLoadingGame=false;console.warn('Ошибка загрузки сохранения',e);stats();}
 }
@@ -736,7 +736,7 @@ function renderAutomationPanel(){
  if(!status||!list)return;
  const active=agents.filter(a=>a.autoTaskBusy).length;
  status.textContent=`Энергия: выработка ${powerState.generation.toFixed(1)} ед/с · нагрузка ${powerState.consumption.toFixed(1)} ед/с · аккумуляторы ${powerState.stored.toFixed(0)} · отключено потребителей: ${powerState.outages}. Диспетчер: ${autoDispatchEnabled?'включён':'выключен'} · назначено задач: ${active}`;
- const tasks=buildFarmTaskQueue(plots,activeSeed,{...seedStock,unlimited:gameMode==='sandbox'});
+ const tasks=buildFarmTaskQueue(plots,activeSeed,{...seedStock,unlimited:gameMode==='sandbox'}).filter(t=>t.type!=='water'||gameMode==='sandbox'||water>0||agents.some(a=>a.type==='waterbot'&&a.water>0&&a.energy>8));
  const assigned=new Set(agents.map(a=>a.autoTaskTaskId).filter(Boolean));
  list.innerHTML=tasks.slice(0,10).map(t=>{
   const labels={harvest:'Сбор урожая',water:'Полив',plant:'Посадка'};
@@ -762,7 +762,8 @@ async function executeAutomationTask(agent,task){
 }
 function dispatchAutomationTasks(){
  if(!autoDispatchEnabled)return;
- taskQueue=buildFarmTaskQueue(plots,activeSeed,{...seedStock,unlimited:gameMode==='sandbox'});
+ taskQueue=buildFarmTaskQueue(plots,activeSeed,{...seedStock,unlimited:gameMode==='sandbox'}).filter(t=>t.type!=='water'||gameMode==='sandbox'||water>0||agents.some(a=>a.type==='waterbot'&&a.water>0&&a.energy>8));
+ taskQueue.forEach(t=>{t.sharedWaterAvailable=water>0||gameMode==='sandbox';});
  const idle=agents.filter(a=>!a.running&&!a.autoTaskBusy&&!a.stopRequested);
  const reserved=new Set(agents.map(a=>a.autoTaskTaskId).filter(Boolean));
  for(const task of taskQueue){
@@ -940,7 +941,7 @@ $('#rotateBuilding').onclick=rotateBuildingPlacement;$('#cancelBuilding').onclic
 $('#researchToggle').onclick=()=>{$('#researchPanel').classList.add('show');renderTechs();};
 $('#closeResearch').onclick=()=>$('#researchPanel').classList.remove('show');
 $('#networkRunAll').onclick=()=>agents.forEach(a=>{if(!a.running&&!a.autoTaskBusy)runAgent(a);});
-$('#networkStopAll').onclick=()=>agents.forEach(a=>{a.stopRequested=true;});
+$('#networkStopAll').onclick=()=>{autoDispatchEnabled=false;agents.forEach(a=>{a.stopRequested=true;});renderAutomationPanel();saveGame();};
 $('#autoDispatchToggle').onclick=()=>{autoDispatchEnabled=!autoDispatchEnabled;$('#autoDispatchToggle').textContent=autoDispatchEnabled?'⏸ ОСТАНОВИТЬ ДИСПЕТЧЕР':'▶ АВТОДИСПЕТЧЕР';toast(autoDispatchEnabled?'Диспетчер задач включён':'Диспетчер задач остановлен');renderAutomationPanel();saveGame();};
 $('#buyWaterBot').onclick=()=>buyRobot('waterbot',35);
 $('#buyHarvestBot').onclick=()=>buyRobot('harvestbot',50);
@@ -1005,7 +1006,7 @@ function update(dt){
  }
  // Stage B grid: generate, route, buffer and allocate energy each simulation tick.
  powerState=updatePowerGrid(buildings,powerLinks,dt,{solarFactor:Math.max(.12,daylight)*(weather==='rain'?.55:1),windFactor:weather==='rain'?1.15:weather==='drought'?.75:.9});
- for(const b of buildings)b.powered=!!powerState.powered.get(String(b.id));
+ for(const b of buildings)b.powered=powerLinks.length===0&&['conveyor','charger','robot_station'].includes(b.type)?true:!!powerState.powered.get(String(b.id));
  // Powered pumps irrigate one thirsty plot at a time.
  pumpClock+=dt;
  if(pumpClock>=8){
@@ -1045,6 +1046,7 @@ function update(dt){
    if(a.type==='dronebot')a.mesh.traverse(o=>{if(o.userData.rotor)o.rotation.y+=dt*18;});
   }
  }
+ for(const b of buildings)if(b.type==='wind_generator')b.mesh.traverse(o=>{if(o.userData.windHub)o.rotation.z+=dt*1.8;});
  for(let i=particles.length-1;i>=0;i--){
   const q=particles[i];q.userData.life-=dt;q.position.addScaledVector(q.userData.v,dt);q.userData.v.y-=3*dt;
   q.scale.multiplyScalar(Math.max(.01,1-dt*1.4));
