@@ -280,7 +280,7 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
     const item=suggestions[index];if(!item)return false;
     const before=editor.value.slice(0,editor.selectionStart),match=before.match(/([A-Za-z_]\w*)$/);if(!match)return false;
     const start=editor.selectionStart-match[1].length,caret=editor.selectionStart;
-    const callable=actions.has(item.name)||getSensors().includes(item.name)||DSL_BUILTINS.includes(item.name)||KEYWORDS.has(item.name)&&!['if','elif','else','for','while','def','return','break','continue'].includes(item.name)||collectSymbolsSafe(editor.value).functions.includes(item.name);
+    const callable=actions.has(item.name)||getSensors().includes(item.name)||DSL_BUILTINS.includes(item.name)||collectSymbolsSafe(editor.value).functions.includes(item.name);
     const after=editor.value.slice(caret);let insertion=item.name,selection=caret-start+item.name.length;
     if(callable){
       if(after.startsWith('(')){selection+=1;}
