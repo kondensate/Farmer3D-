@@ -126,6 +126,9 @@ export function scoreAgentForTask(agent, task, targetPosition = { x: 0, z: 0 }) 
   const roleBonus = task.type === "water" && agent.type === "waterbot" ? 18 : task.type === "harvest" && agent.type === "harvestbot" ? 18 : 0;
   const energyBonus = Math.min(10, energy / 10);
   const load = Object.values(agent.inventory || {}).reduce((sum, n) => sum + Math.max(0, Number(n) || 0), 0);
+  const capacity = Math.max(0, Number(agent.capacity) || 0);
+  if (task.type === "harvest" && load >= capacity) return -Infinity;
+  if (task.type === "water" && task.sharedWaterAvailable === false && agent.type !== "waterbot") return -Infinity;
   return task.priority + roleBonus + energyBonus - distance * 2.5 - load * 2;
 }
 
