@@ -14,6 +14,16 @@ test('IDE marks DSL keywords, game commands, sensors, literals and comments',()=
   assert.match(highlightSource('if get_energy():\n    move(1)',{caret:18,sensors:['get_energy']}),/is-block/);
 });
 
+test('IDE highlights matching brackets across multiple lines',()=>{
+  const html=highlightSource('move(\n    1\n)',{caret:5});
+  assert.equal((html.match(/bracket-match/g)||[]).length,2);
+});
+
+test('IDE validation accepts user functions called from assignment expressions',()=>{
+  const source='def get_count():\n    return 3\nvalue = get_count()';
+  assert.equal(validateSource(source),null);
+});
+
 test('IDE validation accepts commands and sensors supported by the game DSL',()=>{
   assert.equal(validateSource('if get_energy() > 0:\n    go_to_plot("ready")', ['get_energy']), null);
   assert.deepEqual(validateSource('unknown_game_command()'), {line:1,message:'Неизвестная команда или функция «unknown_game_command»'});
