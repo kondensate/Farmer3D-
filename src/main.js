@@ -450,7 +450,7 @@ function loadGame(){
     agent.mesh.position.set(Number.isFinite(Number(saved.x))?Number(saved.x):0,Number.isFinite(Number(saved.y))?Number(saved.y):0,Number.isFinite(Number(saved.z))?Number(saved.z):7);
     agent.mesh.rotation.y=Number(saved.rotation)||0;agent.energy=THREE.MathUtils.clamp(Number.isFinite(Number(saved.energy))?Number(saved.energy):agent.maxEnergy,0,agent.maxEnergy);
     agent.water=Number.isFinite(saved.water)?saved.water:agent.water;
-    agent.inventory=saved.inventory||{};agent.program=saved.program||agent.program;agent.level=Number(saved.level)||1;agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.resumeResolver=null;agent.stepOnce=false;
+    agent.inventory=saved.inventory||{};agent.program=saved.program??agent.program;agent.level=Number(saved.level)||1;agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.resumeResolver=null;agent.stepOnce=false;
    }
   }
   if(Array.isArray(d.plots))d.plots.forEach((v,i)=>{
