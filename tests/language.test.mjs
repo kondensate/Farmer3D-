@@ -65,10 +65,12 @@ total = double(add_one(x))
 if double(add_one(x)) == 8:
     print("nested condition ok")
 print("total", total)
+move(add_one(x))
 `, api);
   assert.equal(result.ok, true);
   assert.ok(api.logs.includes("nested condition ok"));
   assert.ok(api.logs.includes("total 8"));
+  assert.deepEqual(api.actions.at(-1),["move",4]);
 });
 
 test("legacy uppercase program remains supported", async () => {
