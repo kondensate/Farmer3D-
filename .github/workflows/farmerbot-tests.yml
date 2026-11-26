@@ -6,7 +6,7 @@ on:
       - farmerbot-3.0
   pull_request:
     branches:
-      - farmerbot-3.0
+      - main
 
 jobs:
   test:
