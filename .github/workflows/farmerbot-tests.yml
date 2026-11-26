@@ -20,3 +20,11 @@ jobs:
           node-version: 20
       - name: Run test suite
         run: npm test
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/main.js
+          node --check src/language.js
+          node --check src/ide.js
+          node --check src/debugger.js
+          node --check src/data.js
+          node --check src/navigation.js
