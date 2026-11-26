@@ -1,9 +1,0 @@
-# WaterBot: полив доступных грядок
-turn_left()
-turn_left()
-for row in range(4):
-    if can_water():
-        water()
-    move(1)
-return_to_base()
-refill_water()

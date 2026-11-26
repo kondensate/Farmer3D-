@@ -1,8 +1,0 @@
-# HarvestBot: сбор зрелых культур
-turn_left()
-turn_left()
-for row in range(4):
-    if can_harvest():
-        harvest()
-    move(1)
-return_to_base()
