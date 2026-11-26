@@ -54,6 +54,23 @@ print("Результат", result)
   assert.ok(api.logs.includes("Результат 3"));
 });
 
+test("nested user function calls work in arithmetic and command arguments", async () => {
+  const api = makeApi();
+  const result = await runProgram(`def add_one(n):
+    return n + 1
+def double(n):
+    return n * 2
+x = 3
+total = double(add_one(x))
+if double(add_one(x)) == 8:
+    print("nested condition ok")
+print("total", total)
+`, api);
+  assert.equal(result.ok, true);
+  assert.ok(api.logs.includes("nested condition ok"));
+  assert.ok(api.logs.includes("total 8"));
+});
+
 test("legacy uppercase program remains supported", async () => {
   const api = makeApi();
   const result = await runProgram(`MOVE 1
