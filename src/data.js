@@ -55,9 +55,18 @@ export const MISSIONS = [
 export const BUILDINGS = {
   greenhouse: { name:"Теплица", icon:"🏡", cost:70, width:2.9, depth:2.7, unlock:"horticulture", description:"Ускоряет рост культур рядом на 35%", effect:"growth" },
   tank: { name:"Водный резервуар", icon:"🛢️", cost:45, width:1.8, depth:1.8, unlock:"waterworks", description:"Увеличивает запас воды фермы на 30", effect:"water" },
-  conveyor: { name:"Конвейер", icon:"🟫", cost:80, width:2.5, depth:1.15, unlock:"logistics", description:"Автоматически собирает зрелые растения рядом", effect:"harvest" },
-  charger: { name:"Зарядная станция", icon:"⚡", cost:65, width:2, depth:2, unlock:"energy", description:"Заряжает роботов поблизости", effect:"charge" },
-  robot_station: { name:"Робостанция", icon:"🤖", cost:110, width:2.6, depth:2.3, unlock:"robotics", description:"Обслуживает роботов и ускоряет восстановление", effect:"service" }
+  water_pump: { name:"Электронасос", icon:"💧", cost:75, width:1.6, depth:1.6, unlock:"waterworks", description:"Автоматически поливает свободные от влаги грядки", effect:"water", powerNode:true, powerRole:"consumer", powerDemand:3, powerPriority:2 },
+  solar_generator: { name:"Солнечный генератор", icon:"☀️", cost:95, width:2.2, depth:1.8, unlock:"energy", description:"Вырабатывает до 10 единиц энергии в секунду", effect:"generation", powerNode:true, powerRole:"generator", powerOutput:10 },
+  wind_generator: { name:"Ветрогенератор", icon:"🌬️", cost:115, width:1.8, depth:1.8, unlock:"energy", description:"Вырабатывает до 8 единиц энергии в секунду", effect:"generation", powerNode:true, powerRole:"generator", powerOutput:8 },
+  battery: { name:"Аккумулятор", icon:"🔋", cost:80, width:1.4, depth:1.4, unlock:"energy", description:"Накапливает до 100 единиц энергии для ночи и дефицита", effect:"storage", powerNode:true, powerRole:"battery", batteryCapacity:100 },
+  power_pole: { name:"Опора ЛЭП", icon:"🔌", cost:18, width:.65, depth:.65, unlock:"energy", description:"Узел для подключения силовых кабелей", effect:"service", powerNode:true, powerRole:"node" },
+  charger: { name:"Зарядная станция", icon:"⚡", cost:65, width:2, depth:2, unlock:"energy", description:"Заряжает роботов поблизости при подключении к сети", effect:"charge", powerNode:true, powerRole:"consumer", powerDemand:4, powerPriority:3 },
+  robot_station: { name:"Робостанция", icon:"🤖", cost:110, width:2.6, depth:2.3, unlock:"robotics", description:"Обслуживает роботов и ускоряет восстановление при подключении к сети", effect:"service", powerNode:true, powerRole:"consumer", powerDemand:6, powerPriority:3 },
+  conveyor: { name:"Конвейер", icon:"🟫", cost:80, width:2.5, depth:1.15, unlock:"logistics", description:"Собирает зрелые растения и передаёт их по связанной сети", effect:"harvest", logisticsNode:true, powerNode:true, powerRole:"consumer", powerDemand:1 },
+  conveyor_splitter: { name:"Разветвитель", icon:"🔀", cost:65, width:1.6, depth:1.4, unlock:"logistics", description:"Направляет поток по выходам по очереди", effect:"logistics", logisticsNode:true, powerNode:true, powerRole:"consumer", powerDemand:.8 },
+  conveyor_filter: { name:"Фильтр конвейера", icon:"🧰", cost:55, width:1.5, depth:1.2, unlock:"logistics", description:"Пропускает выбранную культуру и удерживает остальные", effect:"logistics", logisticsNode:true, powerNode:true, powerRole:"consumer", powerDemand:.8 },
+  conveyor_buffer: { name:"Буфер конвейера", icon:"📦", cost:55, width:1.5, depth:1.4, unlock:"logistics", description:"Промежуточный склад на 12 единиц", effect:"logistics", logisticsNode:true, powerNode:true, powerRole:"consumer", powerDemand:.6 },
+  conveyor_storage: { name:"Приёмный склад", icon:"🏬", cost:75, width:1.8, depth:1.6, unlock:"logistics", description:"Принимает предметы из транспортной сети", effect:"logistics", logisticsNode:true, powerNode:true, powerRole:"consumer", powerDemand:.6 }
 };
 
 export const TECHNOLOGIES = [
