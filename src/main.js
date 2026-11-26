@@ -527,7 +527,7 @@ function loadGame(){
   });
   if(d.equipment){pumpBuilt=!!d.equipment.pump;solarBuilt=!!d.equipment.solar;storageBuilt=!!d.equipment.storage;
    if(pumpBuilt)buildEquipment('pump');if(solarBuilt)buildEquipment('solar');if(storageBuilt)buildEquipment('storage');}
-  buildings.length=0;nextBuildingId=1;if(Array.isArray(d.buildings))for(const saved of d.buildings){if(!BUILDINGS[saved.type])continue;const record={...BUILDINGS[saved.type],...saved,id:Number(saved.id)||nextBuildingId++,type:saved.type,x:Number(saved.x)||0,z:Number(saved.z)||0,rotation:Number(saved.rotation)||0,items:Array.isArray(saved.items)?saved.items:[],batteryCharge:Math.max(0,Number(saved.batteryCharge)||0),filterCrop:CROPS[saved.filterCrop]?saved.filterCrop:'all',routeIndex:Number(saved.routeIndex)||0,routeClock:Number(saved.routeClock)||0};record.mesh=createBuildingMesh(record.type,record.x,record.z,record.rotation,false);buildings.push(record);nextBuildingId=Math.max(nextBuildingId,record.id+1);}if(d.automation){powerLinks.splice(0,powerLinks.length,...(Array.isArray(d.automation.powerLinks)?d.automation.powerLinks:[]));conveyorLinks.splice(0,conveyorLinks.length,...(Array.isArray(d.automation.conveyorLinks)?d.automation.conveyorLinks:[]));autoDispatchEnabled=!!d.automation.autoDispatchEnabled;}renderAutomationLinks();
+  buildings.length=0;nextBuildingId=1;if(Array.isArray(d.buildings))for(const saved of d.buildings){if(!BUILDINGS[saved.type])continue;const record={...BUILDINGS[saved.type],...saved,id:Number(saved.id)||nextBuildingId++,type:saved.type,x:Number(saved.x)||0,z:Number(saved.z)||0,rotation:Number(saved.rotation)||0,items:Array.isArray(saved.items)?saved.items:[],batteryCharge:Math.max(0,Number(saved.batteryCharge)||0),filterCrop:CROPS[saved.filterCrop]?saved.filterCrop:'all',routeIndex:Number(saved.routeIndex)||0,routeClock:Number(saved.routeClock)||0,legacyUnwired:Number(d.version||0)<5&&['conveyor','charger','robot_station'].includes(saved.type)};record.mesh=createBuildingMesh(record.type,record.x,record.z,record.rotation,false);buildings.push(record);nextBuildingId=Math.max(nextBuildingId,record.id+1);}if(d.automation){powerLinks.splice(0,powerLinks.length,...(Array.isArray(d.automation.powerLinks)?d.automation.powerLinks:[]));conveyorLinks.splice(0,conveyorLinks.length,...(Array.isArray(d.automation.conveyorLinks)?d.automation.conveyorLinks:[]));autoDispatchEnabled=!!d.automation.autoDispatchEnabled;}renderAutomationLinks();
   lastLevel=1+Math.floor(xp/100);isLoadingGame=false;updateMissions();stats();renderSeedStock();renderFleetUI();renderMissions();renderBuildingUI();renderTechs();renderChallengeStatus();if(d.version<5)saveGame();
  }catch(e){isLoadingGame=false;console.warn('Ошибка загрузки сохранения',e);stats();}
 }
@@ -1027,7 +1027,7 @@ function update(dt){
  }
  // Stage B grid: generate, route, buffer and allocate energy each simulation tick.
  powerState=updatePowerGrid(buildings,powerLinks,dt,{solarFactor:Math.max(.12,daylight)*(weather==='rain'?.55:1),windFactor:weather==='rain'?1.15:weather==='drought'?.75:.9});
- for(const b of buildings)b.powered=powerLinks.length===0&&['conveyor','charger','robot_station'].includes(b.type)?true:!!powerState.powered.get(String(b.id));
+ for(const b of buildings)b.powered=!!powerState.powered.get(String(b.id))||!!b.legacyUnwired;
  // Powered pumps irrigate one thirsty plot at a time.
  pumpClock+=dt;
  if(pumpClock>=8){
@@ -1049,7 +1049,7 @@ function update(dt){
  }
  // Branches split, filters hold mismatched crops, buffers queue, and sinks deliver to storage.
  const storageTotal=Object.values(harvestStorage).reduce((a,v)=>a+v,0),storageLimit=storageBuilt?100:20;
- const delivered=stepConveyorNetwork(buildings.filter(b=>b.powered||b.type==='conveyor_storage'),conveyorLinks,dt,Math.max(0,storageLimit-storageTotal));
+ const delivered=stepConveyorNetwork(buildings.filter(b=>b.powered),conveyorLinks,dt,Math.max(0,storageLimit-storageTotal));
  if(delivered.length){for(const item of delivered){const type=CROPS[item.crop]?item.crop:'carrot';harvestStorage[type]=(harvestStorage[type]||0)+(Number(item.count)||1);}stats();saveGame();toast(`📦 Логистика доставила ${delivered.length} ед. на склад`);}
  // Connected chargers and robot stations draw power; an outage switches them off.
  chargerClock+=dt;if(chargerClock>=.5){const pulse=chargerClock;chargerClock=0;for(const b of buildings.filter(q=>(q.type==='charger'||q.type==='robot_station')&&q.powered))for(const a of agents){const distance=Math.hypot(a.mesh.position.x-b.x,a.mesh.position.z-b.z);const range=b.type==='charger'?2.7:3.1;if(distance<range)a.energy=Math.min(a.maxEnergy,a.energy+(b.type==='charger'?pulse*5:pulse*3));}}
