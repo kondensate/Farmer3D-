@@ -3,6 +3,7 @@ name: FarmerBot tests
 on:
   push:
     branches:
+      - main
       - farmerbot-3.0
   pull_request:
     branches:
