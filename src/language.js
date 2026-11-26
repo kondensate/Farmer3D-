@@ -370,7 +370,9 @@ async function runProgram(source, api = {}) {
     switch(stmt.type) {
       case "def": functions.set(stmt.name,stmt); return;
       case "assign": {
-        const value=evaluate(stmt.value,scope,api);
+        const value=stmt.value?.type==="call"&&functions.has(stmt.value.name)
+          ? await invokeFunction(stmt.value.name,stmt.value.args.map(arg=>evaluate(arg,scope,api)),stmt.line)
+          : evaluate(stmt.value,scope,api);
         if(stmt.operator==="=") scope.set(stmt.name,value);
         else {
           const old=scope.get(stmt.name,stmt.line), op=stmt.operator[0];
