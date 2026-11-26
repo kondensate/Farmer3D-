@@ -24,8 +24,8 @@ test('game save includes each robot program and restore keeps even an empty save
 });
 
 test('debugger snapshots, statuses, changed values and call stacks are keyed by robot id', () => {
+  assert.match(ide, /debugByRobot=new Map\\(\\),runtimeErrors=new Map\\(\\),statusByRobot=new Map\\(\\),changedByRobot=new Map\\(\\)/);
   for (const name of ['debugByRobot', 'changedByRobot', 'statusByRobot', 'runtimeErrors']) {
-    assert.match(ide, new RegExp('const ' + name + '=new Map\\(\\)'));
     assert.match(ide, new RegExp(name + '\\.(?:get|set|delete)\\(agentId'));
   }
 });
