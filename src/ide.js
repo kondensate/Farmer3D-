@@ -21,6 +21,11 @@ const COMMAND_META = {
   ceil: ['ceil(value)', 'Округление вверх'], round: ['round(value)', 'Округление до ближайшего целого']
 };
 
+const SENSOR_SIGNATURE = {
+  can_plant: 'can_plant(crop="carrot")',
+  get_inventory: 'get_inventory(crop=None)'
+};
+
 const SENSOR_META = {
   can_harvest: 'Есть ли зрелая культура под роботом', can_plant: 'Можно ли посадить выбранную культуру',
   can_water: 'Нуждается ли грядка в воде', is_ready: 'Созрел ли урожай', get_water: 'Текущий запас воды',
@@ -258,7 +263,7 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
     if(!context?.name||isInsideLiteralOrComment(editor.value,editor.selectionStart)){hint.textContent='Подсказка параметров появится внутри вызова команды.';return;}
     const name=context.name,meta=COMMAND_META[name];let userFn=null;
     try{userFn=parseProgram(editor.value).find(node=>node.type==='def'&&node.name===name);}catch{}
-    const signature=meta?.[0]||(userFn?`${name}(${userFn.params.join(', ')})`:SENSOR_META[name]?`${name}()`:null);
+    const signature=meta?.[0]||SENSOR_SIGNATURE[name]||(userFn?`${name}(${userFn.params.join(', ')})`:SENSOR_META[name]?`${name}()`:null);
     if(!signature){hint.textContent='';return;}
     const description=meta?.[1]||SENSOR_META[name]||(userFn?'Функция пользователя':'');
     const params=(signature.match(/\((.*)\)/)||[])[1]?.split(',').map(value=>value.trim()).filter(Boolean)||[];
@@ -296,7 +301,7 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
     const options=[];
     for(const name of [...DSL_ACTIONS,...getSensors(),...DSL_BUILTINS,...KEYWORDS,...symbols.variables,...symbols.functions]){
       if(name.toLowerCase().startsWith(prefix)&&!options.some(item=>item.name===name)){
-        const meta=COMMAND_META[name],fn=ast?.find(node=>node.type==='def'&&node.name===name);options.push({name,signature:meta?.[0]|| (fn?`${name}(${fn.params.join(', ')})`:`${name}()`),description:meta?.[1]||SENSOR_META[name]|| (fn?'Функция пользователя':symbols.variables.includes(name)?'Переменная программы':'Ключевое слово')});
+        const meta=COMMAND_META[name],fn=ast?.find(node=>node.type==='def'&&node.name===name);options.push({name,signature:meta?.[0]||SENSOR_SIGNATURE[name]|| (fn?`${name}(${fn.params.join(', ')})`:`${name}()`),description:meta?.[1]||SENSOR_META[name]|| (fn?'Функция пользователя':symbols.variables.includes(name)?'Переменная программы':'Ключевое слово')});
       }
     }
     return options.slice(0,9);
