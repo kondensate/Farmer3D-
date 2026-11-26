@@ -252,7 +252,7 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
   function renderStack(frames=[]){if(!stack)return;stack.replaceChildren();if(!frames.length){stack.textContent='Глобальный уровень';return;}for(const frame of [...frames].reverse()){const item=document.createElement('div');item.textContent=`${frame.name}() · вызов из строки ${frame.line}`;stack.append(item);}}
   function setDebugState(agentId,snapshot,status='выполняется'){
     const previous=debugByRobot.get(agentId),before=snapshotValues(previous),after=snapshotValues(snapshot);
-    const changed=new Set();for(const [key,value] of after)if(before.has(key)&&before.get(key)!==value)changed.add(key);
+    const changed=new Set(changedByRobot.get(agentId)||[]);for(const [key,value] of after)if(before.has(key)&&before.get(key)!==value)changed.add(key);
     debugByRobot.set(agentId,snapshot||{});changedByRobot.set(agentId,changed);statusByRobot.set(agentId,status);
     if(active().id===agentId)render();
   }
@@ -281,10 +281,10 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
     const before=editor.value.slice(0,editor.selectionStart),match=before.match(/([A-Za-z_]\w*)$/);if(!match)return false;
     const start=editor.selectionStart-match[1].length,caret=editor.selectionStart;
     const callable=actions.has(item.name)||getSensors().includes(item.name)||DSL_BUILTINS.includes(item.name)||collectSymbolsSafe(editor.value).functions.includes(item.name);
-    const after=editor.value.slice(caret);let insertion=item.name,selection=caret-start+item.name.length;
+    const after=editor.value.slice(caret);let insertion=item.name,selection=item.name.length;
     if(callable){
-      if(after.startsWith('(')){selection+=1;}
-      else{insertion+='()';selection=insertion.length-1;}
+      if(after.startsWith('(')){selection=item.name.length+1;}
+      else{insertion+='()';selection=item.name.length+1;}
     }
     editor.setRangeText(insertion,start,caret,'end');
     editor.setSelectionRange(start+selection,start+selection);
@@ -308,8 +308,9 @@ export function createIde({getAgent,getAgents,getSensors,onEdit=()=>{},onSelectR
   render();refresh();
   return {
     refresh,handleKeydown,setDebugState,
-    setRunStatus(agentId,status,{clearLine=false}={}){
+    setRunStatus(agentId,status,{clearLine=false,resetChanges=false}={}){
       statusByRobot.set(agentId,status);
+      if(resetChanges)changedByRobot.set(agentId,new Set());
       if(clearLine){const previous=debugByRobot.get(agentId)||{};debugByRobot.set(agentId,{...previous,line:null,nextLine:null,statement:null});changedByRobot.set(agentId,new Set());}
       if(active().id===agentId)render();
     },
