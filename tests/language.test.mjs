@@ -40,6 +40,20 @@ print("ok", 1 + 2 * 3)
   assert.ok(api.logs.some(x => x.includes("ok 7")));
 });
 
+test("user function return values can be assigned to variables", async () => {
+  const api = makeApi();
+  const result = await runProgram(`x = 3
+def test_robot(n):
+    print("Шаг", n)
+    return n
+result = test_robot(x)
+print("Результат", result)
+`, api);
+  assert.equal(result.ok, true);
+  assert.ok(api.logs.includes("Шаг 3"));
+  assert.ok(api.logs.includes("Результат 3"));
+});
+
 test("legacy uppercase program remains supported", async () => {
   const api = makeApi();
   const result = await runProgram(`MOVE 1
