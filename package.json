@@ -1,0 +1,9 @@
+{
+  "name": "farmerbot-3-smart-farm",
+  "version": "3.0.0-alpha.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}
