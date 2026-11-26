@@ -30,6 +30,16 @@ test('runtime debugger forwards real call-stack frames into the IDE', () => {
   assert.match(readFileSync(new URL('../src/ide.js', import.meta.url), 'utf8'), /setDebugCallStack\(agentId,frames=\[\]\)/);
 });
 
+test('IDE exposes per-robot debugger state, variables, next command and changed values', () => {
+  const ide = readFileSync(new URL('../src/ide.js', import.meta.url), 'utf8');
+  assert.match(ide, /statusByRobot=new Map/);
+  assert.match(ide, /setRunStatus\\(agentId,status/);
+  assert.match(ide, /setDebugCallStack\\(agentId,frames/);
+  assert.match(ide, /changedByRobot/);
+  assert.match(ide, /debug.nextLine/);
+  assert.match(html, /ide-value\\.changed/);
+});
+
 test('save format keeps v2/v3 fallback paths and adds v4 buildings/research', () => {
   assert.match(main, /farmerbot3d_save_v4/);
   assert.match(main, /farmerbot3d_save_v3/);
