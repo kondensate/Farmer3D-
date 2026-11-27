@@ -30,7 +30,7 @@ test("season clock advances in order and carries elapsed time", () => {
 test("seasonal and biome weather are deterministic and supported", () => {
   for (const season of SEASONS) {
     assert.equal(typeof getSeasonWeather(season.id, 0), "string");
-    assert.equal(getSeasonWeather(season.id, 1), getSeasonWeather(season.id, 5));
+    assert.equal(getSeasonWeather(season.id, 1), getSeasonWeather(season.id, 6));
     for (const id of BIOME_ORDER) {
       const weather = getBiomeWeather(id, season.id, 3, "map-seed");
       assert.ok(BIOMES[id].weather.includes(weather));
