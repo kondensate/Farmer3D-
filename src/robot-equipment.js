@@ -1,8 +1,8 @@
 export const ROBOT_MODULES = {
-  thermal_shield: { name:"Термозащита", icon:"🌋", cost:55, hazards:["lava","steam-vent","hot-rock","crater"], biomes:["volcanic"], movementBonus:.18, traversalReduction:.72, energyReduction:.8, description:"Снижает риск рядом с лавой и горячими породами" },
-  cold_tracks: { name:"Морозные гусеницы", icon:"❄️", cost:45, hazards:["frozen-lake","ice","snowdrift"], biomes:["snow"], movementBonus:.18, traversalReduction:.72, energyReduction:.8, description:"Уверенное движение по льду и глубокому снегу" },
-  swamp_chassis: { name:"Болотное шасси", icon:"🐸", cost:50, hazards:["quicksand","mud","deep-water","flood-zone"], biomes:["swamp"], movementBonus:.18, traversalReduction:.72, energyReduction:.8, description:"Защита от вязкого грунта, воды и затоплений" },
-  mountain_climber: { name:"Горный привод", icon:"⛰️", cost:60, hazards:[], biomes:["mountain"], movementBonus:.18, traversalReduction:1, energyReduction:1, stepBonus:.35, description:"Позволяет преодолевать более крутые подъёмы" }
+  thermal_shield: { name:"Термозащита", icon:"🌋", cost:55, hazards:["lava","steam-vent","hot-rock","crater"], biomes:["volcanic"], movementBonus:.18, workBonus:.12, traversalReduction:.72, energyReduction:.8, description:"Снижает риск рядом с лавой и горячими породами" },
+  cold_tracks: { name:"Морозные гусеницы", icon:"❄️", cost:45, hazards:["frozen-lake","ice","snowdrift"], biomes:["snow"], movementBonus:.18, workBonus:.12, traversalReduction:.72, energyReduction:.8, description:"Уверенное движение по льду и глубокому снегу" },
+  swamp_chassis: { name:"Болотное шасси", icon:"🐸", cost:50, hazards:["quicksand","mud","deep-water","flood-zone"], biomes:["swamp"], movementBonus:.18, workBonus:.12, traversalReduction:.72, energyReduction:.8, description:"Защита от вязкого грунта, воды и затоплений" },
+  mountain_climber: { name:"Горный привод", icon:"⛰️", cost:60, hazards:[], biomes:["mountain"], movementBonus:.18, workBonus:.12, traversalReduction:1, energyReduction:1, stepBonus:.35, description:"Позволяет преодолевать более крутые подъёмы" }
 };
 
 export function moduleEffects(installed = []) {
@@ -31,4 +31,10 @@ export function biomeMovementMultiplier(installed, biome) {
   return ids.some(id => ROBOT_MODULES[id]?.biomes?.includes(biome))
     ? 1 + Math.max(...ids.map(id => ROBOT_MODULES[id]?.biomes?.includes(biome) ? ROBOT_MODULES[id].movementBonus || 0 : 0))
     : 1;
+}
+
+export function biomeWorkCostMultiplier(installed, biome) {
+  const ids = [...new Set(Array.isArray(installed) ? installed : [])];
+  const bonus = Math.max(0, ...ids.map(id => ROBOT_MODULES[id]?.biomes?.includes(biome) ? ROBOT_MODULES[id].workBonus || 0 : 0));
+  return 1 - bonus;
 }
