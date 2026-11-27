@@ -224,7 +224,13 @@ for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++)createPlotAt(x*2.4,z*2.4,'meadow');
 
 function clearStartingWorldGroup(){
  for(const child of [...startingWorldGroup.children]){
-  child.traverse?.(object=>{if(object.geometry&&!object.userData?.sharedGeometry)object.geometry.dispose();});
+  child.traverse?.(object=>{
+   if(object.geometry&&!object.userData?.sharedGeometry)object.geometry.dispose();
+   if(object.material&&!object.userData?.sharedMaterial){
+    const materials=Array.isArray(object.material)?object.material:[object.material];
+    materials.forEach(material=>material.dispose());
+   }
+  });
   startingWorldGroup.remove(child);
  }
 }
@@ -262,7 +268,7 @@ function createStartingWorldVisuals(map){
   for(let i=0;i<pieces;i++){
    const size=.13+(i%2)*.045;
    const geometry=definition.kind==='liquid'?new THREE.IcosahedronGeometry(.2,1):new THREE.IcosahedronGeometry(size,0);
-   const piece=new THREE.Mesh(geometry,resourceMaterial);
+   const piece=new THREE.Mesh(geometry,resourceMaterial);piece.userData.sharedMaterial=true;
    piece.position.set((i-1)*.17,.12+(i%2)*.07,(i%2?-.08:.08));piece.rotation.set(.2*i,.7*i,.13*i);piece.castShadow=true;node.add(piece);
   }
   const x=item.x*scale,z=item.z*scale;
