@@ -12,7 +12,7 @@ let activeBiome='meadow',worldSeed='legacy-meadow',generatedWorld=null;
 let terrainMesh=null,terrainHeightMap=new Map(),worldObstacleCells=new Set();
 const resourceNodes=[],worldResourceStorage={};
 const unlockedWorldBiomes=new Set(['meadow']);
-const sensorNames=['can_harvest','can_plant','can_water','is_ready','get_water','get_coins','get_harvest','tile_state','count_ready','count_empty','front_is_clear','at_plot','distance_to_plot','has_water','get_energy','get_position','get_inventory','get_plant_age','scan','has_ready_plot','has_empty_plot','has_thirsty_plot'];
+const sensorNames=['can_harvest','can_plant','can_water','is_ready','get_water','get_coins','get_harvest','tile_state','count_ready','count_empty','front_is_clear','at_plot','distance_to_plot','has_water','get_energy','get_position','get_inventory','get_plant_age','scan','has_ready_plot','has_empty_plot','has_thirsty_plot','has_resource_nearby','get_nearby_resource','count_resources'];
 const root=document.querySelector('#game');
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bc7c2); scene.fog=new THREE.Fog(0x9bc7c2,22,48);
 const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,100); camera.position.set(8,11,12);
@@ -820,10 +820,13 @@ function harvestPlot(plot,agent=activeAgent()){
  setState(plot,'empty');plot.watered=false;plot.waterSource=null;plot.growth=0;
  addXP(2);stats();updateMissions();saveGame();return true;
 }
+function nearestResourceNode(agent=activeAgent(),maxDistance=Infinity){
+ const pos=agent.mesh.position;
+ return resourceNodes.filter(item=>item.amount>0).map(item=>({...item,distance:Math.hypot(item.x-pos.x,item.z-pos.z)})).filter(item=>item.distance<=maxDistance).sort((a,b)=>a.distance-b.distance)[0]||null;
+}
 function collectNearbyWorldResource(agent=activeAgent()){
  if(agent.type==='dronebot'){toast('DroneBot сканирует ресурсы — используй scan()');return false;}
- const pos=agent.mesh.position;
- const node=resourceNodes.filter(item=>item.amount>0).map(item=>({...item,distance:Math.hypot(item.x-pos.x,item.z-pos.z)})).filter(item=>item.distance<=2.35).sort((a,b)=>a.distance-b.distance)[0];
+ const node=nearestResourceNode(agent,2.35);
  if(!node)return false;
  const carried=Object.values(agent.inventory).reduce((sum,value)=>sum+value,0);
  if(carried>=agent.capacity){toast(`${agent.name}: инвентарь заполнен — вернись на базу`);return true;}
@@ -1122,7 +1125,10 @@ function programSense(name,args=[],agent=activeAgent()){
    const dest={x:THREE.MathUtils.clamp(nx,-17.25,17.25),z:THREE.MathUtils.clamp(nz,-17.25,17.25)};
    return Math.abs(nx)<=17.25&&Math.abs(nz)<=17.25&&!isBlocked(agent,dest);
   }
-  case 'scan':return plots.filter(q=>Math.hypot(q.g.position.x-pos.x,q.g.position.z-pos.z)<5&&q.state!=='empty').length;
+  case 'scan':return plots.filter(q=>Math.hypot(q.g.position.x-pos.x,q.g.position.z-pos.z)<5&&q.state!=='empty').length+resourceNodes.filter(q=>q.amount>0&&Math.hypot(q.x-pos.x,q.z-pos.z)<5).length;
+  case 'has_resource_nearby':return !!nearestResourceNode(agent,2.35);
+  case 'get_nearby_resource':return nearestResourceNode(agent,2.35)?.type||'none';
+  case 'count_resources':return resourceNodes.reduce((sum,node)=>sum+node.amount,0);
   case 'has_ready_plot':return plots.some(q=>q.state==='ready');
   case 'has_empty_plot':return plots.some(q=>q.state==='empty');
   case 'has_thirsty_plot':return plots.some(q=>['seed','growing'].includes(q.state)&&!q.watered);
@@ -1157,6 +1163,17 @@ async function programAction(name,args=[],agent=activeAgent()){
  }else if(name==='go_to_plot'){
   if(agent.type==='dronebot'){programLogFor(agent,'DroneBot: перемещение по земле недоступно');return;}
   const state=['ready','empty','thirsty'].includes(String(args[0]||'any'))?String(args[0]):'any';await navigateToNearestPlot(agent,state);
+ }else if(name==='go_to_resource'){
+  if(agent.type==='dronebot')throw new Error('DroneBot не перемещается по земле');
+  const target=resourceNodes.filter(node=>node.amount>0).sort((a,b)=>Math.hypot(a.x-agent.mesh.position.x,a.z-agent.mesh.position.z)-Math.hypot(b.x-agent.mesh.position.x,b.z-agent.mesh.position.z))[0];
+  if(!target)throw new Error('На карте не осталось доступных залежей');
+  if(!await navigateAgentTo(agent,{x:target.x,z:target.z}))throw new Error('Не удалось построить маршрут к ресурсной залежи');
+  programLogFor(agent,`Маршрут проложен к ресурсу ${RESOURCE_CATALOG[target.type]?.name||target.type}`);
+ }else if(name==='collect_resource'){
+  if(agent.type==='dronebot')throw new Error('DroneBot сканирует, но не добывает ресурсы');
+  if(Object.values(agent.inventory).reduce((sum,value)=>sum+value,0)>=agent.capacity)throw new Error('Инвентарь заполнен — вернись на базу');
+  if(!collectNearbyWorldResource(agent))throw new Error('Рядом нет ресурсной залежи. Сначала вызови go_to_resource()');
+  agent.energy=Math.max(0,agent.energy-.4);
  }else if(name==='return_to_base'){
   await returnToBase(agent);
  }else if(name==='transfer_to'||name==='transfer_from'){
