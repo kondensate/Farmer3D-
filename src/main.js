@@ -790,23 +790,30 @@ function switchWorldBiome(id,progress){
 function renderBiomeSelector(){
  const grid=$('#biomeSelectGrid');if(!grid)return;
  const progress={xp,harvested:metrics.harvested||0};
+ const prices={meadow:0,desert:120,mountain:160,snow:190,tropical:220,forest:180,volcanic:300,swamp:250};
  grid.innerHTML=BIOME_ORDER.map(id=>{
-  const b=BIOMES[id],state=getBiomeUnlockState(id,progress,unlockedWorldBiomes),isOpen=state.unlocked,owned=unlockedWorldBiomes.has(id),color='#'+Number(b.terrain).toString(16).padStart(6,'0');
+  const b=BIOMES[id],state=getBiomeUnlockState(id,progress,unlockedWorldBiomes),isOpen=state.unlocked,owned=unlockedWorldBiomes.has(id),price=prices[id]??(b.legacyPrice||200),color='#'+Number(b.terrain).toString(16).padStart(6,'0');
   const saved=!!localStorage.getItem(WORLD_PROFILE_PREFIX+id);
-  const requirement=b.unlock.type==='starter'?'Стартовая территория':owned?(id===activeBiome?'Текущий мир':saved?'Сохранённый мир · можно продолжить':'Территория открыта'):isOpen?'Готово к открытию':`Осталось ${state.missingXP} XP · ${state.missingHarvest} урожаев`;
-  const button=owned?(id===activeBiome?'ТЕКУЩИЙ МИР':saved?'ПРОДОЛЖИТЬ':'СОЗДАТЬ МИР'):isOpen?'ОТКРЫТЬ':'ЗАКРЫТО';
+  const canBuy=!owned&&isOpen&&coins>=price;
+  const requirement=b.unlock.type==='starter'?'Стартовая территория':owned?(id===activeBiome?'Текущий мир':saved?'Сохранённый мир · можно продолжить':'Территория открыта'):!isOpen?`Нужно ${state.missingXP} XP и ${state.missingHarvest} урожаев`:`Цена открытия: ${price} 🪙`;
+  const label=owned?(id===activeBiome?'ТЕКУЩИЙ МИР':saved?'ПРОДОЛЖИТЬ':'СОЗДАТЬ МИР'):canBuy?'КУПИТЬ · '+price+' 🪙':isOpen?'НЕДОСТАТОЧНО МОНЕТ':'ЗАКРЫТО';
   return `<article class="biomeSelectCard ${isOpen?'':'locked'} ${activeBiome===id?'selected':''}" style="--biome-color:${color}">
    <span class="biomeIcon">${b.icon}</span><strong>${b.name}</strong><small>${b.description}</small>
    <small>🌡 ${b.temperature} · 💧 ${b.humidity}</small><small>Культуры: ${b.crops.slice(0,3).map(cropId=>CROPS[cropId]?.name||cropId).join(', ')}</small>
    <small>Ресурсы: ${b.resources.slice(0,3).map(resourceId=>RESOURCE_CATALOG[resourceId]?.name||resourceId).join(', ')}</small>
    <span class="biomeDifficulty">${b.difficulty}</span><small>${requirement}</small>
-   <button type="button" data-start-biome="${id}" ${isOpen?'':'disabled'}>${button}</button>
+   <button type="button" data-start-biome="${id}" ${owned&&id===activeBiome?'disabled':''} ${!owned&&!canBuy?'disabled':''}>${label}</button>
   </article>`;
  }).join('');
  grid.querySelectorAll('[data-start-biome]').forEach(button=>button.onclick=()=>{
-  const id=button.dataset.startBiome;
-  const state=getBiomeUnlockState(id,progress,unlockedWorldBiomes);
-  if(!state.unlocked){toast('Сначала выполни условия открытия этого биома');return;}
+  const id=button.dataset.startBiome,state=getBiomeUnlockState(id,progress,unlockedWorldBiomes);
+  if(!unlockedWorldBiomes.has(id)){
+   if(!state.unlocked){toast('Сначала выполни условия открытия этого биома');return;}
+   const price=prices[id]??(BIOMES[id].legacyPrice||200);
+   if(coins<price){toast(`Нужно ещё ${price-coins} монет`);return;}
+   coins-=price;unlockedWorldBiomes.add(id);stats();saveGame();toast(`${BIOMES[id].name}: биом куплен!`);
+   renderBiomeSelector();return;
+  }
   switchWorldBiome(id,progress);
  });
 }
