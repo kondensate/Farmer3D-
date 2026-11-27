@@ -21,12 +21,12 @@ test("biome cards show prices and purchase only after XP and harvest requirement
   assert.match(main, /data-start-biome/);
 });
 
-test("restart action requires confirmation and clears game progress keys", () => {
+test("restart action starts a clean new game and ignores every previous save", () => {
   assert.match(html, /id="resetGame"/);
   assert.match(html, /id="resetConfirm"/);
   assert.match(html, /id="confirmReset"/);
-  assert.match(main, /key\.startsWith\('farmerbot3d'/);
+  assert.match(main, /key\.toLowerCase\(\)\.startsWith\('farmerbot'\)/);\n  assert.match(main, /query\.get\('newgame'\)==='1'/);\n  assert.match(main, /const raw=forceNewGame\?null:/);
   assert.match(main, /agent\.stopRequested=true/);
   assert.match(main, /agent\.autoTaskBusy/);
-  assert.match(main, /location\.replace\(/);
+  assert.match(main, /restartUrl\.searchParams\.set\('newgame','1'\)/);\n  assert.match(main, /location\.replace\(restartUrl\.toString\(\)\)/);\n  assert.match(html, /НАЧАТЬ НОВУЮ ИГРУ/);\n  assert.match(html, /снова начнёшь с выбора стартового мира/);
 });
