@@ -1,5 +1,5 @@
 export const GRID_STEP = 1.15;
-export const GRID_LIMIT = 9;
+export const GRID_LIMIT = 15;
 
 export function worldToCell(point, step = GRID_STEP, limit = GRID_LIMIT) {
   const x = Math.max(-limit, Math.min(limit, Math.round(Number(point.x) / step)));
