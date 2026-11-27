@@ -11,7 +11,7 @@
 .hud{position:fixed;z-index:2;top:env(safe-area-inset-top,8px);left:10px;right:10px;display:flex;gap:8px;align-items:flex-start;justify-content:space-between;pointer-events:none}
 .brand,.stat,.panel,.btn{background:rgba(24,42,30,.96);border:1px solid rgba(196,232,121,.28);box-shadow:0 7px 0 rgba(7,16,9,.28),0 12px 30px #07100955;backdrop-filter:blur(12px)}
 .brand{padding:9px 12px;border-radius:15px;font-weight:900;letter-spacing:.5px}.brand small{display:block;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:1.3px}
-.stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.stat{padding:9px 11px;border-radius:13px;font-size:12px;font-weight:800}.stats .statButton{border:1px solid #71845e;background:#23382a;color:#e9f2dc;cursor:pointer;font:inherit}.stats .statButton:active{transform:translateY(1px)}
+.stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.stat{padding:9px 11px;border-radius:13px;font-size:12px;font-weight:800}.stats .statButton{border:1px solid #71845e;background:#23382a;color:#e9f2dc;cursor:pointer;font:inherit} .stats .statButton{pointer-events:auto;}.stats .statButton:active{transform:translateY(1px)}
 .bottom{position:fixed;z-index:3;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;justify-content:space-between;align-items:end;gap:10px;pointer-events:none}
 .pad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:43px 43px 43px;gap:4px;pointer-events:auto}
 .btn{border-radius:14px;color:var(--cream);font-weight:800;font-size:17px;min-width:48px;min-height:43px;display:flex;align-items:center;justify-content:center;touch-action:none}
