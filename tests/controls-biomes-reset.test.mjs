@@ -48,7 +48,7 @@ test("Russian and English language toggle is available and remembered", () => {
   assert.match(html, /id="languageToggle"/);
   assert.match(main, /import \{ initLanguageToggle \} from '\.\/i18n\.js'/);
   assert.match(main, /initLanguageToggle\(\)/);
-  assert.match(i18n, /localStorage\.getItem\('farmerbot_language'\)/);
+  assert.match(i18n, /localStorage\.getItem\('ui_language'\)/);
   assert.match(i18n, /language === 'ru' \? 'en' : 'ru'/);
   assert.match(i18n, /Green Plains/);
   assert.match(i18n, /START FARM/);
