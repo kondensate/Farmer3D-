@@ -101,7 +101,9 @@ export function createBiomeVisualKit(THREE) {
     mushroomCap:new THREE.MeshStandardMaterial({color:0xc56f55,roughness:.88}),
     mushroomStem:new THREE.MeshStandardMaterial({color:0xe5d5b3,roughness:1}),
     crystal:new THREE.MeshStandardMaterial({color:0x7fd1dc,roughness:.28,metalness:.12}),
-    deadwood:new THREE.MeshStandardMaterial({color:0x806345,roughness:1})
+    deadwood:new THREE.MeshStandardMaterial({color:0x806345,roughness:1}),
+    irrigation:new THREE.MeshStandardMaterial({color:0x4b9fb2,roughness:.48,metalness:.12}),
+    heater:new THREE.MeshStandardMaterial({color:0xe4ad60,roughness:.52,metalness:.1,emissive:0x6b3518,emissiveIntensity:.28})
   };
   const G={
     trunk:new THREE.CylinderGeometry(.12,.18,1.25,7),
@@ -123,7 +125,8 @@ export function createBiomeVisualKit(THREE) {
     grassBlade:new THREE.ConeGeometry(.09,.46,4),
     flower:new THREE.IcosahedronGeometry(.095,0),
     mushroomStem:new THREE.CylinderGeometry(.045,.07,.18,6),
-    mushroomCap:new THREE.SphereGeometry(.14,7,5)
+    mushroomCap:new THREE.SphereGeometry(.14,7,5),
+    plotPipe:new THREE.CylinderGeometry(.025,.025,1.45,6)
   };
   function part(parent,geometry,material,x,y,z,sx=1,sy=1,sz=1,ry=0,cast=true){
     const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);mesh.rotation.y=ry;
@@ -231,6 +234,23 @@ export function createBiomeVisualKit(THREE) {
     items.forEach((item,index)=>{dummy.position.set(item.x,item.y,item.z);dummy.rotation.set(0,item.r,0);dummy.scale.setScalar(item.s);dummy.updateMatrix();mesh.setMatrixAt(index,dummy.matrix);});
     mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=false;mesh.receiveShadow=true;mesh.userData.sharedGeometry=true;group.add(mesh);return mesh;
   }
+  function decoratePlot(parent,id){
+    if(id==="desert"||id==="snow"){
+      const material=id==="desert"?mats.irrigation:mats.heater;
+      for(const z of [-.72,.72]){
+        const pipe=part(parent,G.plotPipe,material,0,.34,z,1,1,1,0,false);
+        pipe.rotation.z=Math.PI/2;
+      }
+    }else if(id==="mountain"){
+      for(const x of [-.72,.72])for(const z of [-.72,.72])
+        part(parent,G.rockSmall,rocks.mountain,x,.24,z,.5,.42,.5,Math.PI*.18,false);
+    }else if(id==="tropical"){
+      for(const z of [-.68,.68]){
+        const leafMesh=part(parent,G.broadLeaf,mats.leafDark,0,.34,z,.62,.7,.7,0,false);
+        leafMesh.rotation.x=-.5;
+      }
+    }
+  }
   function createEnvironment(id,map,heightAt,tileSize=1.15){
     const group=new THREE.Group();group.name="biomeEnvironment-"+id;
     const random=seeded(map.seed+"-"+id+"-visuals");
@@ -300,5 +320,5 @@ export function createBiomeVisualKit(THREE) {
     return group;
   }
   const atmosphere=Object.fromEntries(Object.entries(ART).map(([id,p])=>[id,{sky:p.sky,fog:p.fog,sun:p.sun,fogNear:id==="snow"?14:id==="tropical"?18:22,fogFar:id==="desert"?62:id==="mountain"?68:id==="tropical"?52:58}]));
-  return { terrainMaterials,soilMaterials,plotRimMaterials,waterMaterials,atmosphere,createEnvironment,art:ART };
+  return { terrainMaterials,soilMaterials,plotRimMaterials,waterMaterials,atmosphere,createEnvironment,decoratePlot,art:ART };
 }
