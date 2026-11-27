@@ -19,7 +19,8 @@ export const CROPS = {
   cactus_fruit:{ name:"Плод кактуса", icon:"🌵", color:0xd65b82, leaf:0x54834d, growTime:30, price:24, seedCost:6, waterNeed:1, shape:"cactus-fruit", biomes:["desert"], seasons:["spring","summer","autumn","winter"], seasonGrowth:{spring:1.1,summer:.9,autumn:1.0,winter:.8} },
   volcanic_herb:{ name:"Вулканическая трава", icon:"🌋", color:0xeb7541, leaf:0x657642, growTime:42, price:45, seedCost:12, waterNeed:2, shape:"volcanic-herb", biomes:["volcanic"], seasons:["spring","autumn","winter"], seasonGrowth:{spring:1.0,summer:.55,autumn:1.05,winter:.9} },
   cranberry:   { name:"Клюква", icon:"🔴", color:0xb63353, leaf:0x557c45, growTime:28, price:25, seedCost:6, waterNeed:2, shape:"cranberry", biomes:["swamp","snow"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.0,summer:.95,autumn:1.25,winter:.45} },
-  rice:        { name:"Рис", icon:"🌾", color:0xd8c16d, leaf:0x77a34b, growTime:32, price:22, seedCost:5, waterNeed:3, shape:"rice", biomes:["swamp","tropical"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.0,summer:1.25,autumn:1.0,winter:.45} }
+  rice:        { name:"Рис", icon:"🌾", color:0xd8c16d, leaf:0x77a34b, growTime:32, price:22, seedCost:5, waterNeed:3, shape:"rice", biomes:["swamp","tropical"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.0,summer:1.25,autumn:1.0,winter:.45} },
+  mushroom:    { name:"Лесной гриб", icon:"🍄", color:0xc86c4d, leaf:0xe5d5bb, growTime:19, price:18, seedCost:4, waterNeed:2, shape:"mushroom", biomes:["forest","swamp"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.1,summer:.95,autumn:1.25,winter:.35} }
 };
 
 export const ROBOT_TYPES = {
@@ -59,7 +60,26 @@ export const MISSIONS = [
   ["water_saver","Экономия воды","Собери 5 культур, политых дождём или насосом","waterEfficiency",5,50],
   ["all_crops","Ботаник","Собери 5 разных видов культур","cropTypes",5,60],
   ["coins_150","Фермерский бизнес","Получи 150 монет от продажи урожая","sales",150,75],
-  ["automated","Умная ферма","Выполни 30 действий программой","programActions",30,100]
+  ["automated","Умная ферма","Выполни 30 действий программой","programActions",30,100],
+  ["banana","Тропический урожай","Собери первый банан","bananaHarvested",1,50],
+  ["pineapple","Ананасовая плантация","Собери ананас","pineappleHarvested",1,55],
+  ["coconut","Кокосовая роща","Собери кокос","coconutHarvested",1,60],
+  ["cocoa","Какао-бобы","Собери какао","cocoaHarvested",1,65],
+  ["coffee","Кофейный урожай","Собери кофе","coffeeHarvested",1,60],
+  ["mango","Сладкий сезон","Собери манго","mangoHarvested",1,55],
+  ["cactus_fruit","Плоды пустыни","Собери плод кактуса","cactus_fruitHarvested",1,45],
+  ["volcanic_herb","Огненная ботаника","Собери вулканическую траву","volcanic_herbHarvested",1,80],
+  ["cranberry","Болотная ягода","Собери клюкву","cranberryHarvested",1,45],
+  ["rice","Рисовые поля","Собери рис","riceHarvested",1,50],
+  ["mushroom","Лесные дары","Собери лесной гриб","mushroomHarvested",1,40],
+  ["meadow_resources","Знакомство с равниной","Собери природный ресурс на равнине","meadowResourcesCollected",1,25],
+  ["desert_resources","Оазис в песках","Собери ресурс в пустыне","desertResourcesCollected",1,45],
+  ["mountain_resources","Клад гор","Собери минерал в горах","mountainResourcesCollected",1,55],
+  ["snow_resources","Полярная находка","Собери ресурс в снежном биоме","snowResourcesCollected",1,55],
+  ["tropical_resources","Дары джунглей","Собери ресурс в джунглях","tropicalResourcesCollected",1,50],
+  ["forest_resources","Лесной промысел","Собери ресурс в лесу","forestResourcesCollected",1,40],
+  ["volcanic_resources","Недра вулкана","Собери вулканический ресурс","volcanicResourcesCollected",1,85],
+  ["swamp_resources","Тайны болот","Собери ресурс в болотах","swampResourcesCollected",1,60]
 ].map(([id,title,description,stat,target,reward], index)=>({id,title,description,stat,target,reward,order:index+1}));
 
 // FarmerBot 2.1: placeable farm infrastructure and research unlocks.
