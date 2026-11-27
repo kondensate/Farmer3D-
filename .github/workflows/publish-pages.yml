@@ -1,9 +1,9 @@
-name: Publish FarmerBot 4.0 preview
+name: Publish FarmerBot 4.0
 
 on:
   push:
     branches:
-      - farmerbot-4.0
+      - main
   workflow_dispatch:
 
 permissions:
@@ -42,6 +42,6 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
-      - name: Publish preview
+      - name: Publish game
         id: deployment
         uses: actions/deploy-pages@v4
