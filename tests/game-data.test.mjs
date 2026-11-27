@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from "../src/data.js";
+import { BIOMES, BIOME_ORDER } from "../src/world.js";
 
-test("catalog includes ten distinct growable crops", () => {
-  assert.equal(Object.keys(CROPS).length, 10);
+test("catalog includes 21 distinct growable crops, with 11 regional varieties", () => {
+  assert.equal(Object.keys(CROPS).length, 21);
   for (const [key, crop] of Object.entries(CROPS)) {
     assert.ok(crop.name && crop.icon && crop.shape, key);
     assert.ok(crop.growTime > 0 && crop.price > 0 && crop.seedCost > 0, key);
@@ -17,9 +18,9 @@ test("fleet catalog defines the four robot roles", () => {
   }
 });
 
-test("30 missions have unique IDs and valid progress targets", () => {
-  assert.equal(MISSIONS.length, 30);
-  assert.equal(new Set(MISSIONS.map(m => m.id)).size, 30);
+test("49 missions have unique IDs and valid progress targets", () => {
+  assert.equal(MISSIONS.length, 49);
+  assert.equal(new Set(MISSIONS.map(m => m.id)).size, 49);
   for (const m of MISSIONS) {
     assert.ok(m.target > 0 && m.reward > 0, m.id);
   }
@@ -55,4 +56,16 @@ test("Stage B exposes power generators, buffers, consumers and conveyor graph no
   for (const id of ["conveyor","conveyor_splitter","conveyor_filter","conveyor_buffer","conveyor_storage"]) {
     assert.equal(BUILDINGS[id].logisticsNode, true, id);
   }
+});
+
+
+test("every crop listed by a biome exists and regional crops are biome-bound", () => {
+  for (const biomeId of BIOME_ORDER) {
+    for (const cropId of BIOMES[biomeId].crops) assert.ok(CROPS[cropId], `${biomeId}: missing ${cropId}`);
+  }
+  for (const id of ["banana","pineapple","coconut","cocoa","coffee","mango"]) assert.deepEqual(CROPS[id].biomes,["tropical"]);
+  assert.deepEqual(CROPS.cactus_fruit.biomes,["desert"]);
+  assert.deepEqual(CROPS.volcanic_herb.biomes,["volcanic"]);
+  assert.ok(CROPS.mushroom.biomes.includes("forest"));
+  assert.ok(CROPS.rice.biomes.includes("swamp"));
 });

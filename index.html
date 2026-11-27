@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#17251c">
-<title>FarmerBot 3.0 Alpha 4 — Smart Farm</title>
+<title>FarmerBot 3.0 Biomes — Smart Farm</title>
 <style>
 :root{--bg:#17251c;--panel:#1d3025;--panel2:#294333;--lime:#c4e879;--cream:#f5f0d9;--muted:#bdcbb7;--line:#78936a}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;touch-action:none}
@@ -11,7 +11,7 @@
 .hud{position:fixed;z-index:2;top:env(safe-area-inset-top,8px);left:10px;right:10px;display:flex;gap:8px;align-items:flex-start;justify-content:space-between;pointer-events:none}
 .brand,.stat,.panel,.btn{background:rgba(24,42,30,.96);border:1px solid rgba(196,232,121,.28);box-shadow:0 7px 0 rgba(7,16,9,.28),0 12px 30px #07100955;backdrop-filter:blur(12px)}
 .brand{padding:9px 12px;border-radius:15px;font-weight:900;letter-spacing:.5px}.brand small{display:block;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:1.3px}
-.stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.stat{padding:9px 11px;border-radius:13px;font-size:12px;font-weight:800}
+.stats{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.stat{padding:9px 11px;border-radius:13px;font-size:12px;font-weight:800}.stats .statButton{border:1px solid #71845e;background:#23382a;color:#e9f2dc;cursor:pointer;font:inherit}.stats .statButton:active{transform:translateY(1px)}
 .bottom{position:fixed;z-index:3;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;justify-content:space-between;align-items:end;gap:10px;pointer-events:none}
 .pad{display:grid;grid-template-columns:48px 48px 48px;grid-template-rows:43px 43px 43px;gap:4px;pointer-events:auto}
 .btn{border-radius:14px;color:var(--cream);font-weight:800;font-size:17px;min-width:48px;min-height:43px;display:flex;align-items:center;justify-content:center;touch-action:none}
@@ -100,11 +100,47 @@
 #automationStatus{line-height:1.5;font-size:11px}
 #taskQueue{max-height:190px;overflow:auto}
 .buildingRow button{padding:5px 6px;font-size:9px;margin:2px}
+
+/* FarmerBot 3.0 biome selection */
+.worldSelect{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,10px) + 10px) 12px calc(env(safe-area-inset-bottom,10px) + 10px);background:radial-gradient(ellipse at 50% 0%,#35563d 0%,#132219 58%,#0c1710 100%);overflow:auto;touch-action:pan-y}
+.worldSelect.show{display:flex}
+.worldSelectShell{width:min(1020px,100%);max-height:100%;display:flex;flex-direction:column;gap:12px}
+.worldSelectHead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.worldSelectBrand{font-weight:900;font-size:clamp(18px,3vw,27px);letter-spacing:1px;color:#e8f4d7}
+.worldSelectBrand small{display:block;margin-top:4px;color:#a9c59a;font-size:10px;letter-spacing:2px}
+.worldSelectIntro{color:#dcebd0;font-size:13px;line-height:1.5;max-width:760px}
+.biomeSelectGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;overflow:auto;padding:2px 3px 8px;overscroll-behavior:contain}
+.biomeSelectCard{position:relative;display:flex;flex-direction:column;gap:7px;min-height:174px;padding:12px;text-align:left;background:linear-gradient(145deg,color-mix(in srgb,var(--biome-color) 28%,#1d3025),#15241a 76%);border:1px solid color-mix(in srgb,var(--biome-color) 65%,#506449);border-radius:14px;color:var(--cream);font:inherit}
+.biomeSelectCard .biomeIcon{font-size:25px}
+.biomeSelectCard strong{font-size:13px}
+.biomeSelectCard small{color:#c3d2b8;font-size:10px;line-height:1.4}
+.biomeSelectCard .biomeDifficulty{margin-top:auto;color:var(--lime);font-size:10px;font-weight:900}
+.biomeSelectCard button{border:0;border-radius:8px;padding:8px 6px;background:var(--lime);color:#17251c;font:800 10px ui-monospace,monospace}
+.biomeSelectCard.locked{opacity:.68;filter:saturate(.55)}
+.biomeSelectCard.locked button{background:#445548;color:#cad8c1}
+.biomeSelectCard.selected{outline:2px solid #d6f39b;outline-offset:1px}
+.worldSelectFoot{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#a9c59a;font-size:10px;line-height:1.4}
+.worldSelectFoot strong{color:#e5f2d5}
+@media(max-width:720px){.biomeSelectGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.biomeSelectCard{min-height:150px;padding:9px}.worldSelectShell{gap:9px}.worldSelectHead{align-items:flex-start;flex-direction:column}.worldSelectIntro{font-size:11px}.worldSelectFoot{align-items:flex-start;flex-direction:column}}
+
 </style>
 </head>
 <body>
+
+<div id="biomeSelectScreen" class="worldSelect" aria-label="Выбор биома">
+ <div class="worldSelectShell">
+  <div class="worldSelectHead">
+   <div class="worldSelectBrand">🌍 FARMERBOT 3D <small>BIOMES UPDATE · WORLD SELECT</small></div>
+   <div class="muted">НОВАЯ ФЕРМА · ВЫБЕРИ СТАРТОВУЮ ТЕРРИТОРИЮ</div>
+  </div>
+  <div class="worldSelectIntro">Каждый регион задаёт свой климат, растительность, ресурсы, сложность и условия выращивания. Новые территории будут открываться по мере развития фермы.</div>
+  <div id="biomeSelectGrid" class="biomeSelectGrid"></div>
+  <div class="worldSelectFoot"><span><strong>Сохранения Alpha 4:</strong> существующие фермы загружаются без сброса и остаются на зелёных равнинах.</span><span>Seed мира будет сохранён вместе с фермой.</span></div>
+ </div>
+</div>
+
 <div id="game"></div>
-<div class="hud"><div class="brand">🌱 FARMERBOT 3.0 <small>SMART AUTOMATION · ALPHA 4</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">⭐ ур. <span id="level">1</span> · <span id="xp">0</span> XP</div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div><div class="stat">🌤 <span id="weather">Ясно</span></div><div class="stat">🗓 <span id="season">🌱 Весна</span></div></div></div>
+<div class="hud"><div class="brand">🌱 FARMERBOT 3.0 <small>BIOMES UPDATE · ALPHA 6</small></div><div class="stats"><button class="stat statButton" id="openBiomes" type="button">🗺 МИР</button><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">⭐ ур. <span id="level">1</span> · <span id="xp">0</span> XP</div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div><div class="stat">🌍 <span id="biomeName">Зелёные равнины</span></div><div class="stat">🌡 <span id="temperature">14 °C</span></div><div class="stat">💧 <span id="humidity">Умеренная</span></div><div class="stat">🌤 <span id="weather">Ясно</span></div><div class="stat">🗓 <span id="season">🌱 Весна</span></div></div></div>
 <div class="legend">Нажимай стрелки: одно нажатие = один шаг на клетку<br>Подойди к грядке и нажми ДЕЙСТВИЕ: посади → полей → собери</div>
 <div class="bottom">
  <div class="pad">
@@ -172,6 +208,7 @@ return_to_base()</textarea><div id="ideAutocomplete" class="autocomplete-popup" 
  <div id="taskQueue" class="missionList"></div>
  <h3>АНГАР РОБОТОВ</h3>
  <div class="row"><button class="secondary" id="buyWaterBot">💧 WaterBot · 35 🪙</button><button class="secondary" id="buyHarvestBot">📦 HarvestBot · 50 🪙</button><button class="secondary" id="buyDroneBot">🚁 DroneBot · 70 🪙</button></div>
+ <h3>МОДУЛИ РОБОТОВ</h3><p id="robotModuleTarget" class="muted">Модули устанавливаются выбранному роботу и сохраняются в мире.</p><div id="robotModuleCatalog" class="row"></div>
  <h3>ОБОРУДОВАНИЕ</h3>
  <div class="row"><button class="secondary" id="buildPump">💦 Насос · 45 🪙</button><button class="secondary" id="buildSolar">☀ Панель · 60 🪙</button><button class="secondary" id="buildStorage">📦 Склад · 40 🪙</button></div>
  <p id="networkInfo" class="muted"></p>
@@ -182,7 +219,7 @@ return_to_base()</textarea><div id="ideAutocomplete" class="autocomplete-popup" 
  <p class="muted">Выбери здание, затем коснись свободного места на поле. Перемещение и удаление построек доступны ниже.</p>
  <div class="buildHint" id="buildHint">Выбери объект для размещения.</div>
  <div class="buildGrid" id="buildingCatalog"></div>
- <h3>🌍 НОВЫЕ ТЕРРИТОРИИ</h3><p class="muted" id="worldStatus">Весна · открыто 1 из 5 регионов</p><div class="buildGrid" id="landMarket"></div>
+ <h3>🌍 МИР И БИОМЫ</h3><p class="muted" id="worldStatus">Стартовая территория задаётся при создании мира. Новые регионы открываются за опыт и прогресс фермы.</p><p class="muted" id="resourceStock">Материалы пока не собраны</p>
  <div class="row"><button class="secondary" id="rotateBuilding">↻ ПОВЕРНУТЬ</button><button class="secondary" id="cancelBuilding">ОТМЕНА</button></div>
  <h3>ПОСТРОЙКИ НА ФЕРМЕ</h3><div id="placedBuildings"></div>
 </div>

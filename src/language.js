@@ -247,7 +247,7 @@ function parseProgram(source) {
 const truthy = v => !!v;
 const DSL_ACTIONS = Object.freeze([
   "move", "turn_left", "turn_right", "plant", "water", "harvest", "wait",
-  "scan", "refill_water", "return_to_base", "sleep", "go_to_plot", "transfer_to", "transfer_from"
+  "scan", "refill_water", "return_to_base", "sleep", "go_to_plot", "go_to_resource", "collect_resource", "transfer_to", "transfer_from"
 ]);
 const DSL_BUILTINS = Object.freeze(["print", "range", "abs", "min", "max", "floor", "ceil", "round"]);
 
