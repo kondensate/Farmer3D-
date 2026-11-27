@@ -1,0 +1,35 @@
+{
+  "id": "tropical",
+  "name": "Tropical Jungle",
+  "rendering": "procedural-low-poly",
+  "texture": {
+    "generator": "src/biome-visuals.js",
+    "ground": "#4e9761",
+    "soil": "#624934",
+    "repeat": {
+      "u": 18,
+      "v": 18
+    },
+    "wrapping": "RepeatWrapping",
+    "roughness": 0.96,
+    "accents": [
+      "#8ac75b",
+      "#337c52",
+      "#aa9b50",
+      "#4f9b91"
+    ]
+  },
+  "materials": {
+    "stone": "#6f8570",
+    "foliage": "#2f8750",
+    "trunk": "#8a613d",
+    "water": "#36aeb2",
+    "plotRim": "#6e8954"
+  },
+  "atmosphere": {
+    "sky": "#70bbd2",
+    "fog": "#9fcfc5",
+    "sun": "#ffe2aa"
+  },
+  "notes": "Palette specification for runtime-generated seamless CanvasTexture and shared Three.js low-poly meshes."
+}
