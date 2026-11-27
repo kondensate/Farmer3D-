@@ -232,8 +232,8 @@ function temperatureOffset(biomeId, seasonId) {
   return offsets[biomeId]?.[seasonId] ?? 0;
 }
 
-export function waterCostForPlot(biomeId = STARTER_BIOME, seasonId = "spring") {
-  const effects = getEnvironmentEffects(biomeId, seasonId, "sunny");
+export function waterCostForPlot(biomeId = STARTER_BIOME, seasonId = "spring", weatherId = "sunny") {
+  const effects = getEnvironmentEffects(biomeId, seasonId, weatherId);
   return Math.max(1, Math.ceil(effects.water - 1e-9));
 }
 
