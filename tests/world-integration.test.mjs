@@ -34,8 +34,9 @@ test("building placement remains constrained to owned ground", () => {
 });
 
 test("version 7 saves retain selected biome, seed and unlocked regions", () => {
-  assert.match(main, /version:7,[\s\S]*?activeBiome,seed:worldSeed/);
-  assert.match(main, /SAVE_KEY='farmerbot3d_save_v7'/);
+  assert.match(main, /version:8,[\s\S]*?activeBiome,seed:worldSeed/);
+  assert.match(main, /SAVE_KEY='farmerbot3d_save_v8'/);
   assert.match(main, /unlockedWorldBiomes:\[\.\.\.unlockedWorldBiomes\]/);
-  assert.match(main, /Number\(d\.version\|\|0\)<7/);
+  assert.match(main, /Number\(d\.version\|\|0\)<8/);
+  assert.match(main, /resourceStorage:worldResourceStorage/);
 });
