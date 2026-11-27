@@ -796,13 +796,13 @@ function renderBiomeSelector(){
   const saved=!!localStorage.getItem(WORLD_PROFILE_PREFIX+id);
   const canBuy=!owned&&isOpen&&coins>=price;
   const requirement=b.unlock.type==='starter'?'Стартовая территория':owned?(id===activeBiome?'Текущий мир':saved?'Сохранённый мир · можно продолжить':'Территория открыта'):!isOpen?`Нужно ${state.missingXP} XP и ${state.missingHarvest} урожаев`:`Цена открытия: ${price} 🪙`;
-  const label=owned?(id===activeBiome?'ТЕКУЩИЙ МИР':saved?'ПРОДОЛЖИТЬ':'СОЗДАТЬ МИР'):canBuy?'КУПИТЬ · '+price+' 🪙':isOpen?'НЕДОСТАТОЧНО МОНЕТ':'ЗАКРЫТО';
+  const label=owned?(id===activeBiome?'НАЧАТЬ ФЕРМУ':saved?'ПРОДОЛЖИТЬ':'СОЗДАТЬ МИР'):canBuy?'КУПИТЬ · '+price+' 🪙':isOpen?'НЕДОСТАТОЧНО МОНЕТ':'ЗАКРЫТО';
   return `<article class="biomeSelectCard ${isOpen?'':'locked'} ${activeBiome===id?'selected':''}" style="--biome-color:${color}">
    <span class="biomeIcon">${b.icon}</span><strong>${b.name}</strong><small>${b.description}</small>
    <small>🌡 ${b.temperature} · 💧 ${b.humidity}</small><small>Культуры: ${b.crops.slice(0,3).map(cropId=>CROPS[cropId]?.name||cropId).join(', ')}</small>
    <small>Ресурсы: ${b.resources.slice(0,3).map(resourceId=>RESOURCE_CATALOG[resourceId]?.name||resourceId).join(', ')}</small>
    <span class="biomeDifficulty">${b.difficulty}</span><small>${requirement}</small>
-   <button type="button" data-start-biome="${id}" ${owned&&id===activeBiome?'disabled':''} ${!owned&&!canBuy?'disabled':''}>${label}</button>
+   <button type="button" data-start-biome="${id}" ${!owned&&!canBuy?'disabled':''}>${label}</button>
   </article>`;
  }).join('');
  grid.querySelectorAll('[data-start-biome]').forEach(button=>button.onclick=()=>{
