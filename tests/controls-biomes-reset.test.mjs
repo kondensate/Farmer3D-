@@ -35,3 +35,10 @@ test("restart action starts a clean new game and ignores every previous save", (
   assert.match(html, /НАЧАТЬ НОВУЮ ИГРУ/);
   assert.match(html, /снова начнёшь с выбора стартового мира/);
 });
+
+
+test("the current starter biome can be selected to enter a fresh farm", () => {
+  assert.match(main, /id===activeBiome\?'НАЧАТЬ ФЕРМУ'/);
+  assert.doesNotMatch(main, /owned&&id===activeBiome\?'disabled'/);
+  assert.match(main, /if\(id===activeBiome\)\{\$\('#biomeSelectScreen'\)\.classList\.remove\('show'\);return;\}/);
+});
