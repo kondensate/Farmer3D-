@@ -74,10 +74,10 @@ function updateSeasonalWorldVisuals(){
  ground.material.color.setHex(tint);
  for(const object of startingWorldGroup.children){
   if(object.userData?.seasonalLeaf&&object.material?.color){
-   const foliage=activeBiome==='forest'||activeBiome==='meadow';
    const palette={spring:0x75b957,summer:0x4e974b,autumn:0xb9753e,winter:0x879e91};
-   object.material.color.setHex(foliage?palette[season]:(object.userData.baseColor||0x4e8950));
+   object.material.color.setHex(palette[season]||object.userData.baseColor||0x4e8950);
   }
+  if(object.userData?.windSway)object.userData.baseRotationZ??=object.rotation.z;
  }
 }
 function updateWeatherVisuals(dt){
@@ -108,6 +108,8 @@ function updateWeatherVisuals(dt){
   }
  }
  positions.needsUpdate=true;
+ const sway=weather==='wind'||weather==='blizzard'?.12:weather==='rain'||weather==='heavy-rain'?.045:0;
+ for(const object of startingWorldGroup.children)if(object.userData?.windSway)object.rotation.z=(object.userData.baseRotationZ||0)+Math.sin(robotAnimTime*2.2+object.position.x)*sway;
  scene.fog.near=weather==='fog'?5:weather==='heavy-rain'||weather==='blizzard'?10:22;
  scene.fog.far=weather==='fog'?28:weather==='heavy-rain'||weather==='blizzard'?36:48;
 }
@@ -209,7 +211,8 @@ function addStartingTree(x,z,kind='tree'){
   for(let i=0;i<3;i++){const cone=new THREE.Mesh(new THREE.ConeGeometry(.58-i*.1,.95,7),leafMat);cone.position.set(x,terrainHeightAtWorld(x,z)+.62+i*.44,z);cone.castShadow=true;startingWorldGroup.add(cone);}
  }else{
   const colors={forest:0x315b36,meadow:0x4e8950,tropical:0x2d7e48,swamp:0x506b43,volcanic:0x595247};
-  const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(kind==='broadleaf'?1.05:.78,1),mat(colors[activeBiome]||0x4e8950));
+  const crownColor=colors[activeBiome]||0x4e8950,crown=new THREE.Mesh(new THREE.IcosahedronGeometry(kind==='broadleaf'?1.05:.78,1),mat(crownColor));
+  crown.userData.seasonalLeaf=['forest','meadow'].includes(activeBiome);crown.userData.baseColor=crownColor;crown.userData.windSway=true;
   crown.position.set(x,terrainHeightAtWorld(x,z)+1.25,z);crown.castShadow=true;startingWorldGroup.add(crown);
  }
 }
