@@ -311,8 +311,10 @@ export function generateWorldMap(seed = 1, biomeId = STARTER_BIOME, options = {}
       else if (biomeId === "swamp") height = Math.max(-.35, Math.round((ridgeNoise * .25 + hillNoise * .08) * 4) / 4);
       else if (biomeId === "tropical") height = Math.max(-.1, Math.round((ridgeNoise * .25 + hillNoise * .12) * 4) / 4);
       else if (biomeId === "forest") height = Math.max(0, Math.round((ridgeNoise * .55 + hillNoise * .18) * 4) / 4);
-      heightMap.push({ x, z, height: distance < 7 ? 0 : height });
-      if (Math.abs(x) > half - 2 || Math.abs(z) > half - 2 || distance < 8.5) continue;
+      const fieldClearing = Math.hypot(x, z) < 8.5;
+      const baseClearing = distance < 8.5;
+      heightMap.push({ x, z, height: fieldClearing || baseClearing ? 0 : height });
+      if (Math.abs(x) > half - 2 || Math.abs(z) > half - 2 || fieldClearing || baseClearing) continue;
       const roll = rng();
       if (roll < .055) {
         obstacles.push({ id: `obstacle-${obstacles.length + 1}`, type: definition.obstacles[Math.floor(rng() * definition.obstacles.length)], x, z, radius: .45 + rng() * .55 });
