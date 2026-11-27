@@ -340,7 +340,8 @@ export function generateWorldMap(seed = 1, biomeId = STARTER_BIOME, options = {}
         const rightRidge = Math.exp(-Math.pow((x - (valleyAxis + 8.1)) / 5.2, 2)) * (4.05 + Math.cos(z * .27) * .6);
         const backWall = Math.exp(-Math.pow((z + 14.2) / 3.5, 2)) * (1.9 + Math.cos(x * .34) * .65);
         const valleyFloor = Math.exp(-Math.pow(x / 3.6, 2)) * Math.exp(-Math.pow((z + 12) / 8, 2));
-        height = Math.max(0, leftRidge + rightRidge + backWall - valleyFloor * 1.15 + hillNoise * .12);
+        const terrainBlend = Math.min(1, Math.max(0, (Math.hypot(x, z) - 8.5) / 9));
+        height = Math.max(0, (leftRidge + rightRidge + backWall - valleyFloor * 1.15 + hillNoise * .12) * terrainBlend);
         height = Math.round(height * 4) / 4;
       }
       else if (biomeId === "desert") {
