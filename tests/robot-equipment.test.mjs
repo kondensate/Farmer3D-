@@ -25,7 +25,7 @@ test("unknown and duplicate modules are ignored safely", () => {
   assert.equal(effects.stepBonus, 0);
 });
 
-import { biomeMovementMultiplier } from "../src/robot-equipment.js";
+import { biomeMovementMultiplier, biomeWorkCostMultiplier } from "../src/robot-equipment.js";
 
 test("matching biome equipment improves movement without buffing other regions", () => {
   assert.equal(biomeMovementMultiplier(["thermal_shield"], "volcanic"), 1.18);
@@ -33,3 +33,8 @@ test("matching biome equipment improves movement without buffing other regions",
   assert.equal(biomeMovementMultiplier(["cold_tracks"], "snow"), 1.18);
 });
 
+
+test("matching biome equipment reduces work energy cost", () => {
+  assert.equal(biomeWorkCostMultiplier(["swamp_chassis"], "swamp"), 0.88);
+  assert.equal(biomeWorkCostMultiplier(["swamp_chassis"], "forest"), 1);
+});
