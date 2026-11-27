@@ -6,8 +6,10 @@ import { createDebuggerController } from './debugger.js';
 import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from './data.js';
 import { GRID_STEP, worldToCell, cellToWorld, findPath, buildBlockedCells } from './navigation.js';
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
-import { BIOMES, SEASONS, LAND_PARCELS, SEASON_LENGTH_SECONDS, advanceSeason, getSeasonWeather, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
+import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
 let ide=null;
+let activeBiome='meadow',worldSeed='legacy-meadow',generatedWorld=null;
+const unlockedWorldBiomes=new Set(['meadow']);
 const sensorNames=['can_harvest','can_plant','can_water','is_ready','get_water','get_coins','get_harvest','tile_state','count_ready','count_empty','front_is_clear','at_plot','distance_to_plot','has_water','get_energy','get_position','get_inventory','get_plant_age','scan','has_ready_plot','has_empty_plot','has_thirsty_plot'];
 const root=document.querySelector('#game');
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bc7c2); scene.fog=new THREE.Fog(0x9bc7c2,22,48);
@@ -39,10 +41,11 @@ const biomeTerrainMaterials=Object.fromEntries(Object.values(BIOMES).map(item=>[
 function box(parent,w,h,d,m,x,y,z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
 const ground=box(scene,38,.4,38,grass,0,-.3,0);
 const grid=new THREE.GridHelper(38,38,0x557b45,0x6f9656);grid.position.y=-.095;grid.material.transparent=true;grid.material.opacity=.28;scene.add(grid);
+const startingWorldGroup=new THREE.Group();scene.add(startingWorldGroup);
 // distant hills / trees
 for(let i=0;i<22;i++){let a=i*Math.PI*2/22;let x=Math.cos(a)*15,z=Math.sin(a)*15;if(Math.abs(x)<8&&Math.abs(z)<8)continue;
-let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.17,1,7),mat(0x65452b));trunk.position.set(x,.35,z);scene.add(trunk);
-let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,1),mat(i%2?0x397348:0x4e8950));crown.position.set(x,1.25,z);crown.castShadow=true;scene.add(crown);}
+let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.17,1,7),mat(0x65452b));trunk.position.set(x,.35,z);startingWorldGroup.add(trunk);
+let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,1),mat(i%2?0x397348:0x4e8950));crown.position.set(x,1.25,z);crown.castShadow=true;startingWorldGroup.add(crown);}
 const plots=[],ownedBiomes=new Set(['meadow']),landMeshes=new Map();
 function createPlotAt(x,z,biome='meadow'){
  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
@@ -86,6 +89,81 @@ function createBiomeLand(biomeId){
  return true;
 }
 for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++)createPlotAt(x*2.4,z*2.4,'meadow');
+
+function clearStartingWorldGroup(){
+ for(const child of [...startingWorldGroup.children]){
+  child.traverse?.(object=>{if(object.geometry)object.geometry.dispose();});
+  startingWorldGroup.remove(child);
+ }
+}
+function addStartingTree(x,z,kind='tree'){
+ const trunkColor=activeBiome==='volcanic'?0x383332:activeBiome==='snow'?0x6c5846:0x765338;
+ const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.09,.16,1.05,6),mat(trunkColor));
+ trunk.position.set(x,.52,z);startingWorldGroup.add(trunk);
+ if(kind==='palm'){
+  const crown=mat(0x3d995d);
+  for(let i=0;i<6;i++){const angle=i*Math.PI/3;const frond=new THREE.Mesh(new THREE.BoxGeometry(.13,.055,1.55),crown);frond.position.set(x+Math.cos(angle)*.45,1.18,z+Math.sin(angle)*.45);frond.rotation.y=angle;frond.rotation.x=-.38;startingWorldGroup.add(frond);}
+ }else if(kind.includes('pine')||kind.includes('fir')){
+  const leafMat=mat(activeBiome==='snow'?0x547d78:0x315c3c);
+  for(let i=0;i<3;i++){const cone=new THREE.Mesh(new THREE.ConeGeometry(.58-i*.1,.95,7),leafMat);cone.position.set(x,.62+i*.44,z);cone.castShadow=true;startingWorldGroup.add(cone);}
+ }else{
+  const colors={forest:0x315b36,meadow:0x4e8950,tropical:0x2d7e48,swamp:0x506b43,volcanic:0x595247};
+  const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(kind==='broadleaf'?1.05:.78,1),mat(colors[activeBiome]||0x4e8950));
+  crown.position.set(x,1.25,z);crown.castShadow=true;startingWorldGroup.add(crown);
+ }
+}
+function addStartingRock(x,z,kind='rock'){
+ const color=activeBiome==='volcanic'?0x343034:activeBiome==='snow'?0x9cabb2:activeBiome==='desert'?0x9c8057:0x777b78;
+ const rock=new THREE.Mesh(new THREE.IcosahedronGeometry(kind==='cliff'?1.15:.62,0),mat(color));
+ rock.position.set(x,.35,z);rock.scale.set(1.35,.8,1);rock.rotation.y=(x-z)*.17;rock.castShadow=true;startingWorldGroup.add(rock);
+}
+function createStartingWorldVisuals(map){
+ clearStartingWorldGroup();
+ const scale=1.15;
+ for(const item of map.vegetation){
+  const x=item.x*scale,z=item.z*scale;
+  if(['cactus'].includes(item.type)){
+   const cactusMat=mat(0x548653),body=new THREE.Mesh(new THREE.CylinderGeometry(.16,.2,1.05,7),cactusMat);body.position.set(x,.53,z);startingWorldGroup.add(body);
+   for(const side of [-1,1]){const arm=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,.48,6),cactusMat);arm.position.set(x+side*.23,.48,z);arm.rotation.z=-side*.45;startingWorldGroup.add(arm);}
+  }else if(item.type.includes('shrub')||item.type.includes('grass')||item.type.includes('moss')||item.type==='mushroom'){
+   const sphere=new THREE.Mesh(new THREE.IcosahedronGeometry(.3,0),mat(item.type==='mushroom'?0xc66b54:0x64814a));sphere.position.set(x,.2,z);sphere.scale.set(1,.55,1);startingWorldGroup.add(sphere);
+  }else addStartingTree(x,z,item.type);
+ }
+ for(const item of map.obstacles){
+  const x=item.x*scale,z=item.z*scale;
+  if(['river','deep-water','flood-zone','frozen-lake'].includes(item.type)){
+   const waterMat=mat(activeBiome==='snow'?0x9ccbd8:0x397f8e,.35);
+   const patch=new THREE.Mesh(new THREE.BoxGeometry(2.1,.035,1.2),waterMat);patch.position.set(x,-.075,z);patch.rotation.y=(x+z)*.12;startingWorldGroup.add(patch);
+  }else if(['lava','crater','steam-vent','hot-rock'].includes(item.type)){
+   const hot=mat(item.type==='lava'?0xe6572d:0x4b4240,.45);
+   const patch=new THREE.Mesh(new THREE.CylinderGeometry(.35,.6,.12,7),hot);patch.position.set(x,.04,z);startingWorldGroup.add(patch);
+   if(item.type==='steam-vent'){const steam=new THREE.Mesh(new THREE.ConeGeometry(.18,.65,6),mat(0xb9aaa0,.9));steam.position.set(x,.38,z);startingWorldGroup.add(steam);}
+  }else if(['tree','dense-tree','fallen-tree','stump','thicket','reed-bed'].includes(item.type)){
+   if(item.type==='stump'||item.type==='fallen-tree')addStartingRock(x,z,'rock');else addStartingTree(x,z,item.type.includes('pine')?'pine':item.type);
+  }else addStartingRock(x,z,item.type==='cliff'||item.type==='ravine'?'cliff':'rock');
+ }
+ for(const item of map.resources){
+  const marker=new THREE.Mesh(new THREE.OctahedronGeometry(.16,0),mat(activeBiome==='volcanic'?0xe28a4b:activeBiome==='snow'?0x9be0e8:0xd7c478));
+  marker.position.set(item.x*scale,.2,item.z*scale);startingWorldGroup.add(marker);
+ }
+ if(activeBiome==='swamp'||activeBiome==='tropical'){
+  for(let i=0;i<7;i++){const x=(i-3)*3.2,z=(i%2? -13:13);const waterPatch=new THREE.Mesh(new THREE.BoxGeometry(2.2,.035,1.3),mat(0x397f8e,.35));waterPatch.position.set(x,-.075,z);startingWorldGroup.add(waterPatch);}
+ }
+}
+function applyStartingBiome(biomeId,seed){
+ const definition=BIOMES[biomeId]||BIOMES.meadow;
+ activeBiome=definition.id;worldSeed=String(seed||'farmerbot-world-1');
+ generatedWorld=generateWorldMap(worldSeed,activeBiome);
+ ground.material=activeBiome==='meadow'?grass:(biomeTerrainMaterials[activeBiome]||grass);
+ ground.material.needsUpdate=true;
+ scene.background.setHex(definition.terrain);scene.fog.color.setHex(definition.terrain);
+ for(const plot of plots){scene.remove(plot.g);plot.g.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
+ plots.length=0;
+ for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++)createPlotAt(x*2.4,z*2.4,activeBiome);
+ createStartingWorldVisuals(generatedWorld);
+ if(typeof robot!=='undefined')robot.position.set(0,0,7);
+ if(typeof agents!=='undefined'&&agents[0])agents[0].mesh.position.set(0,0,7);
+}
 
 const particleGeo=new THREE.BoxGeometry(.075,.075,.075),particles=[];
 function burst(pos,color=0xf2d36e,count=10){
@@ -443,10 +521,38 @@ const BASE_DOCKS={
 };
 function baseDock(agent){return (BASE_DOCKS[agent.type]||BASE_POSITION).clone();}
 const $=s=>document.querySelector(s);
+function renderBiomeSelector(){
+ const grid=$('#biomeSelectGrid');if(!grid)return;
+ const progress={xp,harvested:metrics.harvested||0};
+ grid.innerHTML=BIOME_ORDER.map(id=>{
+  const b=BIOMES[id],state=getBiomeUnlockState(id,progress,unlockedWorldBiomes),isOpen=state.unlocked,owned=unlockedWorldBiomes.has(id),color='#'+Number(b.terrain).toString(16).padStart(6,'0');
+  const requirement=b.unlock.type==='starter'?'Стартовая территория':owned?'Территория открыта':isOpen?'Готово к открытию':`Осталось ${state.missingXP} XP · ${state.missingHarvest} урожаев`;
+  const button=owned?'ВЫБРАТЬ':isOpen?'ОТКРЫТЬ':'ЗАКРЫТО';
+  return `<article class="biomeSelectCard ${isOpen?'':'locked'} ${activeBiome===id?'selected':''}" style="--biome-color:${color}">
+   <span class="biomeIcon">${b.icon}</span><strong>${b.name}</strong><small>${b.description}</small>
+   <small>🌡 ${b.temperature} · 💧 ${b.humidity}</small><small>Ресурсы: ${b.resources.slice(0,3).join(', ')}</small>
+   <span class="biomeDifficulty">${b.difficulty}</span><small>${requirement}</small>
+   <button type="button" data-start-biome="${id}" ${isOpen?'':'disabled'}>${button}</button>
+  </article>`;
+ }).join('');
+ grid.querySelectorAll('[data-start-biome]').forEach(button=>button.onclick=()=>{
+  const id=button.dataset.startBiome;
+  const state=getBiomeUnlockState(id,progress,unlockedWorldBiomes);
+  if(!state.unlocked){toast('Сначала выполни условия открытия этого биома');return;}
+  const result=unlockBiome(id,progress,unlockedWorldBiomes);
+  if(!result.ok){toast('Биом пока закрыт');return;}
+  unlockedWorldBiomes.add(id);
+  const seed=`farmerbot-${Date.now().toString(36)}-${id}`;
+  applyStartingBiome(id,seed);season='spring';seasonClock=0;weatherStep=0;weather=getBiomeWeather(activeBiome,season,weatherStep,worldSeed);
+  $('#biomeSelectScreen').classList.remove('show');stats();renderLandMarket();saveGame();
+  toast(`${BIOMES[id].name}: создан новый мир · seed ${worldSeed}`);
+ });
+}
 function stats(){
  $('#coins').textContent=coins;$('#harvest').textContent=harvest;$('#water').textContent=`${water}/${waterCapacity()}`;
  const lvl=1+Math.floor(xp/100);$('#level').textContent=lvl;$('#xp').textContent=xp%100;
- $('#weather').textContent=weather==='rain'?'Дождь':weather==='drought'?'Засуха':weather==='snow'?'Снег':'Ясно';
+ $('#weather').textContent=WEATHER_LABELS[weather]||weather;
+ $('#biomeName').textContent=BIOMES[activeBiome]?.name||'Зелёные равнины';
  const seasonInfo=SEASONS.find(item=>item.id===season)||SEASONS[0];$('#season').textContent=`${seasonInfo.icon} ${seasonInfo.name}`;
 }
 const claimedMissions=new Set(),programmedBots=new Set();
@@ -537,10 +643,10 @@ function buySeedPack(){
  if(gameMode!=='sandbox')coins-=c.seedCost;seedStock[activeSeed]=(seedStock[activeSeed]||0)+5;stats();renderSeedStock();saveGame();toast(`${c.icon} Куплено 5 семян: ${c.name}`);
 }
 
-const SAVE_KEY='farmerbot3d_save_v6',PREVIOUS_SAVE_KEY='farmerbot3d_save_v5',LEGACY_SAVE_KEY='farmerbot3d_save_v4',OLDER_SAVE_KEY='farmerbot3d_save_v3',OLDEST_SAVE_KEY='farmerbot3d_save_v2';
+const SAVE_KEY='farmerbot3d_save_v7',PREVIOUS_SAVE_KEY='farmerbot3d_save_v6',LEGACY_SAVE_KEY='farmerbot3d_save_v5',OLDER_SAVE_KEY='farmerbot3d_save_v4',OLD_SAVE_KEY='farmerbot3d_save_v3',OLDEST_SAVE_KEY='farmerbot3d_save_v2';
 function saveGame(){
  const data={
-  version:6,coins,harvest,water,xp,researchPoints,seedStock,harvestStorage,metrics,gameMode,activeSeed,automation:{powerLinks,conveyorLinks,autoDispatchEnabled},world:{season,seasonClock,weatherStep,unlockedBiomes:[...ownedBiomes]},
+  version:7,coins,harvest,water,xp,researchPoints,seedStock,harvestStorage,metrics,gameMode,activeSeed,automation:{powerLinks,conveyorLinks,autoDispatchEnabled},world:{schemaVersion:WORLD_SCHEMA_VERSION,activeBiome,seed:worldSeed,season,seasonClock,weatherStep,unlockedWorldBiomes:[...unlockedWorldBiomes],unlockedBiomes:[...ownedBiomes]},
   harvestedTypes:[...harvestedTypes],claimedMissions:[...claimedMissions],programmedBots:[...programmedBots],weather,
   equipment:{pump:pumpBuilt,solar:solarBuilt,storage:storageBuilt},
   buildings:buildings.map(({mesh,...b})=>b),researchedTechs:[...researchedTechs],
@@ -552,7 +658,7 @@ function saveGame(){
 }
 function loadGame(){
  try{
-  const raw=localStorage.getItem(SAVE_KEY)||localStorage.getItem(PREVIOUS_SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY)||localStorage.getItem(OLDER_SAVE_KEY)||localStorage.getItem(OLDEST_SAVE_KEY);if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();return;}
+  const raw=localStorage.getItem(SAVE_KEY)||localStorage.getItem(PREVIOUS_SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY)||localStorage.getItem(OLDER_SAVE_KEY)||localStorage.getItem(OLD_SAVE_KEY)||localStorage.getItem(OLDEST_SAVE_KEY);if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();renderBiomeSelector();$('#biomeSelectScreen').classList.add('show');return;}
   const d=JSON.parse(raw);isLoadingGame=true;
   coins=Number.isFinite(d.coins)?d.coins:90;harvest=Number(d.harvest)||0;water=Number.isFinite(d.water)?d.water:8;xp=Number(d.xp)||0;researchPoints=Number.isFinite(d.researchPoints)?d.researchPoints:xp;
   if(d.seedStock)Object.assign(seedStock,d.seedStock);
@@ -562,8 +668,8 @@ function loadGame(){
   if(Array.isArray(d.claimedMissions))d.claimedMissions.forEach(v=>claimedMissions.add(v));if(Array.isArray(d.programmedBots))d.programmedBots.forEach(v=>programmedBots.add(v));
   if(Array.isArray(d.researchedTechs))d.researchedTechs.forEach(v=>{if(TECHNOLOGIES.some(t=>t.id===v))researchedTechs.add(v);});
   if(d.challenge){challengeSeconds=Number.isFinite(d.challenge.seconds)?d.challenge.seconds:180;challengeHarvested=Number(d.challenge.harvested)||0;challengeDone=!!d.challenge.done;challengeResult=String(d.challenge.result||'');}
-  if(d.world){season=SEASONS.some(item=>item.id===d.world.season)?d.world.season:'spring';seasonClock=Math.max(0,Math.min(SEASON_LENGTH_SECONDS-0.001,Number(d.world.seasonClock)||0));weatherStep=Math.max(0,Number(d.world.weatherStep)||0);ownedBiomes.clear();ownedBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(LAND_PARCELS[id])createBiomeLand(id);}
-  activeSeed=CROPS[d.activeSeed]?d.activeSeed:'carrot';weather=['sunny','rain','drought','snow'].includes(d.weather)?d.weather:getSeasonWeather(season,weatherStep);gameMode=['campaign','sandbox','challenges','freeplay'].includes(d.gameMode)?d.gameMode:'campaign';$('#gameMode').value=gameMode;
+  if(d.world){season=SEASONS.some(item=>item.id===d.world.season)?d.world.season:'spring';seasonClock=Math.max(0,Math.min(SEASON_LENGTH_SECONDS-0.001,Number(d.world.seasonClock)||0));weatherStep=Math.max(0,Number(d.world.weatherStep)||0);activeBiome=BIOMES[d.world.activeBiome]?d.world.activeBiome:'meadow';worldSeed=String(d.world.seed||'legacy-meadow');unlockedWorldBiomes.clear();unlockedWorldBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedWorldBiomes)?d.world.unlockedWorldBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);if(BIOMES[activeBiome])unlockedWorldBiomes.add(activeBiome);applyStartingBiome(activeBiome,worldSeed);ownedBiomes.clear();ownedBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(LAND_PARCELS[id])createBiomeLand(id);}
+  activeSeed=CROPS[d.activeSeed]?d.activeSeed:'carrot';weather=WEATHER_LABELS[d.weather]?d.weather:getBiomeWeather(activeBiome,season,weatherStep,worldSeed);gameMode=['campaign','sandbox','challenges','freeplay'].includes(d.gameMode)?d.gameMode:'campaign';$('#gameMode').value=gameMode;
   const a0=d.agents?.find(a=>a.id==='farmbot');
   if(a0){robot.position.set(Number.isFinite(Number(a0.x))?Number(a0.x):0,0,Number.isFinite(Number(a0.z))?Number(a0.z):7);robot.rotation.y=Number(a0.rotation)||0;agents[0].energy=THREE.MathUtils.clamp(Number.isFinite(Number(a0.energy))?Number(a0.energy):100,0,agents[0].maxEnergy);agents[0].inventory=a0.inventory||{};agents[0].program=a0.program??agents[0].program;}
   else if(d.robot){robot.position.set(Number(d.robot.x)||0,0,Number(d.robot.z)||7);robot.rotation.y=Number(d.robot.rotation)||0;}
@@ -586,7 +692,7 @@ function loadGame(){
   if(d.equipment){pumpBuilt=!!d.equipment.pump;solarBuilt=!!d.equipment.solar;storageBuilt=!!d.equipment.storage;
    if(pumpBuilt)buildEquipment('pump');if(solarBuilt)buildEquipment('solar');if(storageBuilt)buildEquipment('storage');}
   buildings.length=0;nextBuildingId=1;if(Array.isArray(d.buildings))for(const saved of d.buildings){if(!BUILDINGS[saved.type])continue;const record={...BUILDINGS[saved.type],...saved,id:Number(saved.id)||nextBuildingId++,type:saved.type,x:Number(saved.x)||0,z:Number(saved.z)||0,rotation:Number(saved.rotation)||0,items:Array.isArray(saved.items)?saved.items:[],batteryCharge:Math.max(0,Number(saved.batteryCharge)||0),filterCrop:CROPS[saved.filterCrop]?saved.filterCrop:'all',routeIndex:Number(saved.routeIndex)||0,routeClock:Number(saved.routeClock)||0,legacyUnwired:Number(d.version||0)<5&&['conveyor','charger','robot_station'].includes(saved.type)};record.mesh=createBuildingMesh(record.type,record.x,record.z,record.rotation,false);buildings.push(record);nextBuildingId=Math.max(nextBuildingId,record.id+1);}if(d.automation){powerLinks.splice(0,powerLinks.length,...(Array.isArray(d.automation.powerLinks)?d.automation.powerLinks:[]));conveyorLinks.splice(0,conveyorLinks.length,...(Array.isArray(d.automation.conveyorLinks)?d.automation.conveyorLinks:[]));autoDispatchEnabled=!!d.automation.autoDispatchEnabled;}renderAutomationLinks();
-  lastLevel=1+Math.floor(xp/100);isLoadingGame=false;updateMissions();stats();renderSeedStock();renderFleetUI();renderMissions();renderBuildingUI();renderTechs();renderChallengeStatus();renderLandMarket();if(d.version<6)saveGame();
+  lastLevel=1+Math.floor(xp/100);isLoadingGame=false;updateMissions();stats();renderSeedStock();renderFleetUI();renderMissions();renderBuildingUI();renderTechs();renderChallengeStatus();renderLandMarket();if(Number(d.version||0)<7)saveGame();
  }catch(e){isLoadingGame=false;console.warn('Ошибка загрузки сохранения',e);stats();}
 }
 
@@ -1054,16 +1160,16 @@ function update(dt){
 
  // Season calendar advances independently from the day/night clock.
  const seasonChange=advanceSeason(season,seasonClock,dt);seasonClock=seasonChange.seasonClock;
- if(seasonChange.changed){season=seasonChange.season;seasonClock=0;weatherClock=0;weatherStep=0;weather=getSeasonWeather(season,weatherStep);stats();renderLandMarket();toast(`🗓 Наступил сезон: ${(SEASONS.find(item=>item.id===season)||SEASONS[0]).name}`);saveGame();}
+ if(seasonChange.changed){season=seasonChange.season;seasonClock=0;weatherClock=0;weatherStep=0;weather=getBiomeWeather(activeBiome,season,weatherStep,worldSeed);stats();renderLandMarket();toast(`🗓 Наступил сезон: ${(SEASONS.find(item=>item.id===season)||SEASONS[0]).name}`);saveGame();}
  // Challenge mode is a real timed scenario with a finite seed/water/coin budget.
  if(gameMode==='challenges'&&!challengeDone){challengeSeconds=Math.max(0,challengeSeconds-dt);if(challengeSeconds<=0){challengeDone=true;challengeResult=challengeHarvested>=5?'УСПЕХ':'ВРЕМЯ ВЫШЛО';if(challengeHarvested<5)toast('⏱ Время испытания вышло');saveGame();}if(Math.ceil(challengeSeconds)!==Math.ceil(challengeSeconds+dt))renderChallengeStatus();}
  // Seasonal weather cycle; rain and snow restore soil moisture, drought slows growth.
  weatherClock+=dt;
  if(weatherClock>45){
-  weatherClock=0;weatherStep=(weatherStep+1)%4;weather=getSeasonWeather(season,weatherStep);
-  if(weather==='rain'||weather==='snow'){
+  weatherClock=0;weatherStep=(weatherStep+1)%8;weather=getBiomeWeather(activeBiome,season,weatherStep,worldSeed);
+  if(['rain','heavy-rain','thunderstorm','snow','blizzard'].includes(weather)){
    for(const p of plots)if(['seed','growing'].includes(p.state)&&!p.watered){p.watered=true;p.waterSource=weather;metrics.watered++;if(p.state==='seed')setState(p,'growing');}
-   toast(weather==='snow'?'❄️ Снег укрыл ферму и увлажнил грядки':'🌧 Дождь увлажнил грядки');
+   toast(['snow','blizzard'].includes(weather)?'❄️ Снег укрыл ферму и увлажнил грядки':'🌧 Осадки увлажнили грядки');
   }else toast(weather==='drought'?'☀ Засуха: растения растут медленнее':'🌤 Погода улучшилась');
   stats();renderLandMarket();saveGame();
  }
@@ -1088,7 +1194,8 @@ function update(dt){
   }
  }
  // Stage B grid: generate, route, buffer and allocate energy each simulation tick.
- powerState=updatePowerGrid(buildings,powerLinks,dt,{solarFactor:Math.max(.12,daylight)*(weather==='rain'?.55:weather==='snow'?.35:1),windFactor:weather==='rain'?1.15:weather==='snow'?1.25:weather==='drought'?.75:.9});
+ const climateEffects=getEnvironmentEffects(activeBiome,season,weather);
+ powerState=updatePowerGrid(buildings,powerLinks,dt,{solarFactor:Math.max(.08,daylight)*climateEffects.solar,windFactor:weather==='wind'||weather==='blizzard'?1.35:weather==='rain'||weather==='heavy-rain'?1.15:weather==='drought'||weather==='heatwave'?.75:.9});
  for(const b of buildings)b.powered=!!powerState.powered.get(String(b.id))||!!b.legacyUnwired;
  // Powered pumps irrigate one thirsty plot at a time.
  pumpClock+=dt;
