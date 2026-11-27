@@ -276,13 +276,51 @@ function makeCrop(plot){
       mesh(new THREE.SphereGeometry(.13,9,8),mat(0x754b26),0,h+.08,0);
       for(let i=0;i<10;i++){const a=i*Math.PI*2/10;mesh(new THREE.SphereGeometry(.075,7,6),cropMat(0xf4cb4f),Math.cos(a)*.2,h+.08,Math.sin(a)*.2,[.7,1.35,.7]);}
       break;
+    case 'banana':
+      for(let i=0;i<4;i++){const q=mesh(new THREE.SphereGeometry(.12,10,8),fruitMat,Math.cos(i*1.25)*.17,y-.18+Math.sin(i*1.25)*.08,Math.sin(i*1.25)*.16,[.72,1.65,.72]);q.rotation.z=.28;}
+      break;
+    case 'pineapple':
+      mesh(new THREE.CylinderGeometry(.17,.22,.48,8),fruitMat,0,y-.12,0,[1,1,1]);
+      for(let i=0;i<7;i++){const a=i*Math.PI*2/7;mesh(new THREE.ConeGeometry(.07,.38,5),leafMat,Math.cos(a)*.1,y+.22,Math.sin(a)*.1).rotation.z=Math.cos(a)*.5;}
+      mesh(new THREE.ConeGeometry(.13,.43,6),leafMat,0,y+.38,0);
+      break;
+    case 'coconut':
+      mesh(new THREE.SphereGeometry(.2,10,8),cropMat(0x765239),.08,y-.15,0,[1,1.05,.9]);
+      mesh(new THREE.SphereGeometry(.08,8,6),cropMat(0xe5d7b2),.08,y-.15,.13);
+      break;
+    case 'cocoa':
+      for(let i=0;i<3;i++){const pod=mesh(new THREE.SphereGeometry(.12,9,7),fruitMat,(i-1)*.13,y-.1,0,[.78,1.7,.8]);pod.rotation.z=(i-1)*.3;}
+      break;
+    case 'coffee':
+      for(let i=0;i<6;i++){const a=i*Math.PI/3;mesh(new THREE.SphereGeometry(.075,8,7),fruitMat,Math.cos(a)*.18,y-.12+Math.sin(a)*.08,Math.sin(a)*.18);}
+      break;
+    case 'mango':
+      mesh(new THREE.SphereGeometry(.19,10,8),fruitMat,.05,y-.1,0,[.82,1.35,.85]).rotation.z=-.22;
+      break;
+    case 'cactus-fruit':
+      for(let i=0;i<3;i++)mesh(new THREE.SphereGeometry(.1,8,6),fruitMat,(i-1)*.13,y-.13,0,[.9,1.3,.9]);
+      break;
+    case 'volcanic-herb':
+      for(let i=0;i<5;i++){const a=i*Math.PI*2/5;const leafShape=mesh(new THREE.ConeGeometry(.08,.4,5),fruitMat,Math.cos(a)*.12,y-.12,Math.sin(a)*.12);leafShape.rotation.z=Math.cos(a)*.6;}
+      break;
+    case 'cranberry':
+      for(let i=0;i<6;i++){const a=i*Math.PI/3;mesh(new THREE.SphereGeometry(.085,8,6),fruitMat,Math.cos(a)*.19,.2,Math.sin(a)*.19);}
+      break;
+    case 'rice':
+      for(let i=0;i<4;i++){const x=(i-1.5)*.09;mesh(new THREE.ConeGeometry(.045,.3,5),fruitMat,x,h+.1,.03).rotation.z=-.18;}
+      break;
    }
  }
 }
 function setState(p,s){p.state=s;p.stage=s==='empty'?0:s==='seed'?1:s==='growing'?2:3;p.visualStage=-1;makeCrop(p);}
+function cropAllowedInBiome(type,biomeId=activeBiome){const crop=CROPS[type];return !!crop&&(!Array.isArray(crop.biomes)||crop.biomes.includes(biomeId));}
+function cropAllowedInSeason(type,seasonId=season){const crop=CROPS[type];return !!crop&&(!Array.isArray(crop.seasons)||crop.seasons.includes(seasonId));}
 function plantPlot(plot,type='carrot',agent=selectedAgent){
  const crop=CROPS[type]?type:'carrot';
+ const biomeId=plot?.biome||activeBiome;
  if(!plot||plot.state!=='empty')return false;
+ if(!cropAllowedInBiome(crop,biomeId)){toast(`${CROPS[crop].name}: культура не подходит для биома «${BIOMES[biomeId]?.name||biomeId}»`);return false;}
+ if(!cropAllowedInSeason(crop,season)){toast(`${CROPS[crop].name} нельзя сажать в сезон ${SEASONS.find(s=>s.id===season)?.name||season}`);return false;}
  if(gameMode!=='sandbox'&&(seedStock[crop]||0)<=0){toast(`Нет семян: ${CROPS[crop].name}`);return false;}
  if(gameMode!=='sandbox')seedStock[crop]--;plot.cropType=crop;plot.growth=0;plot.watered=false;plot.waterSource=null;plot.stage=1;setState(plot,'seed');
  metrics.planted++;updateMissions();burst(plot.g.position.clone().add(new THREE.Vector3(0,.55,0)),0x9bcf65,8);
@@ -306,7 +344,7 @@ robot.position.set(0,0,7);
 let robotMoving=false,robotAction=0,robotAnimTime=0;
 let coins=90,harvest=0,water=8,isLoadingGame=false;
 let xp=0,researchPoints=0,weather='sunny',weatherClock=0,weatherStep=0,season='spring',seasonClock=0,dayClock=0,activeSeed='carrot',pumpBuilt=false,solarBuilt=false,storageBuilt=false,gameMode='campaign';
-const seedStock={carrot:8,potato:2,tomato:2,corn:2,strawberry:2,eggplant:1,cucumber:2,cabbage:2,pumpkin:1,sunflower:1};
+const seedStock={carrot:8,potato:2,tomato:2,corn:2,strawberry:2,eggplant:1,cucumber:2,cabbage:2,pumpkin:1,sunflower:1,banana:0,pineapple:0,coconut:0,cocoa:0,coffee:0,mango:0,cactus_fruit:0,volcanic_herb:0,cranberry:0,rice:0};
 const harvestStorage={};
 const metrics={planted:0,watered:0,harvested:0,earned:0,programs:0,tilesMoved:0,robots:1,botsProgrammed:0,programActions:0,waterUsed:0,waterEfficiency:0,cropTypes:0,sales:0};
 const harvestedTypes=new Set();
@@ -604,6 +642,7 @@ function stats(){
  const climate=getEnvironmentEffects(activeBiome,season,weather);
  $('#temperature').textContent=`${Math.round(climate.temperature)} °C`;
  $('#humidity').textContent=BIOMES[activeBiome]?.humidity||'Умеренная';
+ renderSeedStock();
  const storedResources=Object.entries(worldResourceStorage).filter(([,amount])=>amount>0).map(([type,amount])=>{const item=RESOURCE_CATALOG[type];return `${item?.icon||'📦'} ${item?.name||type}: ${amount}`;});
  $('#resourceStock').textContent=storedResources.length?storedResources.join(' · '):'Материалы пока не собраны';
  const seasonInfo=SEASONS.find(item=>item.id===season)||SEASONS[0];$('#season').textContent=`${seasonInfo.icon} ${seasonInfo.name}`;
@@ -637,9 +676,11 @@ function renderMissions(){
 }
 function renderSeedStock(){
  const select=$('#seedType');if(!select)return;
- if(!select.options.length)select.innerHTML=Object.entries(CROPS).map(([id,c])=>`<option value="${id}">${c.icon} ${c.name} · ${c.seedCost} 🪙</option>`).join('');
+ const available=Object.entries(CROPS).filter(([id,c])=>!Array.isArray(c.biomes)||c.biomes.includes(activeBiome));
+ if(!available.some(([id])=>id===activeSeed))activeSeed=available[0]?.[0]||'carrot';
+ select.innerHTML=available.map(([id,c])=>`<option value="${id}">${c.icon} ${c.name} · ${c.seedCost} 🪙${cropAllowedInSeason(id,season)?'':' · не сезон'}</option>`).join('');
  select.value=activeSeed;
- $('#seedStock').textContent=Object.entries(CROPS).map(([id,c])=>`${c.icon} ${gameMode==='sandbox'?'∞':seedStock[id]||0}`).join('  ·  ');
+ $('#seedStock').textContent=available.map(([id,c])=>`${c.icon} ${gameMode==='sandbox'?'∞':seedStock[id]||0}`).join('  ·  ');
 }
 function saveProgram(){
  const a=activeAgent();a.program=$('#code').value;
@@ -1061,7 +1102,7 @@ function programSense(name,args=[],agent=activeAgent()){
  const p=nearest(agent),pos=agent.mesh.position,requiredWater=p?waterCostForPlot(p.biome||'meadow',season,weather):1;
  switch(name){
   case 'can_harvest':case 'is_ready':return !!p&&p.state==='ready'&&agent.type!=='waterbot'&&agent.type!=='dronebot';
-  case 'can_plant':return !!p&&p.state==='empty'&&agent.type!=='waterbot'&&agent.type!=='harvestbot'&&agent.type!=='dronebot'&&(seedStock[args[0]||activeSeed]||0)>0;
+  case 'can_plant':return !!p&&p.state==='empty'&&agent.type!=='waterbot'&&agent.type!=='harvestbot'&&agent.type!=='dronebot'&&(seedStock[args[0]||activeSeed]||0)>0&&cropAllowedInBiome(args[0]||activeSeed,p.biome||activeBiome)&&cropAllowedInSeason(args[0]||activeSeed,season);
   case 'can_water':return !!p&&(agent.type==='waterbot'?agent.water>=requiredWater:water>=requiredWater)&&!p.watered&&['seed','growing'].includes(p.state)&&agent.type!=='harvestbot'&&agent.type!=='dronebot';
   case 'get_water':return agent.type==='waterbot'?agent.water:water;
   case 'has_water':return agent.type==='waterbot'?agent.water>=requiredWater:water>=requiredWater;
@@ -1069,7 +1110,7 @@ function programSense(name,args=[],agent=activeAgent()){
   case 'get_harvest':return harvest;
   case 'get_energy':return Math.floor(agent.energy);
   case 'get_position':return `(${pos.x.toFixed(1)}, ${pos.z.toFixed(1)})`;
-  case 'get_inventory':return args[0]?(agent.inventory[args[0]]||0):(Object.entries(agent.inventory).map(([k,v])=>`${CROPS[k]?.name||k}: ${v}`).join(', ')||'пусто');
+  case 'get_inventory':return args[0]?(agent.inventory[args[0]]||0):(Object.entries(agent.inventory).map(([k,v])=>`${CROPS[k]?.name||RESOURCE_CATALOG[k]?.name||k}: ${v}`).join(', ')||'пусто');
   case 'get_plant_age':return p?Math.round(p.growth*10)/10:0;
   case 'tile_state':return p?p.state:'none';
   case 'count_ready':return plots.filter(q=>q.state==='ready').length;
@@ -1254,7 +1295,8 @@ function update(dt){
   if(p.state==='growing'&&p.watered){
    const crop=CROPS[p.cropType]||CROPS.carrot;
    const greenhouseBoost=buildings.some(b=>b.type==='greenhouse'&&Math.hypot(b.x-p.g.position.x,b.z-p.g.position.z)<4.4)?1.35:1;
-   p.growth+=dt*getEnvironmentEffects(p.biome||'meadow',season,weather).growth*greenhouseBoost;
+   const seasonalCropBoost=crop.seasonGrowth?.[season]??1;
+   p.growth+=dt*getEnvironmentEffects(p.biome||'meadow',season,weather).growth*greenhouseBoost*seasonalCropBoost;
    const progress=Math.min(1,p.growth/crop.growTime);
    const visualStage=progress<.25?0:progress<.42?1:progress<.75?2:3;
    if(p.visualStage!==visualStage){p.visualStage=visualStage;makeCrop(p);}
