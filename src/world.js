@@ -366,7 +366,8 @@ export function generateWorldMap(seed = 1, biomeId = STARTER_BIOME, options = {}
       const outsideClearing = Math.hypot(candidate.x, candidate.z - start.z) >= 8.5;
       const occupied = obstacles.some(item => item.x === candidate.x && item.z === candidate.z)
         || resources.some(item => item.x === candidate.x && item.z === candidate.z);
-      if (insideMap && outsideClearing && !occupied) position = candidate;
+      const nearFarmPlot = plots.some(plot => Math.hypot(candidate.x * MAP_TILE_SIZE - plot.x, candidate.z * MAP_TILE_SIZE - plot.z) < 1.35);
+      if (insideMap && outsideClearing && !occupied && !nearFarmPlot) position = candidate;
     }
     if (position) resources.push({
       id: `starter-resource-${i + 1}`,
