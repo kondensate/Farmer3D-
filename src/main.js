@@ -1066,15 +1066,35 @@ $('#openBiomes').onclick=()=>{if(agents.some(agent=>agent.running)){toast('Ос�
 $('#resetGame').onclick=()=>$('#resetConfirm').classList.add('show');
 $('#cancelReset').onclick=()=>$('#resetConfirm').classList.remove('show');
 $('#resetConfirm').addEventListener('click',event=>{if(event.target.id==='resetConfirm')$('#resetConfirm').classList.remove('show');});
-$('#confirmReset').onclick=()=>{
- if(agents.some(agent=>agent.running)){toast('Сначала останови программы роботов');return;}
- const keep=[...unlockedWorldBiomes];
- const keys=[];
- for(let n=0;n<localStorage.length;n++){const key=localStorage.key(n);if(key&&(key.startsWith('farmerbot3d_')||key.startsWith('farmerbot2d_')))keys.push(key);}
- keys.forEach(key=>localStorage.removeItem(key));
- localStorage.setItem(UNLOCKED_BIOMES_KEY,JSON.stringify(['meadow']));
- $('#resetConfirm').classList.remove('show');
- location.reload();
+$('#confirmReset').onclick=async()=>{
+ const button=$('#confirmReset');
+ if(button.disabled)return;
+ button.disabled=true;button.textContent='СБРОС...';
+ autoDispatchEnabled=false;
+ agents.forEach(agent=>{if(agent.running||agent.autoTaskBusy){agent.stopRequested=true;agent.pauseRequested=false;agent.resumeResolver?.();}});
+ const deadline=Date.now()+8000;
+ while(agents.some(agent=>agent.running||agent.autoTaskBusy)&&Date.now()<deadline){
+  await new Promise(resolve=>setTimeout(resolve,50));
+ }
+ if(agents.some(agent=>agent.running||agent.autoTaskBusy)){
+  button.disabled=false;button.textContent='НАЧАТЬ ЗАНОВО';
+  toast('Не удалось остановить роботов. Нажми СТОП и повтори сброс');
+  return;
+ }
+ try{
+  const keys=[];
+  for(let n=0;n<localStorage.length;n++){
+   const key=localStorage.key(n);
+   if(key&&(key.startsWith('farmerbot3d')||key.startsWith('farmerbot2d')))keys.push(key);
+  }
+  keys.forEach(key=>localStorage.removeItem(key));
+  $('#resetConfirm').classList.remove('show');
+  location.replace(location.pathname+location.search.split('?')[0]+'?fresh='+Date.now());
+ }catch(error){
+  button.disabled=false;button.textContent='НАЧАТЬ ЗАНОВО';
+  console.error('Не удалось сбросить сохранение',error);
+  toast('Браузер не разрешил удалить сохранение. Проверь настройки сайта');
+ }
 };
 $('#shop').onclick=()=>$('#shopPanel').classList.add('show');$('#closeShop').onclick=()=>$('#shopPanel').classList.remove('show');
 $('#sell').onclick=()=>{
