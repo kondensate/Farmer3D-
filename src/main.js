@@ -182,6 +182,7 @@ function createPlotAt(x,z,biome='meadow'){
  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
  box(g,1.72,.24,1.72,biomeSoilMaterials[biome]||soil,0,.12,0);
  box(g,1.78,.07,1.78,biomeVisualKit.plotRimMaterials[biome]||mat(0x5b402b),0,.025,0);
+ biomeVisualKit.decoratePlot(g,biome);
  for(let j=-1;j<=1;j++)box(g,1.5,.035,.035,soilDark,0,.25,j*.42);
  const crop=new THREE.Group();crop.position.y=.26;g.add(crop);
  const plot={g,crop,state:'empty',watered:false,waterSource:null,growth:0,cropType:'carrot',stage:0,biome};plots.push(plot);return plot;
