@@ -678,7 +678,7 @@ function placeBuildingAt(x,z){
  if(!moveId&&gameMode!=='sandbox'){coins-=BUILDINGS[type].cost;}
  if(moveId){const b=buildings.find(q=>q.id===moveId);if(b){disposeBuildingMesh(b.mesh);b.x=snappedX;b.z=snappedZ;b.rotation=placementRotation;b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);}}
  else{const b={...BUILDINGS[type],id:nextBuildingId++,type,x:snappedX,z:snappedZ,rotation:placementRotation,items:[],batteryCharge:0,filterCrop:'all',routeIndex:0,routeClock:0};b.mesh=createBuildingMesh(type,b.x,b.z,b.rotation,false);buildings.push(b);}
- cancelBuildingPlacement();renderAutomationLinks();renderBuildingUI();renderTechs();stats();saveGame();toast(`${BUILDINGS[type].name}: размещено`);
+ cancelBuildingPlacement();renderAutomationLinks();renderBuildingUI();renderTechs();stats();updateMissions();saveGame();toast(`${BUILDINGS[type].name}: размещено`);
 }
 function disposeBuildingMesh(mesh){if(!mesh)return;scene.remove(mesh);mesh.traverse(o=>{o.geometry?.dispose?.();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose?.());else o.material.dispose?.();}});}
 function renderAutomationLinks(){
@@ -812,7 +812,7 @@ function updateMissions(){
  let changed=false;
  for(const mission of MISSIONS){
   if(!isBiomeContentAvailable(mission,activeBiome)||claimedMissions.has(mission.id))continue;
-  if(metricValue(mission.stat)>=mission.target){
+  if(missionProgress(mission)>=mission.target){
    claimedMissions.add(mission.id);coins+=mission.reward;addXP(mission.reward);
    toast(`🏆 ${mission.title} · +${mission.reward} 🪙`);changed=true;
   }
@@ -1495,9 +1495,10 @@ function update(dt){
  for(const p of plots){
   if(p.state==='growing'&&p.watered){
    const crop=CROPS[p.cropType]||CROPS.carrot;
+   const regionalGrowth=buildings.reduce((boost,b)=>{const def=BUILDINGS[b.type];return def?.growthMultiplier&&(!def.biome||def.biome===activeBiome)&&Math.hypot(b.x-p.g.position.x,b.z-p.g.position.z)<(def.effectRadius||4.4)?Math.max(boost,def.growthMultiplier):boost;},1);
    const greenhouseBoost=buildings.some(b=>b.type==='greenhouse'&&Math.hypot(b.x-p.g.position.x,b.z-p.g.position.z)<4.4)?1.35:1;
    const seasonalCropBoost=crop.seasonGrowth?.[season]??1;
-   p.growth+=dt*getEnvironmentEffects(p.biome||'meadow',season,weather).growth*greenhouseBoost*seasonalCropBoost;
+   p.growth+=dt*getEnvironmentEffects(p.biome||'meadow',season,weather).growth*greenhouseBoost*regionalGrowth*seasonalCropBoost;
    const progress=Math.min(1,p.growth/crop.growTime);
    const visualStage=progress<.25?0:progress<.42?1:progress<.75?2:3;
    if(p.visualStage!==visualStage){p.visualStage=visualStage;makeCrop(p);}
