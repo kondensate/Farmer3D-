@@ -1,5 +1,6 @@
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { initLanguageToggle } from './i18n.js';
 import { runProgram } from './language.js';
 import { createIde } from './ide.js';
 import { createDebuggerController } from './debugger.js';
