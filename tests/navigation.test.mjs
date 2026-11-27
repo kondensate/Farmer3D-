@@ -38,6 +38,16 @@ test("terrain-aware A* rejects a cliff that exceeds the robot step limit", () =>
   assert.equal(findPath({x:0,z:0},{x:2,z:0},new Set(),15,cliff), null);
 });
 
+test("A* prefers a safe detour around costly biome hazard cells", () => {
+  const terrain = {
+    traversalCost: (x,z) => x === 2 && z === 0 ? 20 : 0
+  };
+  const path = findPath({x:0,z:0},{x:4,z:0},new Set(),15,terrain);
+  assert.ok(path);
+  assert.ok(path.some(cell => cell.z !== 0), "route should avoid the hazardous straight corridor");
+  assert.ok(path.every(cell => !(cell.x === 2 && cell.z === 0)));
+});
+
 test("terrain-aware A* can climb a gradual slope and returns connected cells", () => {
   const slope = { heightAt: (x) => Math.max(0,x) * .35, maxStep: .4, slopeCost: 1.5 };
   const path = findPath({x:0,z:0},{x:4,z:0},new Set(),15,slope);
