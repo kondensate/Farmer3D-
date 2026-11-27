@@ -47,6 +47,8 @@ const mat=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
 const grass=new THREE.MeshStandardMaterial({map:grassTex,roughness:1}),soil=new THREE.MeshStandardMaterial({map:soilTex,roughness:1}),soilDark=mat(0x563922),leaf=mat(0x5b9a43),gold=mat(0xeebc45),metal=mat(0xd5dfd1,.45),blue=mat(0x397f91,.55),dark=mat(0x20313a),white=mat(0xf2f1dc);
 const biomeSoilMaterials=biomeVisualKit.soilMaterials;
 const biomeTerrainMaterials=biomeVisualKit.terrainMaterials;
+const resourceVisualMaterials=new Map();
+function resourceVisualMaterial(color){if(!resourceVisualMaterials.has(color))resourceVisualMaterials.set(color,mat(color,.7));return resourceVisualMaterials.get(color);}
 function box(parent,w,h,d,m,x,y,z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
 const ground=box(scene,38,.4,38,biomeTerrainMaterials.meadow,0,-.3,0);
 const grid=new THREE.GridHelper(38,38,0x557b45,0x6f9656);grid.position.y=-.095;grid.material.transparent=true;grid.material.opacity=.28;scene.add(grid);
@@ -254,7 +256,7 @@ function createStartingWorldVisuals(map){
  startingWorldGroup.add(biomeEnvironment);
  for(const item of map.resources){
   const definition=RESOURCE_CATALOG[item.type]||RESOURCE_CATALOG.stone;
-  const node=new THREE.Group(),resourceMaterial=mat(definition.color,.7);
+  const node=new THREE.Group(),resourceMaterial=resourceVisualMaterial(definition.color);
   const pieces=definition.kind==='mineral'?3:definition.kind==='liquid'?1:2;
   for(let i=0;i<pieces;i++){
    const size=.13+(i%2)*.045;
