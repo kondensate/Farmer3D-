@@ -173,10 +173,6 @@ function addWorldObstaclesToPath(blocked,start){
  blocked.delete(cellKey(start));
  return blocked;
 }
-// distant hills / trees
-for(let i=0;i<22;i++){let a=i*Math.PI*2/22;let x=Math.cos(a)*15,z=Math.sin(a)*15;if(Math.abs(x)<8&&Math.abs(z)<8)continue;
-let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.17,1,7),mat(0x65452b));trunk.position.set(x,.35,z);startingWorldGroup.add(trunk);
-let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,1),mat(i%2?0x397348:0x4e8950));crown.position.set(x,terrainHeightAtWorld(x,z)+1.25,z);crown.castShadow=true;startingWorldGroup.add(crown);}
 const plots=[],ownedBiomes=new Set(['meadow']),landMeshes=new Map();
 function createPlotAt(x,z,biome='meadow'){
  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
@@ -259,6 +255,7 @@ function addStartingRock(x,z,kind='rock'){
 function createStartingWorldVisuals(map){
  clearStartingWorldGroup();resourceNodes.length=0;
  const scale=MAP_TILE_SIZE;
+ startingWorldGroup.add(biomeVisualKit.createBackdrop(activeBiome));
  const biomeEnvironment=biomeVisualKit.createEnvironment(activeBiome,map,terrainHeightAtWorld,scale);
  startingWorldGroup.add(biomeEnvironment);
  for(const item of map.resources){
