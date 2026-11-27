@@ -3,7 +3,10 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 import { runProgram } from './language.js';
 import { createIde } from './ide.js';
 import { createDebuggerController } from './debugger.js';
-import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from './data.js';
+import { CROPS, ROBOT_TYPES, MISSIONS as CORE_MISSIONS, BUILDINGS as CORE_BUILDINGS, TECHNOLOGIES } from './data.js';
+import { BIOME_BUILDINGS, BIOME_MISSIONS, isBiomeContentAvailable } from './biome-content.js';
+const MISSIONS = [...CORE_MISSIONS, ...BIOME_MISSIONS];
+const BUILDINGS = { ...CORE_BUILDINGS, ...BIOME_BUILDINGS };
 import { ROBOT_MODULES, moduleEffects, hazardTraversalMultiplier, hazardEnergyMultiplier, biomeMovementMultiplier, biomeWorkCostMultiplier } from './robot-equipment.js';
 import { GRID_STEP, worldToCell, cellToWorld, cellKey, findPath, buildBlockedCells } from './navigation.js';
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
@@ -595,7 +598,9 @@ function renderBuildingUI(){
  const catalog=$('#buildingCatalog'),placed=$('#placedBuildings');if(!catalog||!placed)return;
  catalog.innerHTML=Object.entries(BUILDINGS).map(([id,b])=>{
   const unlocked=isBuildingUnlocked(id),cost=gameMode==='sandbox'?0:b.cost;
-  return `<div class="buildCard"><b>${b.icon} ${b.name}</b><small>${b.description}</small><small>Стоимость: ${cost} 🪙 ${unlocked?'':'· исследуй технологию'}</small><button data-build-select="${id}" ${unlocked?'':'disabled'}>РАЗМЕСТИТЬ</button></div>`;
+  const region=b.biome?`<small>🌍 Только биом: ${BIOMES[b.biome]?.name||b.biome}</small>`:'';
+  const lockedReason=b.biome&&b.biome!==activeBiome?'· перейди в нужный биом':!unlocked?'· исследуй технологию':'';
+  return `<div class="buildCard"><b>${b.icon} ${b.name}</b><small>${b.description}</small>${region}<small>Стоимость: ${cost} 🪙 ${lockedReason}</small><button data-build-select="${id}" ${unlocked?'':'disabled'}>РАЗМЕСТИТЬ</button></div>`;
  }).join('');
  placed.innerHTML=buildings.length?buildings.map(b=>{
   const def=BUILDINGS[b.type]||{},links=`${def.powerNode?` <button data-connect-power="${b.id}">⚡ КАБЕЛЬ</button>`:''}${def.logisticsNode?` <button data-connect-conveyor="${b.id}">⇢ ЛЕНТА</button>`:''}`;
@@ -614,8 +619,8 @@ function renderBuildingUI(){
  });
  renderLandMarket();
 }
-function waterCapacity(){return 99+buildings.filter(b=>b.type==='tank').length*30;}
-function isBuildingUnlocked(type){const def=BUILDINGS[type];return !!def&&(gameMode==='sandbox'||researchedTechs.has(def.unlock));}
+function waterCapacity(){return 99+buildings.reduce((sum,b)=>sum+(BUILDINGS[b.type]?.waterCapacityBonus||0),0)+buildings.filter(b=>b.type==='tank').length*30;}
+function isBuildingUnlocked(type){const def=BUILDINGS[type];return !!def&&(!def.biome||def.biome===activeBiome)&&(gameMode==='sandbox'||researchedTechs.has(def.unlock));}
 function renderTechs(){
  const list=$('#techCatalog');if(!list)return;
  $('#researchSummary').textContent=`Очки исследований: ${researchPoints} · Монеты: ${coins} · Открыто технологий: ${researchedTechs.size}/${TECHNOLOGIES.length}`;
@@ -798,11 +803,15 @@ function metricValue(key){
  if(key==='cropTypes')return harvestedTypes.size;
  return Number(metrics[key]||0);
 }
+function missionProgress(mission){
+ if(mission.buildingType)return buildings.some(b=>b.type===mission.buildingType)?1:0;
+ return metricValue(mission.stat);
+}
 function updateMissions(){
  if(gameMode!=='campaign'){renderMissions();return;}
  let changed=false;
  for(const mission of MISSIONS){
-  if(claimedMissions.has(mission.id))continue;
+  if(!isBiomeContentAvailable(mission,activeBiome)||claimedMissions.has(mission.id))continue;
   if(metricValue(mission.stat)>=mission.target){
    claimedMissions.add(mission.id);coins+=mission.reward;addXP(mission.reward);
    toast(`🏆 ${mission.title} · +${mission.reward} 🪙`);changed=true;
@@ -813,10 +822,11 @@ function updateMissions(){
 }
 function renderMissions(){
  const list=$('#missionList');if(!list)return;
- const completed=claimedMissions.size;
- $('#missionSummary').textContent=gameMode==='campaign'?`Выполнено ${completed} из ${MISSIONS.length} · награда за каждое задание: монеты и опыт`:`Миссии кампании приостановлены в режиме ${gameMode.toUpperCase()}. Переключись на CAMPAIGN, чтобы продолжить прогресс.`;
- list.innerHTML=MISSIONS.map(m=>{
-  const v=Math.min(m.target,metricValue(m.stat)),done=claimedMissions.has(m.id);
+ const available=MISSIONS.filter(m=>isBiomeContentAvailable(m,activeBiome));
+ const completed=available.filter(m=>claimedMissions.has(m.id)).length;
+ $('#missionSummary').textContent=gameMode==='campaign'?`Биом ${BIOMES[activeBiome]?.name||activeBiome} · выполнено ${completed} из ${available.length} доступных миссий`:`Миссии кампании приостановлены в режиме ${gameMode.toUpperCase()}. Переключись на CAMPAIGN, чтобы продолжить прогресс.`;
+ list.innerHTML=available.map(m=>{
+  const v=Math.min(m.target,missionProgress(m)),done=claimedMissions.has(m.id);
   return `<div class="missionItem ${done?'done':''}"><b>${done?'✓':'○'} ${m.order}. ${m.title}</b><small>${m.description}</small><div class="meter"><i style="width:${Math.min(100,v/m.target*100)}%"></i></div><small>${v}/${m.target} · награда ${m.reward} 🪙</small></div>`;
  }).join('');
 }
@@ -1481,6 +1491,7 @@ function update(dt){
   pumpClock=0;const targetPlot=plots.find(p=>['seed','growing'].includes(p.state)&&!p.watered);
   if(targetPlot&&(water>=waterCostForPlot(targetPlot.biome||'meadow',season,weather)||gameMode==='sandbox'))waterPlot(targetPlot,agents[0],'pump');
  }
+ for(const b of buildings){const def=BUILDINGS[b.type];if(def?.waterProduction&&(!def.biome||def.biome===activeBiome))water=Math.min(waterCapacity(),water+def.waterProduction*dt);}
  for(const p of plots){
   if(p.state==='growing'&&p.watered){
    const crop=CROPS[p.cropType]||CROPS.carrot;
