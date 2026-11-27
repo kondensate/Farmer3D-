@@ -1700,7 +1700,7 @@ function update(dt){
    const total=Object.values(harvestStorage).reduce((a,v)=>a+v,0),capacity=storageBuilt?100:20;if(!linked&&total>=capacity)continue;
    const type=p.cropType||'carrot';if(linked)b.items.push({crop:type,count:1});else harvestStorage[type]=(harvestStorage[type]||0)+1;
    harvest++;metrics.harvested++;metrics[`${type}Harvested`]=(metrics[`${type}Harvested`]||0)+1;harvestedTypes.add(type);
-   setState(p,'empty');p.watered=false;p.waterSource=null;p.growth=0;addXP(1);recordChallengeHarvest();updateMissions();stats();saveGame();toast(`🟫 Конвейер забрал ${CROPS[type].name}`);
+   setState(p,'empty');setPlotWetVisual(p,false);p.watered=false;p.waterSource=null;p.growth=0;addXP(1);recordChallengeHarvest();updateMissions();stats();saveGame();toast(`🟫 Конвейер забрал ${CROPS[type].name}`);
   }
  }
  // Branches split, filters hold mismatched crops, buffers queue, and sinks deliver to storage.
