@@ -28,3 +28,10 @@ test("building placement is limited to meadow and purchased biome parcels", () =
   assert.match(main, /ownedBiomes\.has\(parcel\.biome\)/);
   assert.match(main, /corners\.every\(\(\[sx,sz\]\)=>isOwnedLandAt/);
 });
+
+test("version 7 saves retain the selected biome, seed and unlocked biome list", () => {
+  assert.match(main, /version:7,[\\s\\S]*?activeBiome,seed:worldSeed/);
+  assert.match(main, /SAVE_KEY='farmerbot3d_save_v7'/);
+  assert.match(main, /unlockedWorldBiomes:\\[\\.\\.\\.unlockedWorldBiomes\\]/);
+  assert.match(main, /Number\\(d\\.version\\|\\|0\\)<7/);
+});
