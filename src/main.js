@@ -580,6 +580,31 @@ function createBuildingMesh(type,x,z,rotation=0,preview=false){
   const shell=mat(0x657a79),accent=mat(0xd6b35f),screen=mat(0x1f3739,.25);
   box(g,1.85,1.45,1.35,shell,0,.73,0);box(g,1.1,.63,.08,screen,0,.96,.72);box(g,.22,.12,.1,accent,0,.3,.74);
   for(const x0 of [-.7,.7])box(g,.12,1.6,.12,accent,x0,.8,-.62);
+ }else if(type==='meadow_granary'){
+  const wood=mat(0x9a7042),roof=mat(0x6e4a32),grain=mat(0xd6b65e);
+  box(g,1.8,1.25,1.55,wood,0,.63,0);box(g,2,.18,1.75,roof,0,1.35,0);
+  for(let i=-1;i<=1;i++)box(g,.18,.75,.18,grain,i*.42,.72,.82);
+ }else if(type==='desert_dew_collector'||type==='tropical_rain_collector'){
+  const frame=mat(type==='desert_dew_collector'?0xb88a4b:0x4b8d78),glass=mat(type==='desert_dew_collector'?0x91c9d5:0x69b8c4,.3);
+  box(g,1.7,.12,1.7,frame,0,.18,0);
+  const basin=new THREE.Mesh(new THREE.CylinderGeometry(.72,.82,.28,12),glass);basin.position.y=.42;g.add(basin);
+  for(let i=0;i<4;i++){const leg=box(g,.1,.8,.1,frame,Math.cos(i*Math.PI/2)*.68,.45,Math.sin(i*Math.PI/2)*.68);}
+  box(g,1.8,.08,.12,frame,0,1.05,0);
+ }else if(type==='mountain_ore_processor'||type==='volcanic_geothermal'){
+  const metal=mat(type==='mountain_ore_processor'?0x77838a:0x754b3d),glow=mat(type==='mountain_ore_processor'?0xd1a65a:0xf0783c,.3);
+  box(g,1.75,1.05,1.55,metal,0,.55,0);box(g,1.15,.18,1.1,glow,0,1.18,0);
+  const stack=new THREE.Mesh(new THREE.CylinderGeometry(.18,.25,1.1,8),metal);stack.position.set(.55,1.55,-.35);g.add(stack);
+  const core=new THREE.Mesh(new THREE.SphereGeometry(.25,10,8),glow);core.position.set(-.48,.95,.15);g.add(core);
+ }else if(type==='snow_igloo_greenhouse'||type==='forest_nursery'){
+  const shell=mat(type==='snow_igloo_greenhouse'?0xd7e8e9:0x66864b),glass=mat(type==='snow_igloo_greenhouse'?0x9ed4e3:0x9bbd75,.3);
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(.95,12,8,0,Math.PI*2,0,Math.PI/2),glass);dome.scale.set(1.25,.9,1);dome.position.y=.22;g.add(dome);
+  box(g,2.35,.12,2.1,shell,0,.12,0);
+  for(let i=-1;i<=1;i++)box(g,.12,.55,.12,shell,i*.58,.48,.55);
+ }else if(type==='swamp_biofilter'){
+  const base=mat(0x4e765b),waterMat=mat(0x63aeb0,.35);
+  box(g,1.85,.28,1.75,base,0,.18,0);
+  const pool=new THREE.Mesh(new THREE.CylinderGeometry(.72,.72,.08,12),waterMat);pool.position.y=.36;g.add(pool);
+  for(let i=0;i<5;i++){const reed=box(g,.055,.7,.055,mat(0x7e9d4d),Math.sin(i*1.2)*.62,.72,Math.cos(i*1.2)*.62);reed.rotation.z=.16*Math.sin(i);}
  }
  scene.add(g);return g;
 }
