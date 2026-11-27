@@ -24,7 +24,7 @@ const root=document.querySelector('#game');
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bc7c2); scene.fog=new THREE.Fog(0x9bc7c2,22,48);
 const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,100); camera.position.set(8,11,12);
 let cameraYaw=.58,cameraPitch=.58,cameraDistance=16;
-const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.35)); renderer.setSize(innerWidth,innerHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFShadowMap; renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.12; renderer.domElement.style.imageRendering="pixelated"; renderer.domElement.style.touchAction="none"; root.appendChild(renderer.domElement);
+const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.35)); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFShadowMap; renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.12; renderer.domElement.style.cssText="display:block;position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;touch-action:none"; root.appendChild(renderer.domElement);\nfunction resizeGameViewport(){const rect=root.getBoundingClientRect(),width=Math.max(1,Math.round(rect.width)),height=Math.max(1,Math.round(rect.height));camera.aspect=width/height;camera.fov=height>width?52:45;camera.updateProjectionMatrix();renderer.setSize(width,height,false);}\nresizeGameViewport();
 let cameraPointer=null,lastPointerX=0,lastPointerY=0;const activeCameraPointers=new Map();
 renderer.domElement.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;activeCameraPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});renderer.domElement.setPointerCapture?.(e.pointerId);if(activeCameraPointers.size===1){cameraPointer=e.pointerId;lastPointerX=e.clientX;lastPointerY=e.clientY;}else cameraPointer=null;});
 renderer.domElement.addEventListener('pointermove',e=>{if(!activeCameraPointers.has(e.pointerId)||activeCameraPointers.size!==1||cameraPointer!==e.pointerId)return;const dx=e.clientX-lastPointerX,dy=e.clientY-lastPointerY;lastPointerX=e.clientX;lastPointerY=e.clientY;cameraYaw-=dx*.008;cameraPitch=THREE.MathUtils.clamp(cameraPitch+dy*.006,.22,.92);});
@@ -1646,6 +1646,6 @@ let saveAccumulator=0;function frame(){requestAnimationFrame(frame);let dt=Math.
  renderer.render(scene,camera);}
 frame();
 addEventListener('pagehide',saveGame);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveGame();});
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.fov=innerHeight>innerWidth?52:45;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});camera.fov=innerHeight>innerWidth?52:45;camera.updateProjectionMatrix();
+addEventListener('resize',resizeGameViewport);window.visualViewport?.addEventListener('resize',resizeGameViewport);window.visualViewport?.addEventListener('scroll',resizeGameViewport);
 
 initLanguageToggle();
