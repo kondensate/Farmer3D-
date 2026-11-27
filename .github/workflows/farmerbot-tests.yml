@@ -32,3 +32,5 @@ jobs:
           node --check src/data.js
           node --check src/navigation.js
           node --check src/world.js
+          node --check src/biome-visuals.js
+          node --check src/i18n.js
