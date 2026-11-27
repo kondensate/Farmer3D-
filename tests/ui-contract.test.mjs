@@ -42,11 +42,14 @@ test('IDE exposes per-robot debugger state, variables, next command and changed 
   assert.ok(html.includes('ide-value.changed'));
 });
 
-test('save format advances to v7 and preserves v2-v6 migration paths', () => {
-  for (const version of [7,6,5,4,3,2]) assert.match(main, new RegExp(`farmerbot3d_save_v${version}`));
+test('save format advances to v8 and preserves v2-v7 migration paths', () => {
+  for (const version of [8,7,6,5,4,3,2]) assert.match(main, new RegExp(`farmerbot3d_save_v${version}`));
   assert.match(main, /unlockedBiomes:\[\.\.\.ownedBiomes\]/);
   assert.match(main, /unlockedWorldBiomes:\[\.\.\.unlockedWorldBiomes\]/);
-  assert.match(main, /Number\(d\.version\|\|0\)<7/);
+  assert.match(main, /resourceStorage:worldResourceStorage/);
+  assert.match(main, /resourceNodes:resourceNodes\.map/);
+  assert.match(main, /function collectNearbyWorldResource\(agent=activeAgent\(\)\)/);
+  assert.match(main, /Number\(d\.version\|\|0\)<8/);
   assert.match(main, /activeBiome,seed:worldSeed/);
   assert.match(main, /buildings:buildings\.map/);
   assert.match(main, /researchedTechs:\[\.\.\.researchedTechs\]/);
