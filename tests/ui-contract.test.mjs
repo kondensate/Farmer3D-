@@ -42,14 +42,12 @@ test('IDE exposes per-robot debugger state, variables, next command and changed 
   assert.ok(html.includes('ide-value.changed'));
 });
 
-test('save format advances to v6 and preserves v2-v5 migration paths', () => {
-  assert.match(main, /farmerbot3d_save_v6/);
-  assert.match(main, /farmerbot3d_save_v5/);
-  assert.match(main, /farmerbot3d_save_v4/);
-  assert.match(main, /farmerbot3d_save_v3/);
-  assert.match(main, /farmerbot3d_save_v2/);
+test('save format advances to v7 and preserves v2-v6 migration paths', () => {
+  for (const version of [7,6,5,4,3,2]) assert.match(main, new RegExp(`farmerbot3d_save_v${version}`));
   assert.match(main, /unlockedBiomes:\[\.\.\.ownedBiomes\]/);
-  assert.match(main, /if\(d\.version<6\)saveGame\(\)/);
+  assert.match(main, /unlockedWorldBiomes:\[\.\.\.unlockedWorldBiomes\]/);
+  assert.match(main, /Number\(d\.version\|\|0\)<7/);
+  assert.match(main, /activeBiome,seed:worldSeed/);
   assert.match(main, /buildings:buildings\.map/);
   assert.match(main, /researchedTechs:\[\.\.\.researchedTechs\]/);
 });
@@ -83,14 +81,16 @@ test('new consumers require power links while legacy pre-v5 consumers are preser
 });
 
 
-test('Stage C world market, season HUD and seasonal biome simulation are wired', () => {
-  for (const id of ['season','worldStatus','landMarket']) assert.ok(html.includes('id="'+id+'"'), 'missing '+id);
-  assert.match(main, /function renderLandMarket\(\)/);
-  assert.match(main, /function buyLand\(biomeId\)/);
-  assert.match(main, /createBiomeLand\(biomeId\)/);
+test('Biomes Update selector, climate HUD and seasonal simulation are wired', () => {
+  for (const id of ['season','worldStatus','biomeSelectScreen','biomeSelectGrid','biomeName','temperature','humidity']) assert.ok(html.includes('id="'+id+'"'), 'missing '+id);
+  assert.doesNotMatch(html, /id="landMarket"/);
+  assert.match(main, /function renderBiomeSelector\(\)/);
+  assert.match(main, /function applyStartingBiome\(biomeId,seed\)/);
+  assert.match(main, /generateWorldMap\(worldSeed,activeBiome\)/);
   assert.match(main, /p\.growth\+=dt\*getEnvironmentEffects\(p\.biome\|\|'meadow',season,weather\)\.growth/);
-  assert.match(main, /waterCostForPlot\(plot\.biome\|\|'meadow',season\)/);
-  assert.match(main, /unlockedBiomes:\[\.\.\.ownedBiomes\]/);
+  assert.match(main, /waterCostForPlot\(plot\.biome\|\|'meadow',season,weather\)/);
+  assert.match(main, /getBiomeWeather\(activeBiome,season,weatherStep,worldSeed\)/);
+  assert.match(main, /unlockedWorldBiomes:\[\.\.\.unlockedWorldBiomes\]/);
 });
 
 test('Stage C navigation bounds reach the four surrounding land parcels', () => {
