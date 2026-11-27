@@ -103,7 +103,8 @@ export function createBiomeVisualKit(THREE) {
     crystal:new THREE.MeshStandardMaterial({color:0x7fd1dc,roughness:.28,metalness:.12}),
     deadwood:new THREE.MeshStandardMaterial({color:0x806345,roughness:1}),
     irrigation:new THREE.MeshStandardMaterial({color:0x4b9fb2,roughness:.48,metalness:.12}),
-    heater:new THREE.MeshStandardMaterial({color:0xe4ad60,roughness:.52,metalness:.1,emissive:0x6b3518,emissiveIntensity:.28})
+    heater:new THREE.MeshStandardMaterial({color:0xe4ad60,roughness:.52,metalness:.1,emissive:0x6b3518,emissiveIntensity:.28}),
+    foam:new THREE.MeshStandardMaterial({color:0xf1fbff,roughness:.35,transparent:true,opacity:.82})
   };
   const G={
     trunk:new THREE.CylinderGeometry(.12,.18,1.25,7),
@@ -252,6 +253,160 @@ export function createBiomeVisualKit(THREE) {
       }
     }
   }
+  function addCustomMesh(parent,geometry,material,x=0,y=0,z=0){
+    const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;
+    mesh.userData.sharedGeometry=false;mesh.userData.sharedMaterial=true;parent.add(mesh);return mesh;
+  }
+  function createFacetedPeak(parent,x,z,width,height,depth,random,snowCap=false){
+    const sides=7,vertices=[],indices=[];
+    const rings=[
+      {y:0,r:1},
+      {y:height*.36,r:.78},
+      {y:height*.72,r:.42}
+    ];
+    for(let ring=0;ring<rings.length;ring++){
+      const data=rings[ring];
+      for(let i=0;i<sides;i++){
+        const angle=i*Math.PI*2/sides+(ring%2)*.11;
+        const variation=.82+random()*.34;
+        vertices.push(Math.cos(angle)*width*data.r*variation,data.y+(random()-.5)*height*.09,Math.sin(angle)*depth*data.r*variation);
+      }
+    }
+    const apex=vertices.length/3;vertices.push((random()-.5)*width*.12,height, (random()-.5)*depth*.12);
+    for(let ring=0;ring<2;ring++)for(let i=0;i<sides;i++){
+      const a=ring*sides+i,b=ring*sides+(i+1)%sides,c=(ring+1)*sides+i,d=(ring+1)*sides+(i+1)%sides;
+      if((i+ring)%2){indices.push(a,c,b,b,c,d);}else{indices.push(a,c,d,a,d,b);}
+    }
+    for(let i=0;i<sides;i++)indices.push(2*sides+i,apex,2*sides+(i+1)%sides);
+    const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));geo.setIndex(indices);geo.computeVertexNormals();
+    const rockMat=new THREE.MeshStandardMaterial({color:0x858d8d,roughness:1,flatShading:true});
+    const peak=addCustomMesh(parent,geo,rockMat,x,0,z);peak.userData.sharedMaterial=false;
+    if(snowCap){
+      const capGeo=new THREE.ConeGeometry(width*.24,height*.25,6,1);
+      const cap=addCustomMesh(parent,capGeo,mats.snow,x,height*.86,z);cap.userData.sharedMaterial=true;cap.rotation.y=random()*Math.PI;
+    }
+    return peak;
+  }
+  function makeIrregularWater(parent,id,cx,cz,rx,rz,y,random,shore=true){
+    const count=32,angles=[],radii=[];
+    for(let i=0;i<count;i++){angles.push(i*Math.PI*2/count);radii.push(.88+random()*.24);}
+    if(shore){
+      const bankVertices=[],bankIndices=[];
+      for(let i=0;i<count;i++){
+        const a=angles[i],r=radii[i],next=angles[(i+1)%count],nr=radii[(i+1)%count];
+        bankVertices.push(Math.cos(a)*rx*r,y-.035,Math.sin(a)*rz*r,Math.cos(a)*rx*r*1.17,y-.055,Math.sin(a)*rz*r*1.17);
+        bankIndices.push(i*2,i*2+1,((i+1)%count)*2+1,i*2,((i+1)%count)*2+1,((i+1)%count)*2);
+      }
+      const bankGeo=new THREE.BufferGeometry();bankGeo.setAttribute("position",new THREE.Float32BufferAttribute(bankVertices,3));bankGeo.setIndex(bankIndices);bankGeo.computeVertexNormals();
+      const bankMat=id==="desert"?mats.sand:new THREE.MeshStandardMaterial({color:0x77816d,roughness:1});
+      const bank=addCustomMesh(parent,bankGeo,bankMat,cx,0,cz);bank.userData.sharedMaterial=id==="desert";
+    }
+    const vertices=[0,y,0],indices=[];
+    for(let i=0;i<count;i++){const a=angles[i],r=radii[i];vertices.push(Math.cos(a)*rx*r,y+.012,Math.sin(a)*rz*r);}
+    for(let i=0;i<count;i++)indices.push(0,i+1,(i+1)%count+1);
+    const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));geo.setIndex(indices);geo.computeVertexNormals();
+    const water=addCustomMesh(parent,geo,waterMaterials[id]||waterMaterials.meadow,cx,0,cz);water.castShadow=false;
+    return water;
+  }
+  function createRiverRibbon(parent,points,width,material){
+    const vertices=[],indices=[];
+    for(let i=0;i<points.length;i++){
+      const p=points[i],before=points[Math.max(0,i-1)],after=points[Math.min(points.length-1,i+1)];
+      const dx=after.x-before.x,dz=after.z-before.z,len=Math.hypot(dx,dz)||1,nx=-dz/len,nz=dx/len;
+      vertices.push(p.x+nx*width*.5,p.y,p.z+nz*width*.5,p.x-nx*width*.5,p.y,p.z-nz*width*.5);
+      if(i<points.length-1){const a=i*2,b=a+1,c=a+2,d=a+3;indices.push(a,b,d,a,d,c);}
+    }
+    const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));geo.setIndex(indices);geo.computeVertexNormals();
+    const river=addCustomMesh(parent,geo,material);river.castShadow=false;return river;
+  }
+  function createWoodBridge(parent,x,z,span=3.2){
+    const group=new THREE.Group();group.position.set(x,.12,z);parent.add(group);
+    const wood=new THREE.MeshStandardMaterial({color:0x855532,roughness:.9});
+    const darkWood=new THREE.MeshStandardMaterial({color:0x593a27,roughness:1});
+    for(let i=0;i<11;i++){
+      const board=new THREE.Mesh(new THREE.BoxGeometry(span,.12,.22),i%3===0?darkWood:wood);
+      board.position.set(0,0,(i-5)*.23);board.castShadow=true;board.receiveShadow=true;group.add(board);
+    }
+    for(const side of [-1,1]){
+      for(const xSide of [-1,1]){
+        const post=new THREE.Mesh(new THREE.BoxGeometry(.16,.72,.16),darkWood);post.position.set(xSide*(span*.5-.12),.34,side*.96);post.castShadow=true;group.add(post);
+      }
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(span,.13,.14),wood);rail.position.set(0,.62,side*.96);group.add(rail);
+    }
+    group.traverse(o=>{if(o.isMesh)o.userData.sharedMaterial=false;});
+    return group;
+  }
+  function addMountainValley(group,random,heightAt){
+    // A jagged, triangulated mountain wall frames the rear of the playable valley.
+    const peaks=[[-11,-18,5.8,12.8,3.8],[-5.9,-19.1,5.1,10.6,3.5],[0,-19.8,6.3,14.5,4.1],[6.4,-18.9,5.3,11.8,3.5],[12,-17.7,5.8,13.2,3.8]];
+    for(const [x,z,w,h,d] of peaks)createFacetedPeak(group,x,z,w,h,d,random,true);
+    // Exposed rock faces on both valley shoulders.
+    for(const side of [-1,1]){
+      const cliffMat=new THREE.MeshStandardMaterial({color:side<0?0x626d70:0x737c78,roughness:1,flatShading:true});
+      const cliffGeo=new THREE.DodecahedronGeometry(1,1);
+      const cliff=addCustomMesh(group,cliffGeo,cliffMat,side*10.8,2.35,-11.8);cliff.scale.set(5.2,4.6,2.1);cliff.rotation.set(.12,side*.14,.08);cliff.userData.sharedMaterial=false;
+      for(let i=0;i<7;i++){
+        const tree=createTree("mountain","pine",random);
+        placeObject(group,tree,side*(8.8+random()*5),heightAt(side*9,-13+random()*6),-13+random()*7,random,.8+random()*.75);
+      }
+    }
+    // A tall visible waterfall spilling from the rear cliff into the valley stream.
+    const fallX=.2,fallZ=-15.3,topY=5.6,bottomY=.55,fallHeight=topY-bottomY;
+    const fallGeo=new THREE.PlaneGeometry(2.25,fallHeight,8,12);
+    const pos=fallGeo.attributes.position;
+    for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i);pos.setZ(i,Math.sin(x*3+y*1.2)*.045);}
+    fallGeo.computeVertexNormals();
+    const fallMat=new THREE.MeshStandardMaterial({color:0xbceeff,roughness:.12,metalness:.06,transparent:true,opacity:.78,side:THREE.DoubleSide,emissive:0x24506b,emissiveIntensity:.12});
+    const fall=addCustomMesh(group,fallGeo,fallMat,fallX,(topY+bottomY)*.5,fallZ);fall.userData.sharedMaterial=false;fall.castShadow=false;
+    for(let i=0;i<5;i++){
+      const streakGeo=new THREE.PlaneGeometry(.055,fallHeight*(.52+random()*.4));
+      const streak=addCustomMesh(group,streakGeo,mats.snow,fallX-.82+i*.4,(topY+bottomY)*.5,fallZ+.035);streak.userData.sharedMaterial=true;streak.material=mats.foam;
+      streak.castShadow=false;
+    }
+    const foam=new THREE.Mesh(new THREE.IcosahedronGeometry(1,1),mats.foam);foam.position.set(fallX,.62,fallZ+.42);foam.scale.set(1.75,.32,.75);foam.castShadow=false;group.add(foam);
+    const riverPts=[];
+    for(let i=0;i<=18;i++){const t=i/18,z=-14.9+t*7.2,x=.2+Math.sin(t*Math.PI*1.4)*.68;riverPts.push({x,y:.22+Math.sin(t*Math.PI)*.05,z});}
+    createRiverRibbon(group,riverPts,1.35,waterMaterials.mountain);
+    makeIrregularWater(group,"mountain",.15,-10.9,2.6,1.4,.24,random,false);
+    createWoodBridge(group,.15,-9.0,3.6);
+    for(let i=0;i<15;i++){
+      const side=random()<.5?-1:1,x=.15+side*(1.35+random()*1.6),z=-8.2-random()*6.4;
+      placeObject(group,createRock("mountain",random,"rock"),x,z,heightAt(x,z),random,.45+random()*.65);
+      if(i%3===0)placeObject(group,createFern(random),x+side*.45,z-.25,heightAt(x,z),random,.75+random()*.45);
+    }
+    for(let i=0;i<10;i++){
+      const side=i%2?1:-1,x=side*(5.2+random()*4.4),z=-8-random()*8;
+      placeObject(group,createTree("mountain","pine",random),x,z,heightAt(x,z),random,.85+random()*.65);
+    }
+  }
+  function addDesertOasis(group,random,heightAt){
+    const lakeX=-1.1,lakeZ=-10.5,shoreY=.34;
+    makeIrregularWater(group,"desert",lakeX,lakeZ,6.35,4.45,shoreY,random,true);
+    // A second narrow inner lagoon edge creates a pale, shallow-water shoreline.
+    makeIrregularWater(group,"desert",lakeX+.25,lakeZ-.08,5.9,4.0,shoreY+.025,random,false);
+    const shallow=new THREE.Mesh(new THREE.CircleGeometry(1,24),new THREE.MeshStandardMaterial({color:0x83dce4,roughness:.24,transparent:true,opacity:.3,side:THREE.DoubleSide}));
+    shallow.rotation.x=-Math.PI/2;shallow.position.set(lakeX,shoreY+.045,lakeZ);shallow.scale.set(5.7,3.85,1);shallow.userData.sharedGeometry=false;shallow.userData.sharedMaterial=false;group.add(shallow);
+    // Coconut palms with individually varied height and leaning trunks frame the shore.
+    for(let i=0;i<11;i++){
+      const angle=i*Math.PI*2/11+.17,radius=5.1+random()*1.1,x=lakeX+Math.cos(angle)*radius,z=lakeZ+Math.sin(angle)*radius;
+      const palm=createTree("tropical","palm",random);palm.rotation.z=(random()-.5)*.3;palm.scale.setScalar(.78+random()*.65);
+      placeObject(group,palm,x,z,heightAt(x,z),random,.95);
+    }
+    for(let i=0;i<12;i++){
+      const angle=i*Math.PI*2/12+random()*.18,radius=8.1+random()*2.3,x=lakeX+Math.cos(angle)*radius,z=lakeZ+Math.sin(angle)*radius;
+      placeObject(group,createTree("desert","cactus",random),x,z,heightAt(x,z),random,.72+random()*.58);
+    }
+    for(let i=0;i<7;i++){
+      const x=lakeX+(random()-.5)*15,z=lakeZ+(random()-.5)*10;
+      placeObject(group,createMound("desert",random,"dune"),x,z,heightAt(x,z),random,.65+random()*.75);
+    }
+    // Distant mesa silhouettes give the oasis the open, arid horizon from the reference.
+    for(let i=0;i<7;i++){
+      const x=-17+i*5.4,z=-17.5+random()*2.2,w=2.8+random()*2.1,h=3.4+random()*2.5;
+      const mesa=new THREE.Mesh(new THREE.CylinderGeometry(w*.82,w,h,7,1),rocks.desert);
+      mesa.position.set(x,h*.35,z);mesa.scale.y=.8;mesa.castShadow=true;mesa.userData.sharedGeometry=false;group.add(mesa);
+    }
+  }
   function createBackdrop(id){
     const group=new THREE.Group();group.name="biomeBackdrop-"+id;
     const random=seeded(id+"-distant-backdrop");
@@ -330,6 +485,8 @@ export function createBiomeVisualKit(THREE) {
         for(let i=0;i<5;i++){const a=i*Math.PI*2/5,px=waterSpot.x+Math.cos(a)*3.1,pz=waterSpot.z+Math.sin(a)*3.1;placeObject(group,createRock("snow",random,"ice"),px,pz,heightAt(px,pz),random,.45);}
       }
     }
+    if(id==="mountain")addMountainValley(group,random,heightAt);
+    if(id==="desert")addDesertOasis(group,random,heightAt);
     // Light scatter is InstancedMesh-based and avoids plots, resources, obstacles, and the robot corridor.
     const pebbles=[],tufts=[];
     for(let z=-half+2;z<half-2;z++)for(let x=-half+2;x<half-2;x++){
