@@ -2,6 +2,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { initLanguageToggle } from './i18n.js';
 import { runProgram } from './language.js';
+import { createBiomeVisualKit } from './biome-visuals.js';
 import { createIde } from './ide.js';
 import { createDebuggerController } from './debugger.js';
 import { CROPS, ROBOT_TYPES, MISSIONS as CORE_MISSIONS, BUILDINGS as CORE_BUILDINGS, TECHNOLOGIES } from './data.js';
@@ -12,6 +13,7 @@ import { ROBOT_MODULES, moduleEffects, hazardTraversalMultiplier, hazardEnergyMu
 import { GRID_STEP, GRID_LIMIT, worldToCell, cellToWorld, cellKey, findPath, buildBlockedCells } from './navigation.js';
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
 import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, MAP_TILE_SIZE, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, RESOURCE_CATALOG, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
+const biomeVisualKit=createBiomeVisualKit(THREE);
 let ide=null;
 let activeBiome='meadow',worldSeed='legacy-meadow',generatedWorld=null;
 let terrainMesh=null,terrainHeightMap=new Map(),worldObstacleCells=new Set(),worldHazardCells=new Map();
@@ -43,10 +45,10 @@ function pixelTexture(base,accent,seed=1){
 const grassTex=pixelTexture('#719b55','#b6c879',12),soilTex=pixelTexture('#80563a','#c18a58',24);
 const mat=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
 const grass=new THREE.MeshStandardMaterial({map:grassTex,roughness:1}),soil=new THREE.MeshStandardMaterial({map:soilTex,roughness:1}),soilDark=mat(0x563922),leaf=mat(0x5b9a43),gold=mat(0xeebc45),metal=mat(0xd5dfd1,.45),blue=mat(0x397f91,.55),dark=mat(0x20313a),white=mat(0xf2f1dc);
-const biomeSoilMaterials=Object.fromEntries(Object.values(BIOMES).map(item=>[item.id,mat(item.soil)]));
-const biomeTerrainMaterials=Object.fromEntries(Object.values(BIOMES).map(item=>[item.id,mat(item.terrain)]));
+const biomeSoilMaterials=biomeVisualKit.soilMaterials;
+const biomeTerrainMaterials=biomeVisualKit.terrainMaterials;
 function box(parent,w,h,d,m,x,y,z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
-const ground=box(scene,38,.4,38,grass,0,-.3,0);
+const ground=box(scene,38,.4,38,biomeTerrainMaterials.meadow,0,-.3,0);
 const grid=new THREE.GridHelper(38,38,0x557b45,0x6f9656);grid.position.y=-.095;grid.material.transparent=true;grid.material.opacity=.28;scene.add(grid);
 const startingWorldGroup=new THREE.Group();scene.add(startingWorldGroup);
 const WEATHER_PARTICLE_COUNT=220;
@@ -61,6 +63,9 @@ weatherGeometry.setAttribute('position',new THREE.BufferAttribute(weatherPositio
 const weatherMaterial=new THREE.PointsMaterial({color:0xcbe8f4,size:.065,transparent:true,opacity:.72,depthWrite:false,sizeAttenuation:true});
 const weatherParticles=new THREE.Points(weatherGeometry,weatherMaterial);weatherParticles.visible=false;scene.add(weatherParticles);
 let lastSeasonVisual='',lastBiomeVisual='';
+const biomeSkyColors=Object.fromEntries(Object.entries(biomeVisualKit.atmosphere).map(([id,value])=>[id,new THREE.Color(value.sky)]));
+const biomeSunColors=Object.fromEntries(Object.entries(biomeVisualKit.atmosphere).map(([id,value])=>[id,new THREE.Color(value.sun)]));
+const blendedSkyColor=new THREE.Color();
 const SEASON_TERRAIN_TINT={
  meadow:{spring:0xa9d17a,summer:0xa2c36d,autumn:0xc5965c,winter:0xb7c2ac},
  forest:{spring:0x83aa66,summer:0x6f984f,autumn:0xc17a43,winter:0xaab8a8},
@@ -77,13 +82,13 @@ function updateSeasonalWorldVisuals(){
  const tint=SEASON_TERRAIN_TINT[activeBiome]?.[season]||BIOMES[activeBiome].terrain;
  if(terrainMesh)terrainMesh.material.color.setHex(tint);
  ground.material.color.setHex(tint);
- for(const object of startingWorldGroup.children){
+ for(const root of startingWorldGroup.children)root.traverse(object=>{
   if(object.userData?.seasonalLeaf&&object.material?.color){
    const palette={spring:0x75b957,summer:0x4e974b,autumn:0xb9753e,winter:0x879e91};
    object.material.color.setHex(palette[season]||object.userData.baseColor||0x4e8950);
   }
   if(object.userData?.windSway)object.userData.baseRotationZ??=object.rotation.z;
- }
+ });
 }
 function updateWeatherVisuals(dt){
  const falling=['rain','heavy-rain','thunderstorm','snow','blizzard','ashfall'].includes(weather);
@@ -142,7 +147,7 @@ function terrainNavigationOptions(agent){
  };
 }
 function rebuildWorldTerrain(map){
- if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.dispose();terrainMesh=null;}
+ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh=null;}
  terrainHeightMap=new Map(map.heightMap.map(point=>[cellKey(point),point.height]));
  worldObstacleCells=new Set();worldHazardCells=new Map();
  for(const obstacle of map.obstacles){
@@ -174,7 +179,7 @@ const plots=[],ownedBiomes=new Set(['meadow']),landMeshes=new Map();
 function createPlotAt(x,z,biome='meadow'){
  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
  box(g,1.72,.24,1.72,biome==='meadow'?soil:(biomeSoilMaterials[biome]||soil),0,.12,0);
- box(g,1.78,.07,1.78,mat(0x5b402b),0,.025,0);
+ box(g,1.78,.07,1.78,biomeVisualKit.plotRimMaterials[biome]||mat(0x5b402b),0,.025,0);
  for(let j=-1;j<=1;j++)box(g,1.5,.035,.035,soilDark,0,.25,j*.42);
  const crop=new THREE.Group();crop.position.y=.26;g.add(crop);
  const plot={g,crop,state:'empty',watered:false,waterSource:null,growth:0,cropType:'carrot',stage:0,biome};plots.push(plot);return plot;
@@ -216,7 +221,7 @@ for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++)createPlotAt(x*2.4,z*2.4,'meadow');
 
 function clearStartingWorldGroup(){
  for(const child of [...startingWorldGroup.children]){
-  child.traverse?.(object=>{if(object.geometry)object.geometry.dispose();});
+  child.traverse?.(object=>{if(object.geometry&&!object.userData?.sharedGeometry)object.geometry.dispose();});
   startingWorldGroup.remove(child);
  }
 }
@@ -245,28 +250,8 @@ function addStartingRock(x,z,kind='rock'){
 function createStartingWorldVisuals(map){
  clearStartingWorldGroup();resourceNodes.length=0;
  const scale=MAP_TILE_SIZE;
- for(const item of map.vegetation){
-  const x=item.x*scale,z=item.z*scale;
-  if(['cactus'].includes(item.type)){
-   const cactusMat=mat(0x548653),body=new THREE.Mesh(new THREE.CylinderGeometry(.16,.2,1.05,7),cactusMat);body.position.set(x,terrainHeightAtWorld(x,z)+.53,z);startingWorldGroup.add(body);
-   for(const side of [-1,1]){const arm=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,.48,6),cactusMat);arm.position.set(x+side*.23,terrainHeightAtWorld(x,z)+.48,z);arm.rotation.z=-side*.45;startingWorldGroup.add(arm);}
-  }else if(item.type.includes('shrub')||item.type.includes('grass')||item.type.includes('moss')||item.type==='mushroom'){
-   const sphere=new THREE.Mesh(new THREE.IcosahedronGeometry(.3,0),mat(item.type==='mushroom'?0xc66b54:0x64814a));sphere.position.set(x,terrainHeightAtWorld(x,z)+.2,z);sphere.scale.set(1,.55,1);startingWorldGroup.add(sphere);
-  }else addStartingTree(x,z,item.type);
- }
- for(const item of map.obstacles){
-  const x=item.x*scale,z=item.z*scale;
-  if(['river','deep-water','flood-zone','frozen-lake'].includes(item.type)){
-   const waterMat=mat(activeBiome==='snow'?0x9ccbd8:0x397f8e,.35);
-   const patch=new THREE.Mesh(new THREE.BoxGeometry(2.1,.035,1.2),waterMat);patch.position.set(x,terrainHeightAtWorld(x,z)+.006,z);patch.rotation.y=(x+z)*.12;startingWorldGroup.add(patch);
-  }else if(['lava','crater','steam-vent','hot-rock'].includes(item.type)){
-   const hot=mat(item.type==='lava'?0xe6572d:0x4b4240,.45);
-   const patch=new THREE.Mesh(new THREE.CylinderGeometry(.35,.6,.12,7),hot);patch.position.set(x,terrainHeightAtWorld(x,z)+.04,z);startingWorldGroup.add(patch);
-   if(item.type==='steam-vent'){const steam=new THREE.Mesh(new THREE.ConeGeometry(.18,.65,6),mat(0xb9aaa0,.9));steam.position.set(x,terrainHeightAtWorld(x,z)+.38,z);startingWorldGroup.add(steam);}
-  }else if(['tree','dense-tree','fallen-tree','stump','thicket','reed-bed'].includes(item.type)){
-   if(item.type==='stump'||item.type==='fallen-tree')addStartingRock(x,z,'rock');else addStartingTree(x,z,item.type.includes('pine')?'pine':item.type);
-  }else addStartingRock(x,z,item.type==='cliff'||item.type==='ravine'?'cliff':'rock');
- }
+ const biomeEnvironment=biomeVisualKit.createEnvironment(activeBiome,map,terrainHeightAtWorld,scale);
+ startingWorldGroup.add(biomeEnvironment);
  for(const item of map.resources){
   const definition=RESOURCE_CATALOG[item.type]||RESOURCE_CATALOG.stone;
   const node=new THREE.Group(),resourceMaterial=mat(definition.color,.7);
@@ -293,7 +278,7 @@ function applyStartingBiome(biomeId,seed){
  rebuildWorldTerrain(generatedWorld);
  ground.material=activeBiome==='meadow'?grass:(biomeTerrainMaterials[activeBiome]||grass);
  ground.material.needsUpdate=true;
- scene.background.setHex(definition.terrain);scene.fog.color.setHex(definition.terrain);
+ const atmosphere=biomeVisualKit.atmosphere[activeBiome]||biomeVisualKit.atmosphere.meadow;scene.background.setHex(atmosphere.sky);scene.fog.color.setHex(atmosphere.fog);scene.fog.near=atmosphere.fogNear;scene.fog.far=atmosphere.fogFar;
  for(const plot of plots){scene.remove(plot.g);plot.g.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
  plots.length=0;
  for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++)createPlotAt(x*2.4,z*2.4,activeBiome);
@@ -1556,8 +1541,9 @@ function update(dt){
  const daylight=.28+.72*Math.max(0,Math.sin(dayClock*Math.PI*2-Math.PI/2));
  sun.intensity=1.1+1.15*daylight;
  const skyNight=new THREE.Color(0x18283c);
- scene.background.copy(skyNight).lerp(seasonSkyColors[season]||skyDay,daylight);scene.fog.color.copy(scene.background);
- sun.color.set((SEASONS.find(item=>item.id===season)||SEASONS[0]).sun);
+ blendedSkyColor.copy(seasonSkyColors[season]||skyDay).lerp(biomeSkyColors[activeBiome]||skyDay,.52);
+ scene.background.copy(skyNight).lerp(blendedSkyColor,daylight);scene.fog.color.copy(scene.background);
+ sun.color.set((SEASONS.find(item=>item.id===season)||SEASONS[0]).sun).lerp(biomeSunColors[activeBiome]||biomeSunColors.meadow,.32);
  updateSeasonalWorldVisuals();
  updateWeatherVisuals(dt);
 
