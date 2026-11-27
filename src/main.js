@@ -44,6 +44,73 @@ function box(parent,w,h,d,m,x,y,z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,
 const ground=box(scene,38,.4,38,grass,0,-.3,0);
 const grid=new THREE.GridHelper(38,38,0x557b45,0x6f9656);grid.position.y=-.095;grid.material.transparent=true;grid.material.opacity=.28;scene.add(grid);
 const startingWorldGroup=new THREE.Group();scene.add(startingWorldGroup);
+const WEATHER_PARTICLE_COUNT=220;
+const weatherPositions=new Float32Array(WEATHER_PARTICLE_COUNT*3);
+for(let i=0;i<WEATHER_PARTICLE_COUNT;i++){
+ weatherPositions[i*3]=(Math.random()-.5)*34;
+ weatherPositions[i*3+1]=Math.random()*12;
+ weatherPositions[i*3+2]=(Math.random()-.5)*34;
+}
+const weatherGeometry=new THREE.BufferGeometry();
+weatherGeometry.setAttribute('position',new THREE.BufferAttribute(weatherPositions,3));
+const weatherMaterial=new THREE.PointsMaterial({color:0xcbe8f4,size:.065,transparent:true,opacity:.72,depthWrite:false,sizeAttenuation:true});
+const weatherParticles=new THREE.Points(weatherGeometry,weatherMaterial);weatherParticles.visible=false;scene.add(weatherParticles);
+let lastSeasonVisual='',lastBiomeVisual='';
+const SEASON_TERRAIN_TINT={
+ meadow:{spring:0xa9d17a,summer:0xa2c36d,autumn:0xc5965c,winter:0xb7c2ac},
+ forest:{spring:0x83aa66,summer:0x6f984f,autumn:0xc17a43,winter:0xaab8a8},
+ desert:{spring:0xe0c68e,summer:0xe9c982,autumn:0xc6a36f,winter:0xbba988},
+ mountain:{spring:0x91a18a,summer:0x9da68b,autumn:0x9b8b78,winter:0xb9c6cb},
+ snow:{spring:0xc5d7dd,summer:0xb1cbd2,autumn:0xb9cbd1,winter:0xe1eef2},
+ tropical:{spring:0x62a66d,summer:0x58a66c,autumn:0x6b9d63,winter:0x6b9d72},
+ volcanic:{spring:0x67534a,summer:0x755047,autumn:0x594742,winter:0x665b58},
+ swamp:{spring:0x69885b,summer:0x5d7d51,autumn:0x8c8050,winter:0x87927c}
+};
+function updateSeasonalWorldVisuals(){
+ if(lastSeasonVisual===season&&lastBiomeVisual===activeBiome)return;
+ lastSeasonVisual=season;lastBiomeVisual=activeBiome;
+ const tint=SEASON_TERRAIN_TINT[activeBiome]?.[season]||BIOMES[activeBiome].terrain;
+ if(terrainMesh)terrainMesh.material.color.setHex(tint);
+ ground.material.color.setHex(tint);
+ for(const object of startingWorldGroup.children){
+  if(object.userData?.seasonalLeaf&&object.material?.color){
+   const foliage=activeBiome==='forest'||activeBiome==='meadow';
+   const palette={spring:0x75b957,summer:0x4e974b,autumn:0xb9753e,winter:0x879e91};
+   object.material.color.setHex(foliage?palette[season]:(object.userData.baseColor||0x4e8950));
+  }
+ }
+}
+function updateWeatherVisuals(dt){
+ const falling=['rain','heavy-rain','thunderstorm','snow','blizzard','ashfall'].includes(weather);
+ const drift=weather==='wind'||weather==='blizzard'?5:weather==='thunderstorm'?2:0;
+ weatherParticles.visible=falling||weather==='wind';
+ if(weather==='rain'||weather==='heavy-rain'||weather==='thunderstorm'){
+  weatherMaterial.color.setHex(0xaed7ef);weatherMaterial.size=weather==='heavy-rain'||weather==='thunderstorm'?.085:.055;weatherMaterial.opacity=.64;
+ }else if(weather==='snow'||weather==='blizzard'){
+  weatherMaterial.color.setHex(0xf2fbff);weatherMaterial.size=weather==='blizzard'?.11:.095;weatherMaterial.opacity=.9;
+ }else if(weather==='ashfall'){
+  weatherMaterial.color.setHex(0x9b8278);weatherMaterial.size=.075;weatherMaterial.opacity=.6;
+ }else{
+  weatherMaterial.color.setHex(0xd4cba4);weatherMaterial.size=.035;weatherMaterial.opacity=.35;
+ }
+ const positions=weatherGeometry.attributes.position;
+ for(let i=0;i<WEATHER_PARTICLE_COUNT;i++){
+  const x=i*3,y=x+1,z=x+2;
+  if(falling){
+   weatherPositions[y]-=dt*(weather==='rain'||weather==='heavy-rain'||weather==='thunderstorm'?13:weather==='blizzard'?4.2:2.4);
+   weatherPositions[x]+=dt*drift*(.35+((i%7)/10));
+   weatherPositions[z]+=dt*(weather==='blizzard'?1.8:.35);
+   if(weatherPositions[y]<0){weatherPositions[y]=8+Math.random()*5;weatherPositions[x]=(Math.random()-.5)*34;weatherPositions[z]=(Math.random()-.5)*34;}
+  }else if(weather==='wind'){
+   weatherPositions[x]+=dt*6;
+   weatherPositions[y]=.5+Math.sin(robotAnimTime*2+i)*.22;
+   if(weatherPositions[x]>17)weatherPositions[x]=-17;
+  }
+ }
+ positions.needsUpdate=true;
+ scene.fog.near=weather==='fog'?5:weather==='heavy-rain'||weather==='blizzard'?10:22;
+ scene.fog.far=weather==='fog'?28:weather==='heavy-rain'||weather==='blizzard'?36:48;
+}
 function terrainHeightAtWorld(x,z){
  const cell={x:Math.round(x/MAP_TILE_SIZE),z:Math.round(z/MAP_TILE_SIZE)};
  return Number(terrainHeightMap.get(cellKey(cell)))||0;
@@ -981,7 +1048,7 @@ async function navigateToNearestPlot(agent,state='any'){
 async function animateAgentTo(agent,dest,emergency=false){
  if(agent.energy<=0&&!emergency){toast(`${agent.name}: разряжен — вернись на базу`);return false;}
  if(isBlocked(agent,dest)){toast(`${agent.name}: маршрут занят другим роботом`);return false;}
- const start=agent.mesh.position.clone(),duration=520/Math.max(.55,agent.speed*(agent.running?programSpeed:1)),started=performance.now();
+ const start=agent.mesh.position.clone(),climateSpeed=getEnvironmentEffects(activeBiome,season,weather).movement,duration=520/Math.max(.35,agent.speed*(agent.running?programSpeed:1)*climateSpeed),started=performance.now();
  agent.moving=true;if(agent===agents[0])robotMoving=true;
  await new Promise(resolve=>{
   const tick=now=>{
@@ -1290,6 +1357,8 @@ function update(dt){
  const skyNight=new THREE.Color(0x18283c);
  scene.background.copy(skyNight).lerp(seasonSkyColors[season]||skyDay,daylight);scene.fog.color.copy(scene.background);
  sun.color.set((SEASONS.find(item=>item.id===season)||SEASONS[0]).sun);
+ updateSeasonalWorldVisuals();
+ updateWeatherVisuals(dt);
 
  // Season calendar advances independently from the day/night clock.
  const seasonChange=advanceSeason(season,seasonClock,dt);seasonClock=seasonChange.seasonClock;
