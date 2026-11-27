@@ -25,6 +25,8 @@ test("restart action requires confirmation and clears game progress keys", () =>
   assert.match(html, /id="resetGame"/);
   assert.match(html, /id="resetConfirm"/);
   assert.match(html, /id="confirmReset"/);
-  assert.match(main, /key\.startsWith\('farmerbot3d_'/);
-  assert.match(main, /location\.reload\(\)/);
+  assert.match(main, /key\.startsWith\('farmerbot3d'/);
+  assert.match(main, /agent\.stopRequested=true/);
+  assert.match(main, /agent\.autoTaskBusy/);
+  assert.match(main, /location\.replace\(/);
 });
