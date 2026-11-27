@@ -8,7 +8,18 @@ export const CROPS = {
   cucumber:    { name:"Огурец", icon:"🥒", color:0x4f9c51, leaf:0x4c8e42, growTime:21, price:9, seedCost:2, waterNeed:2, shape:"cucumber" },
   cabbage:     { name:"Капуста", icon:"🥬", color:0x8dbb62, leaf:0x4f8b43, growTime:28, price:11, seedCost:3, waterNeed:2, shape:"cabbage" },
   pumpkin:     { name:"Тыква", icon:"🎃", color:0xe98b32, leaf:0x578d43, growTime:36, price:20, seedCost:5, waterNeed:3, shape:"pumpkin" },
-  sunflower:   { name:"Подсолнечник", icon:"🌻", color:0xeebc39, leaf:0x538d43, growTime:34, price:16, seedCost:4, waterNeed:1, shape:"sunflower" }
+  sunflower:   { name:"Подсолнечник", icon:"🌻", color:0xeebc39, leaf:0x538d43, growTime:34, price:16, seedCost:4, waterNeed:1, shape:"sunflower" },
+
+  banana:      { name:"Банан", icon:"🍌", color:0xf3d24d, leaf:0x3d8a46, growTime:34, price:26, seedCost:7, waterNeed:3, shape:"banana", biomes:["tropical"], seasons:["spring","summer","autumn","winter"], seasonGrowth:{spring:1.1,summer:1.25,autumn:1.05,winter:.8} },
+  pineapple:   { name:"Ананас", icon:"🍍", color:0xd9a52e, leaf:0x4f8e3d, growTime:40, price:32, seedCost:8, waterNeed:3, shape:"pineapple", biomes:["tropical"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.05,summer:1.3,autumn:1.05,winter:.55} },
+  coconut:     { name:"Кокос", icon:"🥥", color:0x8b6540, leaf:0x3b884e, growTime:48, price:38, seedCost:9, waterNeed:2, shape:"coconut", biomes:["tropical"], seasons:["spring","summer","autumn","winter"], seasonGrowth:{spring:1.05,summer:1.15,autumn:1.02,winter:.85} },
+  cocoa:       { name:"Какао", icon:"🍫", color:0x805039, leaf:0x397c49, growTime:44, price:42, seedCost:10, waterNeed:3, shape:"cocoa", biomes:["tropical"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.05,summer:1.18,autumn:1.0,winter:.6} },
+  coffee:      { name:"Кофе", icon:"☕", color:0xc04b38, leaf:0x367b43, growTime:38, price:36, seedCost:9, waterNeed:2, shape:"coffee", biomes:["tropical"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.12,summer:1.15,autumn:1.0,winter:.65} },
+  mango:       { name:"Манго", icon:"🥭", color:0xe99a35, leaf:0x4d914a, growTime:36, price:34, seedCost:8, waterNeed:3, shape:"mango", biomes:["tropical"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.05,summer:1.3,autumn:1.05,winter:.5} },
+  cactus_fruit:{ name:"Плод кактуса", icon:"🌵", color:0xd65b82, leaf:0x54834d, growTime:30, price:24, seedCost:6, waterNeed:1, shape:"cactus-fruit", biomes:["desert"], seasons:["spring","summer","autumn","winter"], seasonGrowth:{spring:1.1,summer:.9,autumn:1.0,winter:.8} },
+  volcanic_herb:{ name:"Вулканическая трава", icon:"🌋", color:0xeb7541, leaf:0x657642, growTime:42, price:45, seedCost:12, waterNeed:2, shape:"volcanic-herb", biomes:["volcanic"], seasons:["spring","autumn","winter"], seasonGrowth:{spring:1.0,summer:.55,autumn:1.05,winter:.9} },
+  cranberry:   { name:"Клюква", icon:"🔴", color:0xb63353, leaf:0x557c45, growTime:28, price:25, seedCost:6, waterNeed:2, shape:"cranberry", biomes:["swamp","snow"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.0,summer:.95,autumn:1.25,winter:.45} },
+  rice:        { name:"Рис", icon:"🌾", color:0xd8c16d, leaf:0x77a34b, growTime:32, price:22, seedCost:5, waterNeed:3, shape:"rice", biomes:["swamp","tropical"], seasons:["spring","summer","autumn"], seasonGrowth:{spring:1.0,summer:1.25,autumn:1.0,winter:.45} }
 };
 
 export const ROBOT_TYPES = {
