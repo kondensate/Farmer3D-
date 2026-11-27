@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#17251c">
-<title>FarmerBot 3.0 Alpha 1 — Smart Farm</title>
+<title>FarmerBot 3.0 Alpha 4 — Smart Farm</title>
 <style>
 :root{--bg:#17251c;--panel:#1d3025;--panel2:#294333;--lime:#c4e879;--cream:#f5f0d9;--muted:#bdcbb7;--line:#78936a}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--cream);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;touch-action:none}
@@ -104,7 +104,7 @@
 </head>
 <body>
 <div id="game"></div>
-<div class="hud"><div class="brand">🌱 FARMERBOT 3.0 <small>SMART AUTOMATION · ALPHA 1</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">⭐ ур. <span id="level">1</span> · <span id="xp">0</span> XP</div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div><div class="stat">🌤 <span id="weather">Ясно</span></div></div></div>
+<div class="hud"><div class="brand">🌱 FARMERBOT 3.0 <small>SMART AUTOMATION · ALPHA 4</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">⭐ ур. <span id="level">1</span> · <span id="xp">0</span> XP</div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div><div class="stat">🌤 <span id="weather">Ясно</span></div><div class="stat">🗓 <span id="season">🌱 Весна</span></div></div></div>
 <div class="legend">Нажимай стрелки: одно нажатие = один шаг на клетку<br>Подойди к грядке и нажми ДЕЙСТВИЕ: посади → полей → собери</div>
 <div class="bottom">
  <div class="pad">
@@ -182,6 +182,7 @@ return_to_base()</textarea><div id="ideAutocomplete" class="autocomplete-popup" 
  <p class="muted">Выбери здание, затем коснись свободного места на поле. Перемещение и удаление построек доступны ниже.</p>
  <div class="buildHint" id="buildHint">Выбери объект для размещения.</div>
  <div class="buildGrid" id="buildingCatalog"></div>
+ <h3>🌍 НОВЫЕ ТЕРРИТОРИИ</h3><p class="muted" id="worldStatus">Весна · открыто 1 из 5 регионов</p><div class="buildGrid" id="landMarket"></div>
  <div class="row"><button class="secondary" id="rotateBuilding">↻ ПОВЕРНУТЬ</button><button class="secondary" id="cancelBuilding">ОТМЕНА</button></div>
  <h3>ПОСТРОЙКИ НА ФЕРМЕ</h3><div id="placedBuildings"></div>
 </div>

@@ -6,6 +6,7 @@ on:
       - main
       - farmerbot-3.0
       - farmerbot-3.0-stage-b
+      - farmerbot-3.0-stage-c
   pull_request:
     branches:
       - main
@@ -30,3 +31,4 @@ jobs:
           node --check src/debugger.js
           node --check src/data.js
           node --check src/navigation.js
+          node --check src/world.js
