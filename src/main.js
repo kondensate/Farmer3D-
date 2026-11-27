@@ -4,6 +4,7 @@ import { runProgram } from './language.js';
 import { createIde } from './ide.js';
 import { createDebuggerController } from './debugger.js';
 import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from './data.js';
+import { ROBOT_MODULES, moduleEffects, hazardTraversalMultiplier, hazardEnergyMultiplier } from './robot-equipment.js';
 import { GRID_STEP, worldToCell, cellToWorld, cellKey, findPath, buildBlockedCells } from './navigation.js';
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
 import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, MAP_TILE_SIZE, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, RESOURCE_CATALOG, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
@@ -121,7 +122,7 @@ function terrainNavigationOptions(agent){
  const limits={meadow:1.2,desert:1.0,mountain:.75,snow:.85,tropical:.8,forest:.8,volcanic:.9,swamp:.45};
  return {
   heightAt:(x,z)=>Number(terrainHeightMap.get(cellKey({x,z})))||0,
-  maxStep:limits[activeBiome]??1,
+  maxStep:(limits[activeBiome]??1)+moduleEffects(agent.modules).stepBonus,
   slopeCost:1.8,
   traversalCost:(x,z)=>{
    let penalty=0;
@@ -130,7 +131,7 @@ function terrainNavigationOptions(agent){
     if(!type)continue;
     const distance=Math.abs(dx)+Math.abs(dz);
     const severity={lava:5,'steam-vent':3,'hot-rock':2,crater:3,quicksand:4,mud:2,'deep-water':3,'flood-zone':3,'frozen-lake':2,ice:1,snowdrift:1}[type]||0;
-    if(severity)penalty+=severity/(distance+1);
+    if(severity)penalty+=severity*hazardTraversalMultiplier(agent.modules,type)/(distance+1);
    }
    return penalty;
   }
@@ -461,13 +462,13 @@ function createAuxRobot(type,x,z){
  group.position.set(x,0,z);scene.add(group);
  return group;
 }
-agents.push({id:'farmbot',type:'farmbot',name:'FarmBot Basic',mesh:robot,energy:100,maxEnergy:100,speed:1,water:5,capacity:6,inventory:{},program:robotPrograms.farmbot,running:false,stopRequested:false,pauseRequested:false,resumeResolver:null,stepOnce:false,moving:false,actionBudget:0,tileBudget:0,level:1});
+agents.push({id:'farmbot',type:'farmbot',name:'FarmBot Basic',mesh:robot,energy:100,maxEnergy:100,speed:1,water:5,capacity:6,inventory:{},modules:[],program:robotPrograms.farmbot,running:false,stopRequested:false,pauseRequested:false,resumeResolver:null,stepOnce:false,moving:false,actionBudget:0,tileBudget:0,level:1});
 let selectedAgent=agents[0];
 function createAgent(type){
  if(!ROBOT_TYPES[type]||agents.some(a=>a.type===type))return null;
  const cfg=ROBOT_TYPES[type],dock=baseDock({type}),x=dock.x,z=dock.z;
  const mesh=createAuxRobot(type,x,z);
- const a={id:type,type,name:cfg.name,mesh,energy:cfg.energy,maxEnergy:cfg.energy,speed:cfg.speed,water:cfg.water,capacity:type==='harvestbot'?18:type==='waterbot'?3:1,inventory:{},program:`# Программа ${cfg.name}\nscan()\n`,running:false,stopRequested:false,pauseRequested:false,resumeResolver:null,stepOnce:false,moving:false,actionBudget:0,tileBudget:0,level:1};
+ const a={id:type,type,name:cfg.name,mesh,energy:cfg.energy,maxEnergy:cfg.energy,speed:cfg.speed,water:cfg.water,capacity:type==='harvestbot'?18:type==='waterbot'?3:1,inventory:{},modules:[],program:`# Программа ${cfg.name}\nscan()\n`,running:false,stopRequested:false,pauseRequested:false,resumeResolver:null,stepOnce:false,moving:false,actionBudget:0,tileBudget:0,level:1};
  agents.push(a);metrics.robots=agents.length;if(!isLoadingGame)updateMissions();renderFleetUI();return a;
 }
 function activeAgent(){return selectedAgent||agents[0];}
@@ -838,7 +839,7 @@ function renderFleetUI(){
   </div>`;
  }).join('');
  $('#networkInfo').textContent=`На связи: ${agents.length} · Активны: ${agents.filter(a=>a.running).length} · Склад: ${Object.values(harvestStorage).reduce((a,b)=>a+b,0)} ед. · Питание: ${Math.round(powerState.generation*10)/10}/${Math.round(powerState.consumption*10)/10} · Отключено: ${powerState.outages}`;
- renderAutomationPanel();
+ renderAutomationPanel();renderRobotModules();
  cards.querySelectorAll('[data-bot-select]').forEach(b=>b.onclick=()=>{selectAgent(b.dataset.botSelect);$('#networkPanel').classList.remove('show');$('#codePanel').classList.add('show');});
  cards.querySelectorAll('[data-bot-run]').forEach(b=>b.onclick=()=>{const a=agents.find(x=>x.id===b.dataset.botRun);if(a)runAgent(a);});
  cards.querySelectorAll('[data-bot-stop]').forEach(b=>b.onclick=()=>{const a=agents.find(x=>x.id===b.dataset.botStop);if(a){a.stopRequested=true;renderFleetUI();}});
@@ -859,6 +860,21 @@ function buyEquipment(type,cost){
  if(type==='pump')pumpBuilt=true;if(type==='solar')solarBuilt=true;if(type==='storage')storageBuilt=true;
  buildEquipment(type);stats();saveGame();toast(`Оборудование построено: ${type}`);
 }
+function buyRobotModule(moduleId){
+ const module=ROBOT_MODULES[moduleId],agent=activeAgent();if(!module||!agent)return;
+ agent.modules=Array.isArray(agent.modules)?agent.modules:[];
+ if(agent.modules.includes(moduleId)){toast('Этот модуль уже установлен');return;}
+ if(gameMode!=='sandbox'&&coins<module.cost){toast(`Нужно ${module.cost} монет`);return;}
+ if(gameMode!=='sandbox')coins-=module.cost;
+ agent.modules.push(moduleId);renderFleetUI();stats();saveGame();toast(`${module.icon} ${module.name} установлен на ${agent.name}`);
+}
+function renderRobotModules(){
+ const host=$('#robotModuleCatalog');if(!host)return;
+ const agent=activeAgent(),installed=new Set(agent.modules||[]);
+ host.innerHTML=Object.entries(ROBOT_MODULES).map(([id,module])=>`<button class="secondary" data-robot-module="${id}" ${installed.has(id)?'disabled':''} title="${module.description}">${module.icon} ${module.name} · ${installed.has(id)?'УСТАНОВЛЕН':module.cost+' 🪙'}</button>`).join('');
+ host.querySelectorAll('[data-robot-module]').forEach(button=>button.onclick=()=>buyRobotModule(button.dataset.robotModule));
+ const label=$('#robotModuleTarget');if(label)label.textContent=`Модули для: ${agent.name} · выбери робота в карточке флота`;
+}
 function buySeedPack(){
  const c=CROPS[activeSeed];if(gameMode!=='sandbox'&&coins<c.seedCost){toast(`Нужно ${c.seedCost} монет`);return;}
  if(gameMode!=='sandbox')coins-=c.seedCost;seedStock[activeSeed]=(seedStock[activeSeed]||0)+5;stats();renderSeedStock();saveGame();toast(`${c.icon} Куплено 5 семян: ${c.name}`);
@@ -873,7 +889,7 @@ function saveGame(){
   equipment:{pump:pumpBuilt,solar:solarBuilt,storage:storageBuilt},
   buildings:buildings.map(({mesh,...b})=>b),researchedTechs:[...researchedTechs],
   challenge:{seconds:challengeSeconds,harvested:challengeHarvested,done:challengeDone,result:challengeResult},
-  agents:agents.map(a=>({id:a.id,type:a.type,name:a.name,x:a.mesh.position.x,z:a.mesh.position.z,y:a.mesh.position.y,rotation:a.mesh.rotation.y,energy:a.energy,water:a.water,inventory:a.inventory,program:a.program,level:a.level})),
+  agents:agents.map(a=>({id:a.id,type:a.type,name:a.name,x:a.mesh.position.x,z:a.mesh.position.z,y:a.mesh.position.y,rotation:a.mesh.rotation.y,energy:a.energy,water:a.water,inventory:a.inventory,modules:Array.isArray(a.modules)?a.modules:[],program:a.program,level:a.level})),
   plots:plots.map(p=>({state:p.state,watered:p.watered,waterSource:p.waterSource,growth:p.growth,cropType:p.cropType,biome:p.biome||'meadow'}))
  };
  try{const serialized=JSON.stringify(data);localStorage.setItem(SAVE_KEY,serialized);localStorage.setItem(WORLD_PROFILE_PREFIX+activeBiome,serialized);localStorage.setItem(UNLOCKED_BIOMES_KEY,JSON.stringify([...unlockedWorldBiomes]));}catch(e){console.warn('Не удалось сохранить игру',e);}
@@ -893,7 +909,7 @@ function loadGame(){
   if(d.world){season=SEASONS.some(item=>item.id===d.world.season)?d.world.season:'spring';seasonClock=Math.max(0,Math.min(SEASON_LENGTH_SECONDS-0.001,Number(d.world.seasonClock)||0));weatherStep=Math.max(0,Number(d.world.weatherStep)||0);activeBiome=BIOMES[d.world.activeBiome]?d.world.activeBiome:'meadow';worldSeed=String(d.world.seed||'legacy-meadow');unlockedWorldBiomes.clear();unlockedWorldBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedWorldBiomes)?d.world.unlockedWorldBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);try{const globalUnlocks=JSON.parse(localStorage.getItem(UNLOCKED_BIOMES_KEY)||'[]');for(const id of globalUnlocks)if(BIOMES[id])unlockedWorldBiomes.add(id);}catch(e){}if(BIOMES[activeBiome])unlockedWorldBiomes.add(activeBiome);applyStartingBiome(activeBiome,worldSeed);if(d.world.resourceStorage&&typeof d.world.resourceStorage==='object')Object.assign(worldResourceStorage,d.world.resourceStorage);if(Array.isArray(d.world.resourceNodes)){const savedNodes=new Map(d.world.resourceNodes.map(node=>[node.id,node]));for(const node of resourceNodes){const saved=savedNodes.get(node.id);if(saved)node.amount=Math.max(0,Number(saved.amount)||0);node.mesh.visible=node.amount>0;if(node.amount<=0)scene.remove(node.mesh);else node.mesh.scale.setScalar(.65+.35*(node.amount/Math.max(1,generatedWorld.resources.find(item=>item.id===node.id)?.amount||node.amount)));}}ownedBiomes.clear();ownedBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(LAND_PARCELS[id])createBiomeLand(id);}
   activeSeed=CROPS[d.activeSeed]?d.activeSeed:'carrot';weather=WEATHER_LABELS[d.weather]?d.weather:getBiomeWeather(activeBiome,season,weatherStep,worldSeed);gameMode=['campaign','sandbox','challenges','freeplay'].includes(d.gameMode)?d.gameMode:'campaign';$('#gameMode').value=gameMode;
   const a0=d.agents?.find(a=>a.id==='farmbot');
-  if(a0){robot.position.set(Number.isFinite(Number(a0.x))?Number(a0.x):0,0,Number.isFinite(Number(a0.z))?Number(a0.z):7);robot.rotation.y=Number(a0.rotation)||0;agents[0].energy=THREE.MathUtils.clamp(Number.isFinite(Number(a0.energy))?Number(a0.energy):100,0,agents[0].maxEnergy);agents[0].inventory=a0.inventory||{};agents[0].program=a0.program??agents[0].program;}
+  if(a0){robot.position.set(Number.isFinite(Number(a0.x))?Number(a0.x):0,0,Number.isFinite(Number(a0.z))?Number(a0.z):7);robot.rotation.y=Number(a0.rotation)||0;agents[0].energy=THREE.MathUtils.clamp(Number.isFinite(Number(a0.energy))?Number(a0.energy):100,0,agents[0].maxEnergy);agents[0].inventory=a0.inventory||{};agents[0].modules=Array.isArray(a0.modules)?a0.modules.filter(id=>ROBOT_MODULES[id]):[];agents[0].program=a0.program??agents[0].program;}
   else if(d.robot){robot.position.set(Number(d.robot.x)||0,0,Number(d.robot.z)||7);robot.rotation.y=Number(d.robot.rotation)||0;}
   if(Array.isArray(d.agents)){
    for(const saved of d.agents){
@@ -903,7 +919,7 @@ function loadGame(){
     agent.mesh.position.set(Number.isFinite(Number(saved.x))?Number(saved.x):0,Number.isFinite(Number(saved.y))?Number(saved.y):0,Number.isFinite(Number(saved.z))?Number(saved.z):7);
     agent.mesh.rotation.y=Number(saved.rotation)||0;agent.energy=THREE.MathUtils.clamp(Number.isFinite(Number(saved.energy))?Number(saved.energy):agent.maxEnergy,0,agent.maxEnergy);
     agent.water=Number.isFinite(saved.water)?saved.water:agent.water;
-    agent.inventory=saved.inventory||{};agent.program=saved.program??agent.program;agent.level=Number(saved.level)||1;agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.resumeResolver=null;agent.stepOnce=false;
+    agent.inventory=saved.inventory||{};agent.modules=Array.isArray(saved.modules)?saved.modules.filter(id=>ROBOT_MODULES[id]):[];agent.program=saved.program??agent.program;agent.level=Number(saved.level)||1;agent.running=false;agent.stopRequested=false;agent.pauseRequested=false;agent.resumeResolver=null;agent.stepOnce=false;
    }
   }
   if(Array.isArray(d.plots))d.plots.forEach((v,i)=>{
@@ -1122,7 +1138,7 @@ async function animateAgentTo(agent,dest,emergency=false){
    const [hx,hz]=key.split(',').map(Number),distance=Math.abs(hx-cell.x)+Math.abs(hz-cell.z);
    if(distance>1)return cost;
    const severity={lava:1.8,'steam-vent':1.2,'hot-rock':.8,crater:1.1,quicksand:1.5,mud:.7,'deep-water':1,'flood-zone':1,'frozen-lake':.65,ice:.4,snowdrift:.3}[type]||0;
-   return cost+severity;
+   return cost+severity*hazardEnergyMultiplier(agent.modules,type);
   },0);
   agent.energy=Math.max(0,agent.energy-.65-nearbyHazard*.18);
  }metrics.tilesMoved++;
