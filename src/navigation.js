@@ -13,8 +13,8 @@ export function cellToWorld(cell, step = GRID_STEP) {
 
 export function cellKey(cell) { return `${cell.x},${cell.z}`; }
 
-// A* on the farm's four-way movement grid. Obstacles are cell keys or {x,z} cells.
-export function findPath(start, goal, blocked = new Set(), limit = GRID_LIMIT) {
+// A* on the farm grid. Optional terrain data adds slope limits and a traversal cost.
+export function findPath(start, goal, blocked = new Set(), limit = GRID_LIMIT, terrain = null) {
   const s = { x: Math.round(start.x), z: Math.round(start.z) };
   const g = { x: Math.round(goal.x), z: Math.round(goal.z) };
   const isInside = c => Math.abs(c.x) <= limit && Math.abs(c.z) <= limit;
@@ -22,6 +22,9 @@ export function findPath(start, goal, blocked = new Set(), limit = GRID_LIMIT) {
   const blockedKeys = blocked instanceof Set ? blocked : new Set([...blocked].map(cellKey));
   const startKey = cellKey(s), goalKey = cellKey(g);
   if (startKey !== goalKey && blockedKeys.has(goalKey)) return null;
+  const heightAt = typeof terrain?.heightAt === "function" ? terrain.heightAt : () => 0;
+  const maxStep = Number.isFinite(terrain?.maxStep) ? Math.max(0, terrain.maxStep) : Infinity;
+  const slopeCost = Number.isFinite(terrain?.slopeCost) ? Math.max(0, terrain.slopeCost) : 0;
   const heuristic = c => Math.abs(c.x - g.x) + Math.abs(c.z - g.z);
   const open = [{ ...s, g: 0, f: heuristic(s) }];
   const cameFrom = new Map();
@@ -46,7 +49,9 @@ export function findPath(start, goal, blocked = new Set(), limit = GRID_LIMIT) {
       const nk = cellKey(next);
       if (blockedKeys.has(nk) && nk !== goalKey) continue;
       if (closed.has(nk)) continue;
-      const tentative = current.g + 1;
+      const rise = Math.abs((Number(heightAt(next.x,next.z))||0) - (Number(heightAt(current.x,current.z))||0));
+      if (rise > maxStep) continue;
+      const tentative = current.g + 1 + rise * slopeCost;
       if (tentative >= (cost.get(nk) ?? Infinity)) continue;
       cameFrom.set(nk,key); cost.set(nk,tentative);
       open.push({ ...next, g: tentative, f: tentative + heuristic(next) });
