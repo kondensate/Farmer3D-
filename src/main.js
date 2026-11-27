@@ -678,16 +678,59 @@ const BASE_DOCKS={
 };
 function baseDock(agent){return (BASE_DOCKS[agent.type]||BASE_POSITION).clone();}
 const $=s=>document.querySelector(s);
+function switchWorldBiome(id,progress){
+ const result=unlockBiome(id,progress,unlockedWorldBiomes);
+ if(!result.ok){toast('Сначала выполни условия открытия этого биома');return;}
+ unlockedWorldBiomes.add(id);saveGame();
+ if(id===activeBiome){$('#biomeSelectScreen').classList.remove('show');return;}
+ const profileKey=WORLD_PROFILE_PREFIX+id;
+ const savedProfile=localStorage.getItem(profileKey);
+ if(savedProfile){
+  try{
+   const profile=JSON.parse(savedProfile);
+   profile.world=profile.world||{};
+   profile.world.unlockedWorldBiomes=[...new Set([...(profile.world.unlockedWorldBiomes||[]),...unlockedWorldBiomes])];
+   localStorage.setItem(profileKey,JSON.stringify(profile));
+   localStorage.setItem(SAVE_KEY,JSON.stringify(profile));
+   location.reload();
+   return;
+  }catch(error){console.warn('Не удалось открыть сохранённый биом',error);}
+ }
+ const current=JSON.parse(localStorage.getItem(SAVE_KEY)||'{}');
+ const seed=`farmerbot-${Date.now().toString(36)}-${id}`;
+ const available=BIOMES[id].crops.find(cropId=>CROPS[cropId]?.biomes?.includes(id))||BIOMES[id].crops.find(cropId=>CROPS[cropId]);
+ current.version=8;
+ current.harvest=0;current.harvestStorage={};current.buildings=[];
+ current.automation={powerLinks:[],conveyorLinks:[],autoDispatchEnabled:false};
+ current.equipment={pump:false,solar:false,storage:false};
+ current.plots=[];
+ current.activeSeed=available||'carrot';
+ current.seedStock=current.seedStock||{};
+ if(available)current.seedStock[available]=Math.max(2,Number(current.seedStock[available])||0);
+ current.world={
+  schemaVersion:WORLD_SCHEMA_VERSION,activeBiome:id,seed,season:'spring',seasonClock:0,weatherStep:0,
+  unlockedWorldBiomes:[...unlockedWorldBiomes],unlockedBiomes:['meadow'],resourceStorage:{},resourceNodes:[]
+ };
+ current.weather=getBiomeWeather(id,'spring',0,seed);
+ current.agents=(current.agents||[]).map(agent=>({...agent,x:0,z:7,y:agent.type==='dronebot'?.75:0,inventory:{}}));
+ current.challenge={seconds:180,harvested:0,done:false,result:''};
+ const serialized=JSON.stringify(current);
+ localStorage.setItem(SAVE_KEY,serialized);localStorage.setItem(profileKey,serialized);
+ localStorage.setItem(UNLOCKED_BIOMES_KEY,JSON.stringify([...unlockedWorldBiomes]));
+ location.reload();
+}
 function renderBiomeSelector(){
  const grid=$('#biomeSelectGrid');if(!grid)return;
  const progress={xp,harvested:metrics.harvested||0};
  grid.innerHTML=BIOME_ORDER.map(id=>{
   const b=BIOMES[id],state=getBiomeUnlockState(id,progress,unlockedWorldBiomes),isOpen=state.unlocked,owned=unlockedWorldBiomes.has(id),color='#'+Number(b.terrain).toString(16).padStart(6,'0');
-  const requirement=b.unlock.type==='starter'?'Стартовая территория':owned?'Территория открыта':isOpen?'Готово к открытию':`Осталось ${state.missingXP} XP · ${state.missingHarvest} урожаев`;
-  const button=owned?'ВЫБРАТЬ':isOpen?'ОТКРЫТЬ':'ЗАКРЫТО';
+  const saved=!!localStorage.getItem(WORLD_PROFILE_PREFIX+id);
+  const requirement=b.unlock.type==='starter'?'Стартовая территория':owned?(id===activeBiome?'Текущий мир':saved?'Сохранённый мир · можно продолжить':'Территория открыта'):isOpen?'Готово к открытию':`Осталось ${state.missingXP} XP · ${state.missingHarvest} урожаев`;
+  const button=owned?(id===activeBiome?'ТЕКУЩИЙ МИР':saved?'ПРОДОЛЖИТЬ':'СОЗДАТЬ МИР'):isOpen?'ОТКРЫТЬ':'ЗАКРЫТО';
   return `<article class="biomeSelectCard ${isOpen?'':'locked'} ${activeBiome===id?'selected':''}" style="--biome-color:${color}">
    <span class="biomeIcon">${b.icon}</span><strong>${b.name}</strong><small>${b.description}</small>
-   <small>🌡 ${b.temperature} · 💧 ${b.humidity}</small><small>Ресурсы: ${b.resources.slice(0,3).join(', ')}</small>
+   <small>🌡 ${b.temperature} · 💧 ${b.humidity}</small><small>Культуры: ${b.crops.slice(0,3).map(cropId=>CROPS[cropId]?.name||cropId).join(', ')}</small>
+   <small>Ресурсы: ${b.resources.slice(0,3).map(resourceId=>RESOURCE_CATALOG[resourceId]?.name||resourceId).join(', ')}</small>
    <span class="biomeDifficulty">${b.difficulty}</span><small>${requirement}</small>
    <button type="button" data-start-biome="${id}" ${isOpen?'':'disabled'}>${button}</button>
   </article>`;
@@ -696,13 +739,7 @@ function renderBiomeSelector(){
   const id=button.dataset.startBiome;
   const state=getBiomeUnlockState(id,progress,unlockedWorldBiomes);
   if(!state.unlocked){toast('Сначала выполни условия открытия этого биома');return;}
-  const result=unlockBiome(id,progress,unlockedWorldBiomes);
-  if(!result.ok){toast('Биом пока закрыт');return;}
-  unlockedWorldBiomes.add(id);
-  const seed=`farmerbot-${Date.now().toString(36)}-${id}`;
-  applyStartingBiome(id,seed);season='spring';seasonClock=0;weatherStep=0;weather=getBiomeWeather(activeBiome,season,weatherStep,worldSeed);
-  $('#biomeSelectScreen').classList.remove('show');stats();renderLandMarket();saveGame();
-  toast(`${BIOMES[id].name}: создан новый мир · seed ${worldSeed}`);
+  switchWorldBiome(id,progress);
  });
 }
 function stats(){
@@ -809,6 +846,7 @@ function buySeedPack(){
 }
 
 const SAVE_KEY='farmerbot3d_save_v8',PREVIOUS_SAVE_KEY='farmerbot3d_save_v7',LEGACY_SAVE_KEY='farmerbot3d_save_v6',OLDER_SAVE_KEY='farmerbot3d_save_v5',OLD_SAVE_KEY='farmerbot3d_save_v4',OLDER_SAVE_KEY_2='farmerbot3d_save_v3',OLDEST_SAVE_KEY='farmerbot3d_save_v2';
+const WORLD_PROFILE_PREFIX='farmerbot3d_worldprofile_v1_',UNLOCKED_BIOMES_KEY='farmerbot3d_unlocked_biomes_v1';
 function saveGame(){
  const data={
   version:8,coins,harvest,water,xp,researchPoints,seedStock,harvestStorage,metrics,gameMode,activeSeed,automation:{powerLinks,conveyorLinks,autoDispatchEnabled},world:{schemaVersion:WORLD_SCHEMA_VERSION,activeBiome,seed:worldSeed,season,seasonClock,weatherStep,unlockedWorldBiomes:[...unlockedWorldBiomes],unlockedBiomes:[...ownedBiomes],resourceStorage:worldResourceStorage,resourceNodes:resourceNodes.map(({id,type,x,z,amount})=>({id,type,x,z,amount}))},
@@ -819,7 +857,7 @@ function saveGame(){
   agents:agents.map(a=>({id:a.id,type:a.type,name:a.name,x:a.mesh.position.x,z:a.mesh.position.z,y:a.mesh.position.y,rotation:a.mesh.rotation.y,energy:a.energy,water:a.water,inventory:a.inventory,program:a.program,level:a.level})),
   plots:plots.map(p=>({state:p.state,watered:p.watered,waterSource:p.waterSource,growth:p.growth,cropType:p.cropType,biome:p.biome||'meadow'}))
  };
- try{localStorage.setItem(SAVE_KEY,JSON.stringify(data));}catch(e){console.warn('Не удалось сохранить игру',e);}
+ try{const serialized=JSON.stringify(data);localStorage.setItem(SAVE_KEY,serialized);localStorage.setItem(WORLD_PROFILE_PREFIX+activeBiome,serialized);localStorage.setItem(UNLOCKED_BIOMES_KEY,JSON.stringify([...unlockedWorldBiomes]));}catch(e){console.warn('Не удалось сохранить игру',e);}
 }
 function loadGame(){
  try{
@@ -833,7 +871,7 @@ function loadGame(){
   if(Array.isArray(d.claimedMissions))d.claimedMissions.forEach(v=>claimedMissions.add(v));if(Array.isArray(d.programmedBots))d.programmedBots.forEach(v=>programmedBots.add(v));
   if(Array.isArray(d.researchedTechs))d.researchedTechs.forEach(v=>{if(TECHNOLOGIES.some(t=>t.id===v))researchedTechs.add(v);});
   if(d.challenge){challengeSeconds=Number.isFinite(d.challenge.seconds)?d.challenge.seconds:180;challengeHarvested=Number(d.challenge.harvested)||0;challengeDone=!!d.challenge.done;challengeResult=String(d.challenge.result||'');}
-  if(d.world){season=SEASONS.some(item=>item.id===d.world.season)?d.world.season:'spring';seasonClock=Math.max(0,Math.min(SEASON_LENGTH_SECONDS-0.001,Number(d.world.seasonClock)||0));weatherStep=Math.max(0,Number(d.world.weatherStep)||0);activeBiome=BIOMES[d.world.activeBiome]?d.world.activeBiome:'meadow';worldSeed=String(d.world.seed||'legacy-meadow');unlockedWorldBiomes.clear();unlockedWorldBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedWorldBiomes)?d.world.unlockedWorldBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);if(BIOMES[activeBiome])unlockedWorldBiomes.add(activeBiome);applyStartingBiome(activeBiome,worldSeed);if(d.world.resourceStorage&&typeof d.world.resourceStorage==='object')Object.assign(worldResourceStorage,d.world.resourceStorage);if(Array.isArray(d.world.resourceNodes)){const savedNodes=new Map(d.world.resourceNodes.map(node=>[node.id,node]));for(const node of resourceNodes){const saved=savedNodes.get(node.id);if(saved)node.amount=Math.max(0,Number(saved.amount)||0);node.mesh.visible=node.amount>0;if(node.amount<=0)scene.remove(node.mesh);else node.mesh.scale.setScalar(.65+.35*(node.amount/Math.max(1,generatedWorld.resources.find(item=>item.id===node.id)?.amount||node.amount)));}}ownedBiomes.clear();ownedBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(LAND_PARCELS[id])createBiomeLand(id);}
+  if(d.world){season=SEASONS.some(item=>item.id===d.world.season)?d.world.season:'spring';seasonClock=Math.max(0,Math.min(SEASON_LENGTH_SECONDS-0.001,Number(d.world.seasonClock)||0));weatherStep=Math.max(0,Number(d.world.weatherStep)||0);activeBiome=BIOMES[d.world.activeBiome]?d.world.activeBiome:'meadow';worldSeed=String(d.world.seed||'legacy-meadow');unlockedWorldBiomes.clear();unlockedWorldBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedWorldBiomes)?d.world.unlockedWorldBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);try{const globalUnlocks=JSON.parse(localStorage.getItem(UNLOCKED_BIOMES_KEY)||'[]');for(const id of globalUnlocks)if(BIOMES[id])unlockedWorldBiomes.add(id);}catch(e){}if(BIOMES[activeBiome])unlockedWorldBiomes.add(activeBiome);applyStartingBiome(activeBiome,worldSeed);if(d.world.resourceStorage&&typeof d.world.resourceStorage==='object')Object.assign(worldResourceStorage,d.world.resourceStorage);if(Array.isArray(d.world.resourceNodes)){const savedNodes=new Map(d.world.resourceNodes.map(node=>[node.id,node]));for(const node of resourceNodes){const saved=savedNodes.get(node.id);if(saved)node.amount=Math.max(0,Number(saved.amount)||0);node.mesh.visible=node.amount>0;if(node.amount<=0)scene.remove(node.mesh);else node.mesh.scale.setScalar(.65+.35*(node.amount/Math.max(1,generatedWorld.resources.find(item=>item.id===node.id)?.amount||node.amount)));}}ownedBiomes.clear();ownedBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(LAND_PARCELS[id])createBiomeLand(id);}
   activeSeed=CROPS[d.activeSeed]?d.activeSeed:'carrot';weather=WEATHER_LABELS[d.weather]?d.weather:getBiomeWeather(activeBiome,season,weatherStep,worldSeed);gameMode=['campaign','sandbox','challenges','freeplay'].includes(d.gameMode)?d.gameMode:'campaign';$('#gameMode').value=gameMode;
   const a0=d.agents?.find(a=>a.id==='farmbot');
   if(a0){robot.position.set(Number.isFinite(Number(a0.x))?Number(a0.x):0,0,Number.isFinite(Number(a0.z))?Number(a0.z):7);robot.rotation.y=Number(a0.rotation)||0;agents[0].energy=THREE.MathUtils.clamp(Number.isFinite(Number(a0.energy))?Number(a0.energy):100,0,agents[0].maxEnergy);agents[0].inventory=a0.inventory||{};agents[0].program=a0.program??agents[0].program;}
@@ -929,6 +967,7 @@ function interact(agent=activeAgent()){
  }else toast('Растение растёт — подожди немного');
 }
 $('#act').addEventListener('pointerdown',e=>{e.preventDefault();interact();});
+$('#openBiomes').onclick=()=>{if(agents.some(agent=>agent.running)){toast('Останови программы роботов перед переходом между мирами');return;}saveGame();renderBiomeSelector();$('#biomeSelectScreen').classList.add('show');};
 $('#shop').onclick=()=>$('#shopPanel').classList.add('show');$('#closeShop').onclick=()=>$('#shopPanel').classList.remove('show');
 $('#sell').onclick=()=>{
  const units=Object.values(harvestStorage).reduce((a,b)=>a+b,0);
