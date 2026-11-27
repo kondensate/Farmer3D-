@@ -1,0 +1,35 @@
+{
+  "id": "meadow",
+  "name": "Green Plains",
+  "rendering": "procedural-low-poly",
+  "texture": {
+    "generator": "src/biome-visuals.js",
+    "ground": "#719b55",
+    "soil": "#80563a",
+    "repeat": {
+      "u": 18,
+      "v": 18
+    },
+    "wrapping": "RepeatWrapping",
+    "roughness": 0.96,
+    "accents": [
+      "#a8c66c",
+      "#587e43",
+      "#92704b",
+      "#d6c681"
+    ]
+  },
+  "materials": {
+    "stone": "#858b78",
+    "foliage": "#4d8748",
+    "trunk": "#765338",
+    "water": "#4e9caf",
+    "plotRim": "#765538"
+  },
+  "atmosphere": {
+    "sky": "#9bc7c2",
+    "fog": "#b2cec0",
+    "sun": "#ffedc2"
+  },
+  "notes": "Palette specification for runtime-generated seamless CanvasTexture and shared Three.js low-poly meshes."
+}
