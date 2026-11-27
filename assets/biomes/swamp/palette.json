@@ -1,0 +1,35 @@
+{
+  "id": "swamp",
+  "name": "Swamplands",
+  "rendering": "procedural-low-poly",
+  "texture": {
+    "generator": "src/biome-visuals.js",
+    "ground": "#657653",
+    "soil": "#514b37",
+    "repeat": {
+      "u": 18,
+      "v": 18
+    },
+    "wrapping": "RepeatWrapping",
+    "roughness": 0.96,
+    "accents": [
+      "#9aa36b",
+      "#3f6048",
+      "#876c4e",
+      "#708b70"
+    ]
+  },
+  "materials": {
+    "stone": "#697667",
+    "foliage": "#54744c",
+    "trunk": "#65523a",
+    "water": "#568b81",
+    "plotRim": "#62543a"
+  },
+  "atmosphere": {
+    "sky": "#9db9ad",
+    "fog": "#98aa93",
+    "sun": "#f5d5a1"
+  },
+  "notes": "Palette specification for runtime-generated seamless CanvasTexture and shared Three.js low-poly meshes."
+}
