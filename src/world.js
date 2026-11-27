@@ -366,6 +366,26 @@ export function generateWorldMap(seed = 1, biomeId = STARTER_BIOME, options = {}
       }
     }
   }
+  if (biomeId === "mountain") {
+    // Keep visual slopes compatible with the robot's maxStep navigation rule.
+    // Only lower steep cells; the flat starter clearing remains exactly at zero.
+    const byKey = new Map(heightMap.map(point => [`${point.x}:${point.z}`, point]));
+    const maxSlope = 0.68;
+    for (let pass = 0; pass < size * 2; pass++) {
+      let changed = false;
+      for (const point of heightMap) {
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const neighbor = byKey.get(`${point.x + dx}:${point.z + dz}`);
+          if (neighbor && point.height > neighbor.height + maxSlope) {
+            point.height = neighbor.height + maxSlope;
+            changed = true;
+          }
+        }
+      }
+      if (!changed) break;
+    }
+  }
+
   // Guaranteed deposits must be reachable: never place them inside a generated obstacle.
   for (let i = 0; i < 3; i++) {
     const baseAngle = i * Math.PI * 2 / 3 + .35;
