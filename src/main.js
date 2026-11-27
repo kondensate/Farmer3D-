@@ -267,9 +267,6 @@ function createStartingWorldVisuals(map){
   startingWorldGroup.add(node);
   resourceNodes.push({id:item.id,type:item.type,amount:item.amount,mesh:node,x,z});
  }
- if(activeBiome==='swamp'||activeBiome==='tropical'){
-  for(let i=0;i<7;i++){const x=(i-3)*3.2,z=(i%2? -13:13);const waterPatch=new THREE.Mesh(new THREE.BoxGeometry(2.2,.035,1.3),mat(0x397f8e,.35));waterPatch.position.set(x,-.075,z);startingWorldGroup.add(waterPatch);}
- }
 }
 function applyStartingBiome(biomeId,seed){
  const definition=BIOMES[biomeId]||BIOMES.meadow;
