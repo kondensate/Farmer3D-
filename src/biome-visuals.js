@@ -126,11 +126,12 @@ export function createBiomeVisualKit(THREE) {
     flower:new THREE.IcosahedronGeometry(.095,0),
     mushroomStem:new THREE.CylinderGeometry(.045,.07,.18,6),
     mushroomCap:new THREE.SphereGeometry(.14,7,5),
-    plotPipe:new THREE.CylinderGeometry(.025,.025,1.45,6)
+    plotPipe:new THREE.CylinderGeometry(.025,.025,1.45,6),
+    waterfall:new THREE.BoxGeometry(.42,1.15,.06)
   };
   function part(parent,geometry,material,x,y,z,sx=1,sy=1,sz=1,ry=0,cast=true){
     const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.scale.set(sx,sy,sz);mesh.rotation.y=ry;
-    mesh.castShadow=cast;mesh.receiveShadow=true;mesh.userData.sharedGeometry=true;parent.add(mesh);return mesh;
+    mesh.castShadow=cast;mesh.receiveShadow=true;mesh.userData.sharedGeometry=true;mesh.userData.sharedMaterial=true;parent.add(mesh);return mesh;
   }
   function createTree(id,type,random){
     const group=new THREE.Group();group.userData.windSway=true;
@@ -232,7 +233,7 @@ export function createBiomeVisualKit(THREE) {
     if(!items.length)return null;
     const mesh=new THREE.InstancedMesh(geometry,material,items.length),dummy=new THREE.Object3D();
     items.forEach((item,index)=>{dummy.position.set(item.x,item.y,item.z);dummy.rotation.set(0,item.r,0);dummy.scale.setScalar(item.s);dummy.updateMatrix();mesh.setMatrixAt(index,dummy.matrix);});
-    mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=false;mesh.receiveShadow=true;mesh.userData.sharedGeometry=true;group.add(mesh);return mesh;
+    mesh.instanceMatrix.needsUpdate=true;mesh.castShadow=false;mesh.receiveShadow=true;mesh.userData.sharedGeometry=true;mesh.userData.sharedMaterial=true;group.add(mesh);return mesh;
   }
   function decoratePlot(parent,id){
     if(id==="desert"||id==="snow"){
@@ -295,7 +296,15 @@ export function createBiomeVisualKit(THREE) {
     if(waterSpot){
       makeWater(group,id,waterSpot.x,waterSpot.z,heightAt(waterSpot.x,waterSpot.z),random,id==="snow",id==="mountain"?"river":"pond");
       if(id==="desert"){
-        for(let i=0;i<3;i++){const a=i*Math.PI*2/3;placeObject(group,createTree("tropical","palm",random),waterSpot.x+Math.cos(a)*2.4,waterSpot.z+Math.sin(a)*2.4,heightAt(waterSpot.x+Math.cos(a)*2.4,waterSpot.z+Math.sin(a)*2.4),random,.72);}
+        for(let i=0;i<3;i++){const a=i*Math.PI*2/3;const px=waterSpot.x+Math.cos(a)*2.4,pz=waterSpot.z+Math.sin(a)*2.4;placeObject(group,createTree("tropical","palm",random),px,pz,heightAt(px,pz),random,.72);}
+        for(let i=0;i<5;i++){const a=i*Math.PI*2/5,px=waterSpot.x+Math.cos(a)*3.3,pz=waterSpot.z+Math.sin(a)*3.3;placeObject(group,createFlower(random),px,pz,heightAt(px,pz),random,.8);}
+      }else if(id==="mountain"){
+        part(group,G.waterfall,waterMaterials.mountain,waterSpot.x+2.1,heightAt(waterSpot.x+2.1,waterSpot.z)+.58,waterSpot.z,1,1,1,0,false);
+        for(let i=0;i<5;i++){const a=i*Math.PI*2/5,px=waterSpot.x+Math.cos(a)*3.2,pz=waterSpot.z+Math.sin(a)*3.2;placeObject(group,createFern(random),px,pz,heightAt(px,pz),random,.85);}
+      }else if(id==="tropical"){
+        for(let i=0;i<7;i++){const a=i*Math.PI*2/7,px=waterSpot.x+Math.cos(a)*3.2,pz=waterSpot.z+Math.sin(a)*3.2;placeObject(group,createFern(random),px,pz,heightAt(px,pz),random,.9);}
+      }else if(id==="snow"){
+        for(let i=0;i<5;i++){const a=i*Math.PI*2/5,px=waterSpot.x+Math.cos(a)*3.1,pz=waterSpot.z+Math.sin(a)*3.1;placeObject(group,createRock("snow",random,"ice"),px,pz,heightAt(px,pz),random,.45);}
       }
     }
     // Light scatter is InstancedMesh-based and avoids plots, resources, obstacles, and the robot corridor.
