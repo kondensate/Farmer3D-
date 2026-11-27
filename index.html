@@ -100,9 +100,45 @@
 #automationStatus{line-height:1.5;font-size:11px}
 #taskQueue{max-height:190px;overflow:auto}
 .buildingRow button{padding:5px 6px;font-size:9px;margin:2px}
+
+/* FarmerBot 3.0 biome selection */
+.worldSelect{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top,10px) + 10px) 12px calc(env(safe-area-inset-bottom,10px) + 10px);background:radial-gradient(ellipse at 50% 0%,#35563d 0%,#132219 58%,#0c1710 100%);overflow:auto;touch-action:pan-y}
+.worldSelect.show{display:flex}
+.worldSelectShell{width:min(1020px,100%);max-height:100%;display:flex;flex-direction:column;gap:12px}
+.worldSelectHead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.worldSelectBrand{font-weight:900;font-size:clamp(18px,3vw,27px);letter-spacing:1px;color:#e8f4d7}
+.worldSelectBrand small{display:block;margin-top:4px;color:#a9c59a;font-size:10px;letter-spacing:2px}
+.worldSelectIntro{color:#dcebd0;font-size:13px;line-height:1.5;max-width:760px}
+.biomeSelectGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;overflow:auto;padding:2px 3px 8px;overscroll-behavior:contain}
+.biomeSelectCard{position:relative;display:flex;flex-direction:column;gap:7px;min-height:174px;padding:12px;text-align:left;background:linear-gradient(145deg,color-mix(in srgb,var(--biome-color) 28%,#1d3025),#15241a 76%);border:1px solid color-mix(in srgb,var(--biome-color) 65%,#506449);border-radius:14px;color:var(--cream);font:inherit}
+.biomeSelectCard .biomeIcon{font-size:25px}
+.biomeSelectCard strong{font-size:13px}
+.biomeSelectCard small{color:#c3d2b8;font-size:10px;line-height:1.4}
+.biomeSelectCard .biomeDifficulty{margin-top:auto;color:var(--lime);font-size:10px;font-weight:900}
+.biomeSelectCard button{border:0;border-radius:8px;padding:8px 6px;background:var(--lime);color:#17251c;font:800 10px ui-monospace,monospace}
+.biomeSelectCard.locked{opacity:.68;filter:saturate(.55)}
+.biomeSelectCard.locked button{background:#445548;color:#cad8c1}
+.biomeSelectCard.selected{outline:2px solid #d6f39b;outline-offset:1px}
+.worldSelectFoot{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#a9c59a;font-size:10px;line-height:1.4}
+.worldSelectFoot strong{color:#e5f2d5}
+@media(max-width:720px){.biomeSelectGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.biomeSelectCard{min-height:150px;padding:9px}.worldSelectShell{gap:9px}.worldSelectHead{align-items:flex-start;flex-direction:column}.worldSelectIntro{font-size:11px}.worldSelectFoot{align-items:flex-start;flex-direction:column}}
+
 </style>
 </head>
 <body>
+
+<div id="biomeSelectScreen" class="worldSelect" aria-label="Выбор биома">
+ <div class="worldSelectShell">
+  <div class="worldSelectHead">
+   <div class="worldSelectBrand">🌍 FARMERBOT 3D <small>BIOMES UPDATE · WORLD SELECT</small></div>
+   <div class="muted">НОВАЯ ФЕРМА · ВЫБЕРИ СТАРТОВУЮ ТЕРРИТОРИЮ</div>
+  </div>
+  <div class="worldSelectIntro">Каждый регион задаёт свой климат, растительность, ресурсы, сложность и условия выращивания. Новые территории будут открываться по мере развития фермы.</div>
+  <div id="biomeSelectGrid" class="biomeSelectGrid"></div>
+  <div class="worldSelectFoot"><span><strong>Сохранения Alpha 4:</strong> существующие фермы загружаются без сброса и остаются на зелёных равнинах.</span><span>Seed мира будет сохранён вместе с фермой.</span></div>
+ </div>
+</div>
+
 <div id="game"></div>
 <div class="hud"><div class="brand">🌱 FARMERBOT 3.0 <small>SMART AUTOMATION · ALPHA 4</small></div><div class="stats"><div class="stat">🪙 <span id="coins">0</span></div><div class="stat">⭐ ур. <span id="level">1</span> · <span id="xp">0</span> XP</div><div class="stat">🥕 <span id="harvest">0</span></div><div class="stat">💧 <span id="water">5</span></div><div class="stat">🌤 <span id="weather">Ясно</span></div><div class="stat">🗓 <span id="season">🌱 Весна</span></div></div></div>
 <div class="legend">Нажимай стрелки: одно нажатие = один шаг на клетку<br>Подойди к грядке и нажми ДЕЙСТВИЕ: посади → полей → собери</div>
