@@ -141,7 +141,7 @@ function terrainNavigationOptions(agent){
  };
 }
 function rebuildWorldTerrain(map){
- if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.dispose();terrainMesh=null;}
+ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh=null;}
  terrainHeightMap=new Map(map.heightMap.map(point=>[cellKey(point),point.height]));
  worldObstacleCells=new Set();worldHazardCells=new Map();
  for(const obstacle of map.obstacles){
