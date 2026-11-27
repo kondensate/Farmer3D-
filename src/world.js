@@ -355,7 +355,12 @@ export function generateWorldMap(seed = 1, biomeId = STARTER_BIOME, options = {}
       const fieldClearing = Math.hypot(x, z) < 8.5;
       const baseClearing = distance < 8.5;
       heightMap.push({ x, z, height: fieldClearing || baseClearing ? 0 : height });
-      if (Math.abs(x) > half - 2 || Math.abs(z) > half - 2 || fieldClearing || baseClearing) continue;
+      const mountainRiverCorridor = biomeId === "mountain"
+        && z < -6 && z > -17
+        && Math.abs(x * MAP_TILE_SIZE - Math.sin(z * MAP_TILE_SIZE * .2) * .7) < 2.2;
+      const desertOasisClearing = biomeId === "desert"
+        && Math.hypot(x * MAP_TILE_SIZE + 1.1, z * MAP_TILE_SIZE + 10.5) < 8.1;
+      if (Math.abs(x) > half - 2 || Math.abs(z) > half - 2 || fieldClearing || baseClearing || mountainRiverCorridor || desertOasisClearing) continue;
       const roll = rng();
       if (roll < .055) {
         obstacles.push({ id: `obstacle-${obstacles.length + 1}`, type: definition.obstacles[Math.floor(rng() * definition.obstacles.length)], x, z, radius: .45 + rng() * .55 });
