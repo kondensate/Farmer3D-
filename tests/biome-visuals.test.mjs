@@ -72,3 +72,18 @@ test("biome-specific sky, fog, and sunlight are applied", () => {
   assert.match(main, /biomeSunColors\[activeBiome\]/);
   assert.match(main, /scene\.fog\.near=atmosphere\.fogNear/);
 });
+
+test("farm plots receive biome-specific irrigation, heating, stone terrace, or tropical edging", () => {
+  assert.match(visuals, /function decoratePlot\(parent,id\)/);
+  assert.match(visuals, /mats\.irrigation/);
+  assert.match(visuals, /mats\.heater/);
+  assert.match(visuals, /rocks\.mountain/);
+  assert.match(visuals, /mats\.leafDark/);
+  assert.match(main, /biomeVisualKit\.decoratePlot\(g,biome\)/);
+});
+
+test("resource node materials are cached between world rebuilds", () => {
+  assert.match(main, /const resourceVisualMaterials=new Map\(\)/);
+  assert.match(main, /function resourceVisualMaterial\(color\)/);
+  assert.match(main, /resourceVisualMaterial\(definition\.color\)/);
+});
