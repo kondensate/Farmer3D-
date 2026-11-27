@@ -145,7 +145,7 @@ export function createBiomeVisualKit(THREE) {
         for(let i=0;i<5;i++){const a=i*Math.PI*2/5;part(group,G.smallTrunk,mats.deadwood,Math.cos(a)*.22,.28,Math.sin(a)*.22,.55,.9,.55,a,false);}
         part(group,G.crownSmall,mats.drySand,0,.35,0,1.25,.55,1.1);
       }
-    }else if(type==="palm"||(id==="tropical"&&type!=="flower"&&type!=="fern")){
+    }else if(type==="palm"){
       part(group,G.palmTrunk,wood,0,1.1,0,1,1,1,0,true).rotation.z=-.08;
       for(let i=0;i<8;i++){
         const a=i*Math.PI/4;
@@ -156,7 +156,7 @@ export function createBiomeVisualKit(THREE) {
       if(random()>.35)for(let i=0;i<3;i++)part(group,G.crownSmall,mats.flowerA,Math.cos(i*2.1)*.16,1.8,Math.sin(i*2.1)*.16,.42,.42,.42);
     }else if(id==="mountain"||id==="snow"||type.includes("pine")||type.includes("fir")){
       part(group,G.smallTrunk,wood,0,.42,0,1,1.8,1,0,true);
-      const evergreen=id==="snow"?new THREE.MeshStandardMaterial({color:0x426c6a,roughness:.95}):leaf;
+      const evergreen=id==="snow"?mats.leafDark:leaf;
       for(let level=0;level<4;level++){
         const radius=1-level*.16,y=.68+level*.43;
         part(group,G.pine,evergreen,0,y,0,radius,1,radius,0,true);
