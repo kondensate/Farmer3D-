@@ -252,6 +252,29 @@ export function createBiomeVisualKit(THREE) {
       }
     }
   }
+  function createBackdrop(id){
+    const group=new THREE.Group();group.name="biomeBackdrop-"+id;
+    const random=seeded(id+"-distant-backdrop");
+    const half=23.5;
+    for(let i=0;i<18;i++){
+      const angle=i*Math.PI*2/18,radius=half+random()*2.8;
+      const x=Math.cos(angle)*radius,z=Math.sin(angle)*radius;
+      if(id==="mountain"||id==="snow"||id==="volcanic"){
+        const height=(id==="mountain"?5.2:id==="snow"?4.2:3.4)+random()*4.5;
+        const base=id==="snow"?mats.snow:id==="volcanic"?rocks.volcanic:rocks.mountain;
+        const peak=part(group,new THREE.ConeGeometry(2.6+random()*2,height,6),base,x,height*.42,z,1,1,1,random()*Math.PI,false);
+        peak.userData.sharedGeometry=false;
+        if(id==="snow")part(group,new THREE.ConeGeometry(1.15,height*.34,6),mats.snow,x,height*.82,z,1,1,1,random()*Math.PI,false);
+      }else if(id==="desert"){
+        placeObject(group,createMound(id,random,"dune"),x,z,-.1,random,1.8+random());
+      }else if(id==="tropical"){
+        placeObject(group,createTree(id,"palm",random),x,z,-.12,random,1.3+random()*.45);
+      }else{
+        placeObject(group,createTree(id,id==="snow"?"snow-pine":id==="forest"?"pine":"tree",random),x,z,-.1,random,1.25+random()*.45);
+      }
+    }
+    return group;
+  }
   function createEnvironment(id,map,heightAt,tileSize=1.15){
     const group=new THREE.Group();group.name="biomeEnvironment-"+id;
     const random=seeded(map.seed+"-"+id+"-visuals");
@@ -329,5 +352,5 @@ export function createBiomeVisualKit(THREE) {
     return group;
   }
   const atmosphere=Object.fromEntries(Object.entries(ART).map(([id,p])=>[id,{sky:p.sky,fog:p.fog,sun:p.sun,fogNear:id==="snow"?14:id==="tropical"?18:22,fogFar:id==="desert"?62:id==="mountain"?68:id==="tropical"?52:58}]));
-  return { terrainMaterials,soilMaterials,plotRimMaterials,waterMaterials,atmosphere,createEnvironment,decoratePlot,art:ART };
+  return { terrainMaterials,soilMaterials,plotRimMaterials,waterMaterials,atmosphere,createEnvironment,createBackdrop,decoratePlot,art:ART };
 }
