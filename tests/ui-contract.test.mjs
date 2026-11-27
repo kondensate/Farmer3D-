@@ -42,15 +42,17 @@ test('IDE exposes per-robot debugger state, variables, next command and changed 
   assert.ok(html.includes('ide-value.changed'));
 });
 
-test('save format keeps v2/v3/v4 fallback paths and adds v5 automation data', () => {
+test('save format advances to v6 and preserves v2-v5 migration paths', () => {
+  assert.match(main, /farmerbot3d_save_v6/);
   assert.match(main, /farmerbot3d_save_v5/);
   assert.match(main, /farmerbot3d_save_v4/);
   assert.match(main, /farmerbot3d_save_v3/);
   assert.match(main, /farmerbot3d_save_v2/);
+  assert.match(main, /unlockedBiomes:\[\.\.\.ownedBiomes\]/);
+  assert.match(main, /if\(d\.version<6\)saveGame\(\)/);
   assert.match(main, /buildings:buildings\.map/);
   assert.match(main, /researchedTechs:\[\.\.\.researchedTechs\]/);
 });
-
 test('Stage B network and dispatcher controls are present and wired', () => {
   for (const id of ['autoDispatchToggle','automationStatus','taskQueue']) assert.ok(html.includes(`id="${id}"`), `missing ${id}`);
   assert.match(main, /function chooseAutomationLink\(kind,id\)/);
@@ -78,4 +80,22 @@ test('Stage B saves and restores power and conveyor graphs', () => {
 test('new consumers require power links while legacy pre-v5 consumers are preserved', () => {
   assert.match(main, /legacyUnwired:Number\(d\.version\|\|0\)<5/);
   assert.match(main, /b\.powered=!!powerState\.powered\.get\(String\(b\.id\)\)\|\|!!b\.legacyUnwired/);
+});
+
+
+test('Stage C world market, season HUD and seasonal biome simulation are wired', () => {
+  for (const id of ['season','worldStatus','landMarket']) assert.ok(html.includes(\`id="\${id}"\`), \`missing \${id}\`);
+  assert.match(main, /function renderLandMarket\(\)/);
+  assert.match(main, /function buyLand\(biomeId\)/);
+  assert.match(main, /createBiomeLand\(biomeId\)/);
+  assert.match(main, /p\.growth\+=dt\*getEnvironmentEffects\(p\.biome\|\|'meadow',season,weather\)\.growth/);
+  assert.match(main, /waterCostForPlot\(plot\.biome\|\|'meadow',season\)/);
+  assert.match(main, /unlockedBiomes:\[\.\.\.ownedBiomes\]/);
+});
+
+test('Stage C navigation bounds reach the four surrounding land parcels', () => {
+  const navigation = readFileSync(new URL('../src/navigation.js', import.meta.url), 'utf8');
+  assert.match(navigation, /GRID_LIMIT = 15/);
+  assert.match(main, /clamp\(start\.x\+dx\*steps,-15,15\)/);
+  assert.match(main, /Math\.abs\(x\)\+d\.width\/2>17/);
 });
