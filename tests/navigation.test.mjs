@@ -31,3 +31,20 @@ test("world/grid conversion and building occupancy are stable", () => {
   const blocked = buildBlockedCells({buildings:[{x:0,z:0,width:2.8,depth:2.8}]});
   assert.ok(blocked.has("0,0"));
 });
+
+
+test("terrain-aware A* rejects a cliff that exceeds the robot step limit", () => {
+  const cliff = { heightAt: (x) => x >= 1 ? 2.5 : 0, maxStep: 0.8, slopeCost: 2 };
+  assert.equal(findPath({x:0,z:0},{x:2,z:0},new Set(),15,cliff), null);
+});
+
+test("terrain-aware A* can climb a gradual slope and returns connected cells", () => {
+  const slope = { heightAt: (x) => Math.max(0,x) * .35, maxStep: .4, slopeCost: 1.5 };
+  const path = findPath({x:0,z:0},{x:4,z:0},new Set(),15,slope);
+  assert.ok(path);
+  assert.deepEqual(path.at(-1),{x:4,z:0});
+  for(let i=1;i<path.length;i++) {
+    const rise = Math.abs(slope.heightAt(path[i].x)-slope.heightAt(path[i-1].x));
+    assert.ok(rise <= slope.maxStep);
+  }
+});
