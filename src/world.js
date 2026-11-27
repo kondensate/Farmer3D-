@@ -332,7 +332,21 @@ export function generateWorldMap(seed = 1, biomeId = STARTER_BIOME, options = {}
       const hillNoise = rng() * 2 - 1;
       const ridgeNoise = (Math.sin((x + hashSeed(seed) % 17) * .21) + Math.cos((z - hashSeed(seed) % 13) * .17)) * .5;
       let height = 0;
-      if (biomeId === "mountain") height = Math.max(0, Math.round((Math.abs(ridgeNoise) * 2.8 + hillNoise * .4) * 2) / 2);
+      if (biomeId === "mountain") {
+        // A broad U-shaped valley stays open around the farm while two long,
+        // softly sloped ridges rise on either side. A higher back wall frames the river.
+        const valleyAxis = Math.sin(z * .16) * 1.1;
+        const leftRidge = Math.exp(-Math.pow((x - (valleyAxis - 8.1)) / 5.2, 2)) * (4.25 + Math.sin(z * .31) * .55);
+        const rightRidge = Math.exp(-Math.pow((x - (valleyAxis + 8.1)) / 5.2, 2)) * (4.05 + Math.cos(z * .27) * .6);
+        const backWall = Math.exp(-Math.pow((z + 14.2) / 3.5, 2)) * (1.9 + Math.cos(x * .34) * .65);
+        const valleyFloor = Math.exp(-Math.pow(x / 3.6, 2)) * Math.exp(-Math.pow((z + 12) / 8, 2));
+        height = Math.max(0, leftRidge + rightRidge + backWall - valleyFloor * 1.15 + hillNoise * .12);
+        height = Math.round(height * 4) / 4;
+      }
+      else if (biomeId === "desert") {
+        // Gentle wind-shaped dune relief; the starter plots remain perfectly level.
+        height = Math.max(0, .24 + Math.sin(x * .23 + z * .12) * .19 + Math.sin(z * .37 - x * .08) * .12 + hillNoise * .06);
+      }
       else if (biomeId === "volcanic") height = Math.max(0, Math.round((Math.abs(ridgeNoise) * 1.8 + hillNoise * .3) * 2) / 2);
       else if (biomeId === "swamp") height = Math.max(-.35, Math.round((ridgeNoise * .25 + hillNoise * .08) * 4) / 4);
       else if (biomeId === "tropical") height = Math.max(-.1, Math.round((ridgeNoise * .25 + hillNoise * .12) * 4) / 4);
