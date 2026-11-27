@@ -1,0 +1,35 @@
+{
+  "id": "desert",
+  "name": "Desert",
+  "rendering": "procedural-low-poly",
+  "texture": {
+    "generator": "src/biome-visuals.js",
+    "ground": "#d4b16f",
+    "soil": "#a77a49",
+    "repeat": {
+      "u": 18,
+      "v": 18
+    },
+    "wrapping": "RepeatWrapping",
+    "roughness": 0.96,
+    "accents": [
+      "#f0d69a",
+      "#bb965c",
+      "#9c7549",
+      "#e4c98c"
+    ]
+  },
+  "materials": {
+    "stone": "#a18a68",
+    "foliage": "#6d9250",
+    "trunk": "#88613a",
+    "water": "#4fabb7",
+    "plotRim": "#b48b58"
+  },
+  "atmosphere": {
+    "sky": "#b6d5df",
+    "fog": "#dcc9a5",
+    "sun": "#ffd18a"
+  },
+  "notes": "Palette specification for runtime-generated seamless CanvasTexture and shared Three.js low-poly meshes."
+}
