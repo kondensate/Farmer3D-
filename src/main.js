@@ -1065,6 +1065,17 @@ function nearest(agent=activeAgent()){
  for(const p of plots){const d=Math.hypot(p.g.position.x-pos.x,p.g.position.z-pos.z);if(d<bd){bd=d;best=p;}}
  return best;
 }
+function setPlotWetVisual(plot,wet=true){
+ if(!plot?.g)return;
+ if(wet){
+  if(plot.wetOverlay)return;
+  const surface=new THREE.Mesh(new THREE.PlaneGeometry(1.48,1.48),mat(0x3e2b20,.36));
+  surface.rotation.x=-Math.PI/2;surface.position.set(0,.184,0);surface.receiveShadow=true;
+  surface.userData.wetSoil=true;plot.g.add(surface);plot.wetOverlay=surface;
+ }else if(plot.wetOverlay){
+  plot.g.remove(plot.wetOverlay);plot.wetOverlay.geometry.dispose();plot.wetOverlay.material.dispose();plot.wetOverlay=null;
+ }
+}
 function waterSpray(plot){
  const x=plot.g.position.x,z=plot.g.position.z,y=plot.g.position.y+.62;
  const jet=new THREE.Mesh(new THREE.CylinderGeometry(.025,.055,.5,6),waterJetMaterial);
@@ -1081,7 +1092,7 @@ function waterPlot(plot,agent=activeAgent(),source='robot'){
  const cost=waterCostForPlot(plot.biome||'meadow',season,weather);
  if(agent.type==='waterbot'){if(gameMode!=='sandbox'&&agent.water<cost){toast(`Нужно ${cost} воды для этого климата`);return false;}if(gameMode!=='sandbox')agent.water-=cost;}
  else{if(gameMode!=='sandbox'&&water<cost){toast(`Нужно ${cost} воды для этого климата`);return false;}if(gameMode!=='sandbox')water-=cost;}
- metrics.watered++;metrics.waterUsed+=cost;plot.watered=true;plot.waterSource=source;plot.growth=0;setState(plot,'growing');
+ metrics.watered++;metrics.waterUsed+=cost;plot.watered=true;plot.waterSource=source;plot.growth=0;setState(plot,'growing');setPlotWetVisual(plot,true);
  stats();updateMissions();burst(plot.g.position.clone().add(new THREE.Vector3(0,.45,0)),0x70c9ed,9);waterSpray(plot);saveGame();return true;
 }
 function harvestPlot(plot,agent=activeAgent()){
@@ -1092,7 +1103,7 @@ function harvestPlot(plot,agent=activeAgent()){
  agent.inventory[type]=(agent.inventory[type]||0)+1;harvest++;coins+=1;metrics.earned+=1;
  harvestedTypes.add(type);metrics.harvested++;metrics[`${type}Harvested`]=(metrics[`${type}Harvested`]||0)+1;recordChallengeHarvest();if(plot.waterSource==='rain'||plot.waterSource==='pump')metrics.waterEfficiency++;
  burst(plot.g.position.clone().add(new THREE.Vector3(0,1,0)),CROPS[type].color,14);
- setState(plot,'empty');plot.watered=false;plot.waterSource=null;plot.growth=0;
+ setState(plot,'empty');setPlotWetVisual(plot,false);plot.watered=false;plot.waterSource=null;plot.growth=0;
  addXP(2);stats();updateMissions();saveGame();return true;
 }
 function nearestResourceNode(agent=activeAgent(),maxDistance=Infinity){
@@ -1641,7 +1652,7 @@ function update(dt){
  if(weatherClock>45){
   weatherClock=0;weatherStep=(weatherStep+1)%8;weather=getBiomeWeather(activeBiome,season,weatherStep,worldSeed);
   if(['rain','heavy-rain','thunderstorm','snow','blizzard'].includes(weather)){
-   for(const p of plots)if(['seed','growing'].includes(p.state)&&!p.watered){p.watered=true;p.waterSource=weather;metrics.watered++;if(p.state==='seed')setState(p,'growing');}
+   for(const p of plots)if(['seed','growing'].includes(p.state)&&!p.watered){p.watered=true;p.waterSource=weather;metrics.watered++;setPlotWetVisual(p,true);if(p.state==='seed')setState(p,'growing');}
    toast(['snow','blizzard'].includes(weather)?'❄️ Снег укрыл ферму и увлажнил грядки':'🌧 Осадки увлажнили грядки');
   }else toast(weather==='drought'?'☀ Засуха: растения растут медленнее':'🌤 Погода улучшилась');
   stats();renderLandMarket();saveGame();
