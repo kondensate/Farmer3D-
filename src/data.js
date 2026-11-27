@@ -87,8 +87,9 @@ export const MISSIONS = [
 // FarmerBot 2.1: placeable farm infrastructure and research unlocks.
 export const BUILDINGS = {
   greenhouse: { name:"Теплица", icon:"🏡", cost:70, width:2.9, depth:2.7, unlock:"horticulture", description:"Ускоряет рост культур рядом на 35%", effect:"growth" },
-  tank: { name:"Водный резервуар", icon:"🛢️", cost:45, width:1.8, depth:1.8, unlock:"waterworks", description:"Увеличивает запас воды фермы на 30", effect:"water" },
-  water_pump: { name:"Электронасос", icon:"💧", cost:75, width:1.6, depth:1.6, unlock:"waterworks", description:"Автоматически поливает свободные от влаги грядки", effect:"water", powerNode:true, powerRole:"consumer", powerDemand:3, powerPriority:2 },
+  tank: { name:"Водный резервуар", icon:"🛢️", cost:45, width:1.8, depth:1.8, unlock:"waterworks", description:"Увеличивает запас воды фермы на 30 и подключается к трубам", effect:"water", waterNode:true, waterRole:"storage" },
+  water_well: { name:"Скважина", icon:"🚰", cost:90, width:1.7, depth:1.7, unlock:"waterworks", description:"Добывает до 2 единиц воды в секунду, если соединена трубой с резервуаром или насосом", effect:"water", waterNode:true, waterRole:"source", waterOutput:2 },
+  water_pump: { name:"Электронасос", icon:"💧", cost:75, width:1.6, depth:1.6, unlock:"waterworks", description:"Автоматически поливает грядки при подключении к воде и электричеству", effect:"water", waterNode:true, waterRole:"consumer", waterDemand:1, waterPriority:2, powerNode:true, powerRole:"consumer", powerDemand:3, powerPriority:2 },
   solar_generator: { name:"Солнечный генератор", icon:"☀️", cost:95, width:2.2, depth:1.8, unlock:"energy", description:"Вырабатывает до 10 единиц энергии в секунду", effect:"generation", powerNode:true, powerRole:"generator", powerOutput:10 },
   wind_generator: { name:"Ветрогенератор", icon:"🌬️", cost:115, width:1.8, depth:1.8, unlock:"energy", description:"Вырабатывает до 8 единиц энергии в секунду", effect:"generation", powerNode:true, powerRole:"generator", powerOutput:8 },
   battery: { name:"Аккумулятор", icon:"🔋", cost:80, width:1.4, depth:1.4, unlock:"energy", description:"Накапливает до 100 единиц энергии для ночи и дефицита", effect:"storage", powerNode:true, powerRole:"battery", batteryCapacity:100 },
