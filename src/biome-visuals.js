@@ -335,6 +335,7 @@ export function createBiomeVisualKit(THREE) {
     for(let z=-half+2;z<half-2;z++)for(let x=-half+2;x<half-2;x++){
       if(Math.hypot(x,z-7)<10.2||Math.abs(x)<2.1||occupied.has(x+":"+z)||random()>.035)continue;
       const px=x*tileSize+(random()-.5)*.45,pz=z*tileSize+(random()-.5)*.45;
+      if(map.plots?.some(plot=>Math.hypot(px-plot.x,pz-plot.z)<1.25))continue;
       const y=heightAt(px,pz);
       pebbles.push({x:px,y:y+.08,z:pz,r:random()*Math.PI*2,s:.55+random()*.85});
       if(random()<.35)tufts.push({x:px,y:y+.12,z:pz,r:random()*Math.PI*2,s:.55+random()*.55});
