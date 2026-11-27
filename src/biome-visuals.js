@@ -216,9 +216,9 @@ export function createBiomeVisualKit(THREE) {
   function placeObject(parent,object,x,z,height,random,scale=1){
     object.position.set(x,height,z);object.rotation.y+=random()*Math.PI*2;object.scale.multiplyScalar(scale);parent.add(object);
   }
-  function makeWater(group,id,x,z,height,random,frozen=false){
+  function makeWater(group,id,x,z,height,random,frozen=false,kind="pond"){
     const material=frozen?mats.ice:waterMaterials[id]||waterMaterials.meadow;
-    const water=part(group,new THREE.CircleGeometry(1,9),material,x,height+.035,z,1.35+random()*.8,1,0.8+random()*.55,random()*Math.PI,false);
+    const water=part(group,new THREE.CircleGeometry(1,9),material,x,height+.035,z,kind==="river"?2.8:1.35+random()*.8,kind==="river"?.52:0.8+random()*.55,1,random()*Math.PI,false);
     water.rotation.x=-Math.PI/2;water.userData.sharedGeometry=false;
     if(frozen){
       part(group,G.rockSmall,mats.snow,x-.55,height+.1,z+.2,.8,.25,.7,random(),false);
@@ -249,7 +249,7 @@ export function createBiomeVisualKit(THREE) {
     for(const item of map.obstacles||[]){
       const x=item.x*tileSize,z=item.z*tileSize,y=heightAt(x,z),type=item.type;
       if(["river","deep-water","flood-zone","frozen-lake"].includes(type)){
-        makeWater(group,id,x,z,y,random,id==="snow"||type==="frozen-lake");
+        makeWater(group,id,x,z,y,random,id==="snow"||type==="frozen-lake",type==="river"?"river":"pond");
         continue;
       }
       if(type==="dune"||type==="snowdrift")placeObject(group,createMound(id,random,id==="snow"?"snow":"dune"),x,z,y,random,.8+random()*.7);
@@ -273,7 +273,7 @@ export function createBiomeVisualKit(THREE) {
       waterSpot={x,z};break;
     }
     if(waterSpot){
-      makeWater(group,id,waterSpot.x,waterSpot.z,heightAt(waterSpot.x,waterSpot.z),random,id==="snow");
+      makeWater(group,id,waterSpot.x,waterSpot.z,heightAt(waterSpot.x,waterSpot.z),random,id==="snow",id==="mountain"?"river":"pond");
       if(id==="desert"){
         for(let i=0;i<3;i++){const a=i*Math.PI*2/3;placeObject(group,createTree("tropical","palm",random),waterSpot.x+Math.cos(a)*2.4,waterSpot.z+Math.sin(a)*2.4,heightAt(waterSpot.x+Math.cos(a)*2.4,waterSpot.z+Math.sin(a)*2.4),random,.72);}
       }
