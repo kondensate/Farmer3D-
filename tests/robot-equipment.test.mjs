@@ -24,3 +24,12 @@ test("unknown and duplicate modules are ignored safely", () => {
   assert.equal(effects.protectedHazards.size, ROBOT_MODULES.thermal_shield.hazards.length);
   assert.equal(effects.stepBonus, 0);
 });
+
+import { biomeMovementMultiplier } from "../src/robot-equipment.js";
+
+test("matching biome equipment improves movement without buffing other regions", () => {
+  assert.equal(biomeMovementMultiplier(["thermal_shield"], "volcanic"), 1.18);
+  assert.equal(biomeMovementMultiplier(["thermal_shield"], "snow"), 1);
+  assert.equal(biomeMovementMultiplier(["cold_tracks"], "snow"), 1.18);
+});
+
