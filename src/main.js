@@ -46,7 +46,7 @@ let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,1),mat(i%2?0x397348:0x
 const plots=[],ownedBiomes=new Set(['meadow']),landMeshes=new Map();
 function createPlotAt(x,z,biome='meadow'){
  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
- box(g,1.72,.24,1.72,biomeSoilMaterials[biome]||soil,0,.12,0);
+ box(g,1.72,.24,1.72,biome==='meadow'?soil:(biomeSoilMaterials[biome]||soil),0,.12,0);
  box(g,1.78,.07,1.78,mat(0x5b402b),0,.025,0);
  for(let j=-1;j<=1;j++)box(g,1.5,.035,.035,soilDark,0,.25,j*.42);
  const crop=new THREE.Group();crop.position.y=.26;g.add(crop);
@@ -55,7 +55,7 @@ function createPlotAt(x,z,biome='meadow'){
 function createBiomeLand(biomeId){
  const parcel=LAND_PARCELS[biomeId];if(!parcel||landMeshes.has(biomeId))return false;
  ownedBiomes.add(biomeId);
- const pad=box(scene,parcel.size,.12,parcel.size,biomeTerrainMaterials[biomeId],parcel.x,-.16,parcel.z);landMeshes.set(biomeId,pad);
+ const pad=box(scene,parcel.size,.12,parcel.size,biomeTerrainMaterials[biomeId],parcel.x,-.08,parcel.z);landMeshes.set(biomeId,pad);
  for(const point of landParcelPlotPositions(biomeId))createPlotAt(point.x,point.z,biomeId);
  return true;
 }
@@ -1023,7 +1023,7 @@ function update(dt){
 
  // Season calendar advances independently from the day/night clock.
  const seasonChange=advanceSeason(season,seasonClock,dt);seasonClock=seasonChange.seasonClock;
- if(seasonChange.changed){season=seasonChange.season;weatherStep=0;weather=getSeasonWeather(season,weatherStep);stats();renderLandMarket();toast(`🗓 Наступил сезон: ${(SEASONS.find(item=>item.id===season)||SEASONS[0]).name}`);saveGame();}
+ if(seasonChange.changed){season=seasonChange.season;seasonClock=0;weatherClock=0;weatherStep=0;weather=getSeasonWeather(season,weatherStep);stats();renderLandMarket();toast(`🗓 Наступил сезон: ${(SEASONS.find(item=>item.id===season)||SEASONS[0]).name}`);saveGame();}
  // Challenge mode is a real timed scenario with a finite seed/water/coin budget.
  if(gameMode==='challenges'&&!challengeDone){challengeSeconds=Math.max(0,challengeSeconds-dt);if(challengeSeconds<=0){challengeDone=true;challengeResult=challengeHarvested>=5?'УСПЕХ':'ВРЕМЯ ВЫШЛО';if(challengeHarvested<5)toast('⏱ Время испытания вышло');saveGame();}if(Math.ceil(challengeSeconds)!==Math.ceil(challengeSeconds+dt))renderChallengeStatus();}
  // Seasonal weather cycle; rain and snow restore soil moisture, drought slows growth.
@@ -1034,7 +1034,7 @@ function update(dt){
    for(const p of plots)if(['seed','growing'].includes(p.state)&&!p.watered){p.watered=true;p.waterSource=weather;metrics.watered++;if(p.state==='seed')setState(p,'growing');}
    toast(weather==='snow'?'❄️ Снег укрыл ферму и увлажнил грядки':'🌧 Дождь увлажнил грядки');
   }else toast(weather==='drought'?'☀ Засуха: растения растут медленнее':'🌤 Погода улучшилась');
-  stats();saveGame();
+  stats();renderLandMarket();saveGame();
  }
  // Pump waters one thirsty plot automatically, consuming the shared water reserve.
  pumpClock+=dt;
