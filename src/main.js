@@ -8,7 +8,7 @@ import { BIOME_BUILDINGS, BIOME_MISSIONS, isBiomeContentAvailable } from './biom
 const MISSIONS = [...CORE_MISSIONS, ...BIOME_MISSIONS];
 const BUILDINGS = { ...CORE_BUILDINGS, ...BIOME_BUILDINGS };
 import { ROBOT_MODULES, moduleEffects, hazardTraversalMultiplier, hazardEnergyMultiplier, biomeMovementMultiplier, biomeWorkCostMultiplier } from './robot-equipment.js';
-import { GRID_STEP, worldToCell, cellToWorld, cellKey, findPath, buildBlockedCells } from './navigation.js';
+import { GRID_STEP, GRID_LIMIT, worldToCell, cellToWorld, cellKey, findPath, buildBlockedCells } from './navigation.js';
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
 import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, MAP_TILE_SIZE, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, RESOURCE_CATALOG, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
 let ide=null;
