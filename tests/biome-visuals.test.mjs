@@ -150,6 +150,19 @@ test("mountain and desert showcase scenes include landmark geometry", () => {
   assert.match(visuals, /new THREE\.InstancedMesh/);
 });
 
+test("reference mountain waterfall has animated volume and recycled splash particles", () => {
+  assert.match(visuals, /waterfallFlows\.push\(\{surface:fall,foam,streaks,droplets,innerFall/);
+  assert.match(visuals, /function updateEnvironment\(group,time=0,wind=0\)/);
+  assert.match(visuals, /drop\.position\.set\(flow\.fallX/);
+  assert.match(visuals, /const flowFoam=mats\.foam\.clone\(\)/);
+});
+
+test("reference world camera supports wheel and two-finger pinch zoom", () => {
+  assert.match(main, /addEventListener\('wheel'.*cameraDistance=THREE\.MathUtils\.clamp/s);
+  assert.match(main, /activeCameraPointers\.size===2/);
+  assert.match(main, /cameraDistance=20/);
+});
+
 test("irrigation visibly darkens soil and emits water droplets", () => {
   assert.match(main, /function setPlotWetVisual\(plot,wet=true\)/);
   assert.match(main, /function waterSpray\(plot\)/);
@@ -167,4 +180,7 @@ test("farm plots use timber retaining boards and unique watermelon, wheat and co
   assert.match(data, /watermelon:\s*\{[^\n]*shape:"watermelon"/);
   assert.match(data, /wheat:\s*\{[^\n]*shape:"wheat"/);
   assert.match(main, /watermelon:2,wheat:2/);
+  assert.match(main, /box\(g,1\.9,\.075,\.11,woodLight/);
+  assert.match(main, /h\*\(1\.65\+\(index===1\?\.18:0\)\)/);
+  assert.match(main, /SphereGeometry\(\.46,14,10\)/);
 });

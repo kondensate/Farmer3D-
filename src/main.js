@@ -13,6 +13,8 @@ import { ROBOT_MODULES, moduleEffects, hazardTraversalMultiplier, hazardEnergyMu
 import { GRID_STEP, GRID_LIMIT, worldToCell, cellToWorld, cellKey, findPath, buildBlockedCells } from './navigation.js';
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
 import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, MAP_TILE_SIZE, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, RESOURCE_CATALOG, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
+import { ACTIVE_SAVE_SLOT_KEY, DEFAULT_SAVE_SLOT_ID, createSaveSlot, ensureSaveSlot, readSaveSlot, readSaveSlots, resolveSaveSlot, saveSlotStorageKey, writeSaveSlot } from './save-system.js';
+import { CAMPAIGN_CHAPTERS, getCampaignProgress } from './campaign.js';
 const biomeVisualKit=createBiomeVisualKit(THREE);
 let ide=null;
 let activeBiome='meadow',worldSeed='legacy-meadow',generatedWorld=null;
@@ -23,14 +25,15 @@ const sensorNames=['can_harvest','can_plant','can_water','is_ready','get_water',
 const root=document.querySelector('#game');
 const scene=new THREE.Scene(); scene.background=new THREE.Color(0x9bc7c2); scene.fog=new THREE.Fog(0x9bc7c2,22,48);
 const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,100); camera.position.set(8,11,12);
-let cameraYaw=.58,cameraPitch=.58,cameraDistance=16;
+let cameraYaw=.58,cameraPitch=.58,cameraDistance=20;
 const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:"high-performance"}); renderer.setPixelRatio(Math.min(devicePixelRatio,1.35)); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFShadowMap; renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.12; renderer.domElement.style.cssText="display:block;position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;touch-action:none"; root.appendChild(renderer.domElement);
 function resizeGameViewport(){const rect=root.getBoundingClientRect(),width=Math.max(1,Math.round(rect.width)),height=Math.max(1,Math.round(rect.height));camera.aspect=width/height;camera.fov=height>width?52:45;camera.updateProjectionMatrix();renderer.setSize(width,height,false);}
 resizeGameViewport();
-let cameraPointer=null,lastPointerX=0,lastPointerY=0;const activeCameraPointers=new Map();
-renderer.domElement.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;activeCameraPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});renderer.domElement.setPointerCapture?.(e.pointerId);if(activeCameraPointers.size===1){cameraPointer=e.pointerId;lastPointerX=e.clientX;lastPointerY=e.clientY;}else cameraPointer=null;});
-renderer.domElement.addEventListener('pointermove',e=>{if(!activeCameraPointers.has(e.pointerId)||activeCameraPointers.size!==1||cameraPointer!==e.pointerId)return;const dx=e.clientX-lastPointerX,dy=e.clientY-lastPointerY;lastPointerX=e.clientX;lastPointerY=e.clientY;cameraYaw-=dx*.008;cameraPitch=THREE.MathUtils.clamp(cameraPitch+dy*.006,.22,.92);});
-const releaseCameraPointer=e=>{activeCameraPointers.delete(e.pointerId);if(activeCameraPointers.size===1){const [id,point]=[...activeCameraPointers.entries()][0];cameraPointer=id;lastPointerX=point.x;lastPointerY=point.y;}else cameraPointer=null;};
+let cameraPointer=null,lastPointerX=0,lastPointerY=0,pinchDistance=0;const activeCameraPointers=new Map();
+renderer.domElement.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;activeCameraPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});renderer.domElement.setPointerCapture?.(e.pointerId);if(activeCameraPointers.size===1){cameraPointer=e.pointerId;lastPointerX=e.clientX;lastPointerY=e.clientY;}else{cameraPointer=null;const points=[...activeCameraPointers.values()];pinchDistance=Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y);}});
+renderer.domElement.addEventListener('pointermove',e=>{const point=activeCameraPointers.get(e.pointerId);if(!point)return;const oldPinch=pinchDistance;point.x=e.clientX;point.y=e.clientY;if(activeCameraPointers.size===2){const points=[...activeCameraPointers.values()];pinchDistance=Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y);if(oldPinch>0)cameraDistance=THREE.MathUtils.clamp(cameraDistance+(oldPinch-pinchDistance)*.035,9,42);return;}if(cameraPointer!==e.pointerId)return;const dx=e.clientX-lastPointerX,dy=e.clientY-lastPointerY;lastPointerX=e.clientX;lastPointerY=e.clientY;cameraYaw-=dx*.008;cameraPitch=THREE.MathUtils.clamp(cameraPitch+dy*.006,.22,.92);});
+renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();cameraDistance=THREE.MathUtils.clamp(cameraDistance+e.deltaY*.018,9,42);},{passive:false});
+const releaseCameraPointer=e=>{activeCameraPointers.delete(e.pointerId);pinchDistance=0;if(activeCameraPointers.size===1){const [id,point]=[...activeCameraPointers.entries()][0];cameraPointer=id;lastPointerX=point.x;lastPointerY=point.y;}else cameraPointer=null;};
 renderer.domElement.addEventListener('pointerup',releaseCameraPointer);renderer.domElement.addEventListener('pointercancel',releaseCameraPointer);
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 scene.add(new THREE.HemisphereLight(0xe6f6d7,0x52613b,1.65));
@@ -54,6 +57,7 @@ function box(parent,w,h,d,m,x,y,z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,
 const ground=box(scene,38,.4,38,biomeTerrainMaterials.meadow,0,-.3,0);
 const grid=new THREE.GridHelper(38,38,0x557b45,0x6f9656);grid.position.y=-.095;grid.material.transparent=true;grid.material.opacity=.28;scene.add(grid);
 const startingWorldGroup=new THREE.Group();scene.add(startingWorldGroup);
+let activeBiomeEnvironment=null;
 const WEATHER_PARTICLE_COUNT=220;
 const weatherPositions=new Float32Array(WEATHER_PARTICLE_COUNT*3);
 for(let i=0;i<WEATHER_PARTICLE_COUNT;i++){
@@ -123,6 +127,7 @@ function updateWeatherVisuals(dt){
  positions.needsUpdate=true;
  const sway=weather==='wind'||weather==='blizzard'?.12:weather==='rain'||weather==='heavy-rain'?.045:0;
  for(const object of startingWorldGroup.children)if(object.userData?.windSway)object.rotation.z=(object.userData.baseRotationZ||0)+Math.sin(robotAnimTime*2.2+object.position.x)*sway;
+ if(activeBiomeEnvironment)biomeVisualKit.updateEnvironment(activeBiomeEnvironment,robotAnimTime,sway);
  scene.fog.near=weather==='fog'?5:weather==='heavy-rain'||weather==='blizzard'?10:22;
  scene.fog.far=weather==='fog'?28:weather==='heavy-rain'||weather==='blizzard'?36:48;
 }
@@ -184,10 +189,12 @@ function createPlotAt(x,z,biome='meadow'){
  for(const side of [-1,1]){
   box(g,1.9,.19,.14,wood,0,.235,side*.84);
   box(g,.14,.19,1.9,woodLight,side*.84,.235,0);
+  box(g,1.9,.075,.11,woodLight,0,.36,side*.84);
+  box(g,.11,.075,1.9,wood,side*.84,.36,0);
  }
  for(const px of [-.84,.84])for(const pz of [-.84,.84]){
-  const post=box(g,.18,.43,.18,woodEnd,px,.245,pz);post.rotation.y=(px*pz)*.08;
-  box(g,.19,.055,.19,woodLight,px,.49,pz);
+  const post=box(g,.18,.59,.18,woodEnd,px,.315,pz);post.rotation.y=(px*pz)*.08;
+  box(g,.21,.065,.21,woodLight,px,.63,pz);
  }
  biomeVisualKit.decoratePlot(g,biome);
  for(let j=-1;j<=1;j++)box(g,1.32,.025,.035,soilDark,0,.19,j*.42);
@@ -268,6 +275,7 @@ function createStartingWorldVisuals(map){
  const scale=MAP_TILE_SIZE;
  startingWorldGroup.add(biomeVisualKit.createBackdrop(activeBiome));
  const biomeEnvironment=biomeVisualKit.createEnvironment(activeBiome,map,terrainHeightAtWorld,scale);
+ activeBiomeEnvironment=biomeEnvironment;
  startingWorldGroup.add(biomeEnvironment);
  for(const item of map.resources){
   const definition=RESOURCE_CATALOG[item.type]||RESOURCE_CATALOG.stone;
@@ -328,7 +336,7 @@ function makeCrop(plot){
  if(cfg.shape==='corn'){
   const stalks=[-.43,0,.43];
   stalks.forEach((x,index)=>{
-   const plantH=h*(.88+(index===1?.12:0));
+  const plantH=h*(1.65+(index===1?.18:0));
    mesh(new THREE.CylinderGeometry(.035,.06,plantH,6),leafMat,x,plantH/2,0);
    for(let leafIndex=0;leafIndex<5;leafIndex++){
     const side=leafIndex%2?1:-1,yy=plantH*(.24+leafIndex*.13);
@@ -370,12 +378,12 @@ function makeCrop(plot){
   }
   if(progress>.38||plot.state==='ready'){
    for(const [x,z,scale] of [[-.28,-.08,[1.12,.82,.92]],[.31,.16,[.9,.72,.82]]]){
-    const fruit=mesh(new THREE.SphereGeometry(.37,14,10),fruitMat,x,.29,z,scale);fruit.rotation.z=-.12;
+    const fruit=mesh(new THREE.SphereGeometry(.46,14,10),fruitMat,x,.34,z,scale);fruit.rotation.z=-.12;
     for(let stripe=0;stripe<7;stripe++){
-     const geo=new THREE.SphereGeometry(.374,14,10,stripe*Math.PI*2/7,.18,.35,2.45);
+     const geo=new THREE.SphereGeometry(.464,14,10,stripe*Math.PI*2/7,.18,.35,2.45);
      const band=mesh(geo,cropMat(stripe%2?0x1f6334:0x2f783e),x,.29,z,[scale[0],scale[1],scale[2]]);band.rotation.z=-.12;
     }
-    mesh(new THREE.CylinderGeometry(.025,.035,.1,5),leafMat,x,.64,z);
+    mesh(new THREE.CylinderGeometry(.025,.035,.1,5),leafMat,x,.69,z);
    }
   }
   return;
@@ -496,10 +504,10 @@ let bulb=new THREE.Mesh(new THREE.SphereGeometry(.09,12,8),gold);bulb.position.s
 robot.position.set(0,0,7);
 let robotMoving=false,robotAction=0,robotAnimTime=0;
 let coins=90,harvest=0,water=8,isLoadingGame=false;
-let xp=0,researchPoints=0,weather='sunny',weatherClock=0,weatherStep=0,season='spring',seasonClock=0,dayClock=0,activeSeed='carrot',pumpBuilt=false,solarBuilt=false,storageBuilt=false,gameMode='campaign';
+let xp=0,researchPoints=0,weather='sunny',weatherClock=0,weatherStep=0,season='spring',seasonClock=0,dayClock=0,activeSeed='carrot',pumpBuilt=false,solarBuilt=false,storageBuilt=false,gameMode='campaign',campaignChapter=0;
 const seedStock={carrot:8,potato:2,tomato:2,corn:2,strawberry:2,eggplant:1,cucumber:2,cabbage:2,pumpkin:1,sunflower:1,watermelon:2,wheat:2,banana:0,pineapple:0,coconut:0,cocoa:0,coffee:0,mango:0,cactus_fruit:0,volcanic_herb:0,cranberry:0,rice:0};
 const harvestStorage={};
-const metrics={planted:0,watered:0,harvested:0,earned:0,programs:0,tilesMoved:0,robots:1,botsProgrammed:0,programActions:0,waterUsed:0,waterEfficiency:0,cropTypes:0,sales:0};
+const metrics={planted:0,watered:0,harvested:0,earned:0,programs:0,tilesMoved:0,robots:1,botsProgrammed:0,programActions:0,waterUsed:0,waterEfficiency:0,cropTypes:0,sales:0,conveyorItemsDelivered:0};
 const harvestedTypes=new Set();
 const robotPrograms={
  farmbot:`# Универсальный фермер\nif can_plant():\n    plant("carrot")\nelif can_water():\n    water()\nelif can_harvest():\n    harvest()\n`
@@ -719,7 +727,7 @@ function researchTechnology(id){
  if(gameMode!=='sandbox'&&!tech.requires.every(r=>researchedTechs.has(r))){toast('Сначала изучи необходимые технологии');return;}
  if(gameMode!=='sandbox'&&(researchPoints<tech.costXP||coins<tech.costCoins)){toast(`Нужно ${tech.costXP} XP и ${tech.costCoins} монет`);return;}
  if(gameMode!=='sandbox'){researchPoints-=tech.costXP;coins-=tech.costCoins;}
- researchedTechs.add(id);addXP(0);renderTechs();renderBuildingUI();stats();saveGame();toast(`🔬 Изучено: ${tech.name}`);
+ researchedTechs.add(id);addXP(0);renderTechs();renderBuildingUI();updateMissions();stats();saveGame();toast(`🔬 Изучено: ${tech.name}`);
 }
 function startBuildingPlacement(type,moveId=null){
  if(!BUILDINGS[type])return;
@@ -788,7 +796,7 @@ function chooseAutomationLink(kind,id){
  if(pendingAutomationLink.from===id){pendingAutomationLink=null;toast('Соединение отменено');return;}
  const links=kind==='power'?powerLinks:conveyorLinks,from=pendingAutomationLink.from;
  if(!links.some(e=>Number(e.from)===from&&Number(e.to)===id))links.push({from,to:id});
- pendingAutomationLink=null;renderAutomationLinks();renderBuildingUI();saveGame();toast(kind==='power'?'⚡ Кабель подключён':'⇢ Конвейерная линия подключена');
+ pendingAutomationLink=null;renderAutomationLinks();renderBuildingUI();updateMissions();saveGame();toast(kind==='power'?'⚡ Кабель подключён':'⇢ Конвейерная линия подключена');
 }
 function deleteBuilding(id){const index=buildings.findIndex(b=>b.id===id);if(index<0)return;const b=buildings[index];disposeBuildingMesh(b.mesh);buildings.splice(index,1);powerLinks.splice(0,powerLinks.length,...powerLinks.filter(e=>Number(e.from)!==id&&Number(e.to)!==id));conveyorLinks.splice(0,conveyorLinks.length,...conveyorLinks.filter(e=>Number(e.from)!==id&&Number(e.to)!==id));renderAutomationLinks();renderBuildingUI();saveGame();toast(`${BUILDINGS[b.type].name}: удалено`);}
 function updatePlacementPreview(e){if(!placingBuilding||!previewMesh)return;const rect=renderer.domElement.getBoundingClientRect();const ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hit=ray.intersectObject(terrainMesh||ground,false)[0];if(!hit)return;const x=Math.round(hit.point.x/GRID_STEP)*GRID_STEP,z=Math.round(hit.point.z/GRID_STEP)*GRID_STEP;previewMesh.position.set(x,terrainHeightAtWorld(x,z)+.02,z);const valid=canPlaceBuilding(placingBuilding.type,x,z,placingBuilding.moveId,placementRotation);previewMesh.userData.previewMaterial.color.set(valid?0x9bd568:0xe56e5c);}
@@ -818,7 +826,7 @@ function switchWorldBiome(id,progress){
    profile.world=profile.world||{};
    profile.world.unlockedWorldBiomes=[...new Set([...(profile.world.unlockedWorldBiomes||[]),...unlockedWorldBiomes])];
    localStorage.setItem(profileKey,JSON.stringify(profile));
-   localStorage.setItem(SAVE_KEY,JSON.stringify(profile));
+   writeSaveSlot(localStorage,activeSaveSlotId,profile);
    location.reload();
    return;
   }catch(error){console.warn('Не удалось открыть сохранённый биом',error);}
@@ -842,11 +850,12 @@ function switchWorldBiome(id,progress){
  current.agents=(current.agents||[]).map(agent=>({...agent,x:0,z:7,y:agent.type==='dronebot'?.75:0,inventory:{}}));
  current.challenge={seconds:180,harvested:0,done:false,result:''};
  const serialized=JSON.stringify(current);
- localStorage.setItem(SAVE_KEY,serialized);localStorage.setItem(profileKey,serialized);
+ writeSaveSlot(localStorage,activeSaveSlotId,current);localStorage.setItem(profileKey,serialized);
  localStorage.setItem(UNLOCKED_BIOMES_KEY,JSON.stringify([...unlockedWorldBiomes]));
  location.reload();
 }
 function renderBiomeSelector(){
+ renderSaveSlotControls();
  const grid=$('#biomeSelectGrid');if(!grid)return;
  const progress={xp,harvested:metrics.harvested||0};
  const prices={meadow:0,desert:120,mountain:160,snow:190,tropical:220,forest:180,volcanic:300,swamp:250};
@@ -870,7 +879,7 @@ function renderBiomeSelector(){
    if(!state.unlocked){toast('Сначала выполни условия открытия этого биома');return;}
    const price=prices[id]??(BIOMES[id].legacyPrice||200);
    if(coins<price){toast(`Нужно ещё ${price-coins} монет`);return;}
-   coins-=price;unlockedWorldBiomes.add(id);stats();saveGame();toast(`${BIOMES[id].name}: биом куплен!`);
+   coins-=price;unlockedWorldBiomes.add(id);updateMissions();stats();saveGame();toast(`${BIOMES[id].name}: биом куплен!`);
    renderBiomeSelector();return;
   }
   switchWorldBiome(id,progress);
@@ -899,7 +908,7 @@ function missionProgress(mission){
  return metricValue(mission.stat);
 }
 function updateMissions(){
- if(gameMode!=='campaign'){renderMissions();return;}
+ if(gameMode!=='campaign'){updateCampaign();renderMissions();return;}
  let changed=false;
  for(const mission of MISSIONS){
   if(!isBiomeContentAvailable(mission,activeBiome)||claimedMissions.has(mission.id))continue;
@@ -909,9 +918,30 @@ function updateMissions(){
   }
  }
  if(changed)saveGame();
+ updateCampaign();
  renderMissions();
 }
+function campaignState(){return {metrics,buildings,powerLinks,researchedTechs:[...researchedTechs],unlockedBiomes:unlockedWorldBiomes};}
+function renderCampaignCard(){
+ const host=$('#campaignProgressCard');if(!host)return;
+ const snapshot=getCampaignProgress(campaignChapter,campaignState());
+ if(snapshot.complete){host.innerHTML='<b>🏆 Кампания завершена</b><small>Ты построил автоматизированный агрокомплекс. Все 12 глав пройдены.</small>';return;}
+ const chapter=snapshot.chapter,percent=Math.round(snapshot.progress/snapshot.target*100);
+ host.innerHTML=`<b>ГЛАВА ${campaignChapter+1} / ${CAMPAIGN_CHAPTERS.length} · ${chapter.title}</b><small>${chapter.story}</small><div class="meter"><i style="width:${percent}%"></i></div><small>Цель: ${chapter.objective} · ${snapshot.progress}/${snapshot.target}</small><small>Награда: ${chapter.rewardCoins} 🪙 · ${chapter.rewardXP} XP</small>${gameMode==='campaign'?'':'<small>Прогресс приостановлен вне режима кампании.</small>'}`;
+}
+function updateCampaign(){
+ if(gameMode!=='campaign'){renderCampaignCard();return;}
+ let advanced=false;
+ while(campaignChapter<CAMPAIGN_CHAPTERS.length){
+  const snapshot=getCampaignProgress(campaignChapter,campaignState());if(!snapshot.complete)break;
+  const chapter=snapshot.chapter;coins+=chapter.rewardCoins;addXP(chapter.rewardXP);campaignChapter++;advanced=true;
+  toast(`📖 Глава пройдена: ${chapter.title} · +${chapter.rewardCoins} 🪙`);
+ }
+ if(advanced)saveGame();
+ renderCampaignCard();
+}
 function renderMissions(){
+ renderCampaignCard();
  const list=$('#missionList');if(!list)return;
  const available=MISSIONS.filter(m=>isBiomeContentAvailable(m,activeBiome));
  const completed=available.filter(m=>claimedMissions.has(m.id)).length;
@@ -999,24 +1029,63 @@ function buySeedPack(){
  if(gameMode!=='sandbox')coins-=c.seedCost;seedStock[activeSeed]=(seedStock[activeSeed]||0)+5;stats();renderSeedStock();saveGame();toast(`${c.icon} Куплено 5 семян: ${c.name}`);
 }
 
-const SAVE_KEY='farmerbot3d_save_v8',PREVIOUS_SAVE_KEY='farmerbot3d_save_v7',LEGACY_SAVE_KEY='farmerbot3d_save_v6',OLDER_SAVE_KEY='farmerbot3d_save_v5',OLD_SAVE_KEY='farmerbot3d_save_v4',OLDER_SAVE_KEY_2='farmerbot3d_save_v3',OLDEST_SAVE_KEY='farmerbot3d_save_v2';
-const WORLD_PROFILE_PREFIX='farmerbot3d_worldprofile_v1_',UNLOCKED_BIOMES_KEY='farmerbot3d_unlocked_biomes_v1';
+const PREVIOUS_SAVE_KEY='farmerbot3d_save_v8',LEGACY_SAVE_KEY='farmerbot3d_save_v7',OLDER_SAVE_KEY='farmerbot3d_save_v6',OLD_SAVE_KEY='farmerbot3d_save_v5',OLDER_SAVE_KEY_2='farmerbot3d_save_v4',OLDER_SAVE_KEY_3='farmerbot3d_save_v3',OLDEST_SAVE_KEY='farmerbot3d_save_v2';
+let activeSaveSlotId=DEFAULT_SAVE_SLOT_ID;
+let SAVE_KEY=saveSlotStorageKey(activeSaveSlotId);
+let WORLD_PROFILE_PREFIX=`farmerbot4_worldprofile_v1_${activeSaveSlotId}_`;
+let UNLOCKED_BIOMES_KEY=`farmerbot4_unlocked_biomes_v1_${activeSaveSlotId}`;
+const LEGACY_UNLOCKED_BIOMES_KEY='farmerbot3d_unlocked_biomes_v1';
+let blockedCorruptSlot=false;
+function activateSaveSlot(id){
+ activeSaveSlotId=ensureSaveSlot(localStorage,id,id===DEFAULT_SAVE_SLOT_ID?'Ферма 1':'Ферма').id;
+ localStorage.setItem(ACTIVE_SAVE_SLOT_KEY,activeSaveSlotId);
+ SAVE_KEY=saveSlotStorageKey(activeSaveSlotId);
+ if(activeSaveSlotId===DEFAULT_SAVE_SLOT_ID){
+  for(const biomeId of BIOME_ORDER){const oldProfile=localStorage.getItem(`farmerbot3d_worldprofile_v1_${biomeId}`),newKey=`farmerbot4_worldprofile_v1_${activeSaveSlotId}_${biomeId}`;if(oldProfile&&!localStorage.getItem(newKey))localStorage.setItem(newKey,oldProfile);}
+  const oldUnlocks=localStorage.getItem(LEGACY_UNLOCKED_BIOMES_KEY),newUnlockKey=`farmerbot4_unlocked_biomes_v1_${activeSaveSlotId}`;if(oldUnlocks&&!localStorage.getItem(newUnlockKey))localStorage.setItem(newUnlockKey,oldUnlocks);
+ }
+ WORLD_PROFILE_PREFIX=`farmerbot4_worldprofile_v1_${activeSaveSlotId}_`;
+ UNLOCKED_BIOMES_KEY=`farmerbot4_unlocked_biomes_v1_${activeSaveSlotId}`;
+}
+function renderSaveSlotControls(){
+ const select=$('#saveSlotSelect');if(!select)return;
+ const slots=readSaveSlots(localStorage);
+ const escapeText=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+ select.innerHTML=slots.map(slot=>{
+  const save=readSaveSlot(localStorage,slot.id);
+  const state=save.status==='corrupt'?' · ⚠ повреждено':save.status==='ok'?` · ${(slot.biome||'meadow').toUpperCase()} · ${slot.mode}`:' · пустой слот';
+  return `<option value="${slot.id}">${escapeText(slot.name)}${escapeText(state)}</option>`;
+ }).join('');
+ select.value=activeSaveSlotId;
+ const hint=$('#saveSlotHint');if(hint)hint.textContent=`${slots.length}/12 слотов · каждый хранит отдельный мир и прогресс`;
+}
+function switchActiveSaveSlot(id){
+ if(!readSaveSlots(localStorage).some(slot=>slot.id===id))return;
+ saveGame();localStorage.setItem(ACTIVE_SAVE_SLOT_KEY,id);
+ const url=new URL(location.href);url.searchParams.set('slot',id);url.searchParams.delete('newgame');
+ location.assign(url.toString());
+}
 function saveGame(){
+ if(blockedCorruptSlot)return;
  const data={
   version:8,coins,harvest,water,xp,researchPoints,seedStock,harvestStorage,metrics,gameMode,activeSeed,automation:{powerLinks,conveyorLinks,autoDispatchEnabled},world:{schemaVersion:WORLD_SCHEMA_VERSION,activeBiome,seed:worldSeed,season,seasonClock,weatherStep,unlockedWorldBiomes:[...unlockedWorldBiomes],unlockedBiomes:[...ownedBiomes],resourceStorage:worldResourceStorage,resourceNodes:resourceNodes.map(({id,type,x,z,amount})=>({id,type,x,z,amount}))},
   harvestedTypes:[...harvestedTypes],claimedMissions:[...claimedMissions],programmedBots:[...programmedBots],weather,
   equipment:{pump:pumpBuilt,solar:solarBuilt,storage:storageBuilt},
   buildings:buildings.map(({mesh,...b})=>b),researchedTechs:[...researchedTechs],
-  challenge:{seconds:challengeSeconds,harvested:challengeHarvested,done:challengeDone,result:challengeResult},
+  challenge:{seconds:challengeSeconds,harvested:challengeHarvested,done:challengeDone,result:challengeResult},campaign:{chapter:campaignChapter},
   agents:agents.map(a=>({id:a.id,type:a.type,name:a.name,x:a.mesh.position.x,z:a.mesh.position.z,y:a.mesh.position.y,rotation:a.mesh.rotation.y,energy:a.energy,water:a.water,inventory:a.inventory,modules:Array.isArray(a.modules)?a.modules:[],program:a.program,level:a.level})),
   plots:plots.map(p=>({state:p.state,watered:p.watered,waterSource:p.waterSource,growth:p.growth,cropType:p.cropType,biome:p.biome||'meadow'}))
  };
- try{const serialized=JSON.stringify(data);localStorage.setItem(SAVE_KEY,serialized);localStorage.setItem(WORLD_PROFILE_PREFIX+activeBiome,serialized);localStorage.setItem(UNLOCKED_BIOMES_KEY,JSON.stringify([...unlockedWorldBiomes]));}catch(e){console.warn('Не удалось сохранить игру',e);}
+ try{writeSaveSlot(localStorage,activeSaveSlotId,data);localStorage.setItem(WORLD_PROFILE_PREFIX+activeBiome,JSON.stringify(data));localStorage.setItem(UNLOCKED_BIOMES_KEY,JSON.stringify([...unlockedWorldBiomes]));}catch(e){console.warn('Не удалось сохранить игру',e);toast('Не удалось сохранить ферму: проверь свободное место в браузере');}
 }
 function loadGame(){
  try{
-  const query=new URLSearchParams(location.search);const forceNewGame=query.get('newgame')==='1';if(forceNewGame){query.delete('newgame');const cleanUrl=location.pathname+(query.toString()?`?${query}`:'')+location.hash;history.replaceState(null,'',cleanUrl);}
-  const raw=forceNewGame?null:(localStorage.getItem(SAVE_KEY)||localStorage.getItem(PREVIOUS_SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY)||localStorage.getItem(OLDER_SAVE_KEY)||localStorage.getItem(OLD_SAVE_KEY)||localStorage.getItem(OLDER_SAVE_KEY_2)||localStorage.getItem(OLDEST_SAVE_KEY));if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();renderBiomeSelector();$('#biomeSelectScreen').classList.add('show');return;}
+  const query=new URLSearchParams(location.search);const forceNewGame=query.get('newgame')==='1';
+  activateSaveSlot(resolveSaveSlot(localStorage,{requestedId:query.get('slot'),legacyKeys:[PREVIOUS_SAVE_KEY,LEGACY_SAVE_KEY,OLDER_SAVE_KEY,OLD_SAVE_KEY,OLDER_SAVE_KEY_2,OLDER_SAVE_KEY_3,OLDEST_SAVE_KEY]}));
+  if(forceNewGame){query.delete('newgame');const cleanUrl=location.pathname+(query.toString()?`?${query}`:'')+location.hash;history.replaceState(null,'',cleanUrl);}
+  const savedSlot=readSaveSlot(localStorage,activeSaveSlotId);
+  if(savedSlot.status==='corrupt'){blockedCorruptSlot=true;stats();renderSeedStock();renderFleetUI();renderMissions();renderBiomeSelector();$('#biomeSelectScreen').classList.add('show');const hint=$('#saveSlotHint');if(hint)hint.textContent='Слот повреждён: исходные данные сохранены и не перезаписываются. Выбери другой слот.';return;}
+  const raw=forceNewGame?null:savedSlot.raw;if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();renderBiomeSelector();$('#biomeSelectScreen').classList.add('show');return;}
   const d=JSON.parse(raw);isLoadingGame=true;
   coins=Number.isFinite(d.coins)?d.coins:90;harvest=Number(d.harvest)||0;water=Number.isFinite(d.water)?d.water:8;xp=Number(d.xp)||0;researchPoints=Number.isFinite(d.researchPoints)?d.researchPoints:xp;
   if(d.seedStock)Object.assign(seedStock,d.seedStock);
@@ -1025,8 +1094,8 @@ function loadGame(){
   if(Array.isArray(d.harvestedTypes))d.harvestedTypes.forEach(v=>harvestedTypes.add(v));
   if(Array.isArray(d.claimedMissions))d.claimedMissions.forEach(v=>claimedMissions.add(v));if(Array.isArray(d.programmedBots))d.programmedBots.forEach(v=>programmedBots.add(v));
   if(Array.isArray(d.researchedTechs))d.researchedTechs.forEach(v=>{if(TECHNOLOGIES.some(t=>t.id===v))researchedTechs.add(v);});
-  if(d.challenge){challengeSeconds=Number.isFinite(d.challenge.seconds)?d.challenge.seconds:180;challengeHarvested=Number(d.challenge.harvested)||0;challengeDone=!!d.challenge.done;challengeResult=String(d.challenge.result||'');}
-  if(d.world){season=SEASONS.some(item=>item.id===d.world.season)?d.world.season:'spring';seasonClock=Math.max(0,Math.min(SEASON_LENGTH_SECONDS-0.001,Number(d.world.seasonClock)||0));weatherStep=Math.max(0,Number(d.world.weatherStep)||0);activeBiome=BIOMES[d.world.activeBiome]?d.world.activeBiome:'meadow';worldSeed=String(d.world.seed||'legacy-meadow');unlockedWorldBiomes.clear();unlockedWorldBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedWorldBiomes)?d.world.unlockedWorldBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);try{const globalUnlocks=JSON.parse(localStorage.getItem(UNLOCKED_BIOMES_KEY)||'[]');for(const id of globalUnlocks)if(BIOMES[id])unlockedWorldBiomes.add(id);}catch(e){}if(BIOMES[activeBiome])unlockedWorldBiomes.add(activeBiome);applyStartingBiome(activeBiome,worldSeed);if(d.world.resourceStorage&&typeof d.world.resourceStorage==='object')Object.assign(worldResourceStorage,d.world.resourceStorage);if(Array.isArray(d.world.resourceNodes)){const savedNodes=new Map(d.world.resourceNodes.map(node=>[node.id,node]));for(const node of resourceNodes){const saved=savedNodes.get(node.id);if(saved)node.amount=Math.max(0,Number(saved.amount)||0);node.mesh.visible=node.amount>0;if(node.amount<=0)scene.remove(node.mesh);else node.mesh.scale.setScalar(.65+.35*(node.amount/Math.max(1,generatedWorld.resources.find(item=>item.id===node.id)?.amount||node.amount)));}}ownedBiomes.clear();ownedBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(LAND_PARCELS[id])createBiomeLand(id);}
+  if(d.challenge){challengeSeconds=Number.isFinite(d.challenge.seconds)?d.challenge.seconds:180;challengeHarvested=Number(d.challenge.harvested)||0;challengeDone=!!d.challenge.done;challengeResult=String(d.challenge.result||'');}campaignChapter=Math.max(0,Math.min(CAMPAIGN_CHAPTERS.length,Math.floor(Number(d.campaign?.chapter)||0)));
+  if(d.world){season=SEASONS.some(item=>item.id===d.world.season)?d.world.season:'spring';seasonClock=Math.max(0,Math.min(SEASON_LENGTH_SECONDS-0.001,Number(d.world.seasonClock)||0));weatherStep=Math.max(0,Number(d.world.weatherStep)||0);activeBiome=BIOMES[d.world.activeBiome]?d.world.activeBiome:'meadow';worldSeed=String(d.world.seed||'legacy-meadow');unlockedWorldBiomes.clear();unlockedWorldBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedWorldBiomes)?d.world.unlockedWorldBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(BIOMES[id])unlockedWorldBiomes.add(id);try{const globalUnlocks=JSON.parse(localStorage.getItem(UNLOCKED_BIOMES_KEY)||(activeSaveSlotId===DEFAULT_SAVE_SLOT_ID?localStorage.getItem(LEGACY_UNLOCKED_BIOMES_KEY):null)||'[]');for(const id of globalUnlocks)if(BIOMES[id])unlockedWorldBiomes.add(id);}catch(e){}if(BIOMES[activeBiome])unlockedWorldBiomes.add(activeBiome);applyStartingBiome(activeBiome,worldSeed);if(d.world.resourceStorage&&typeof d.world.resourceStorage==='object')Object.assign(worldResourceStorage,d.world.resourceStorage);if(Array.isArray(d.world.resourceNodes)){const savedNodes=new Map(d.world.resourceNodes.map(node=>[node.id,node]));for(const node of resourceNodes){const saved=savedNodes.get(node.id);if(saved)node.amount=Math.max(0,Number(saved.amount)||0);node.mesh.visible=node.amount>0;if(node.amount<=0)scene.remove(node.mesh);else node.mesh.scale.setScalar(.65+.35*(node.amount/Math.max(1,generatedWorld.resources.find(item=>item.id===node.id)?.amount||node.amount)));}}ownedBiomes.clear();ownedBiomes.add('meadow');for(const id of Array.isArray(d.world.unlockedBiomes)?d.world.unlockedBiomes:[])if(LAND_PARCELS[id])createBiomeLand(id);}
   activeSeed=CROPS[d.activeSeed]?d.activeSeed:'carrot';weather=WEATHER_LABELS[d.weather]?d.weather:getBiomeWeather(activeBiome,season,weatherStep,worldSeed);gameMode=['campaign','sandbox','challenges','freeplay'].includes(d.gameMode)?d.gameMode:'campaign';$('#gameMode').value=gameMode;
   const a0=d.agents?.find(a=>a.id==='farmbot');
   if(a0){robot.position.set(Number.isFinite(Number(a0.x))?Number(a0.x):0,0,Number.isFinite(Number(a0.z))?Number(a0.z):7);robot.rotation.y=Number(a0.rotation)||0;agents[0].energy=THREE.MathUtils.clamp(Number.isFinite(Number(a0.energy))?Number(a0.energy):100,0,agents[0].maxEnergy);agents[0].inventory=a0.inventory||{};agents[0].modules=Array.isArray(a0.modules)?a0.modules.filter(id=>ROBOT_MODULES[id]):[];syncRobotModuleVisuals(agents[0]);agents[0].program=a0.program??agents[0].program;}
@@ -1601,7 +1670,7 @@ $('#gameMode').onchange=e=>{
   toast('CHALLENGES: 3 минуты, собери 5 культур');
  }else if(gameMode==='campaign')toast('CAMPAIGN: развивай ферму и выполняй миссии');
  else toast('FREE PLAY: свободная экономика без таймера');
- renderChallengeStatus();renderBuildingUI();renderTechs();stats();renderSeedStock();saveGame();
+ renderChallengeStatus();renderBuildingUI();renderTechs();updateMissions();stats();renderSeedStock();saveGame();
 };
 $('#buildToggle').onclick=()=>{$('#buildPanel').classList.add('show');renderBuildingUI();};
 $('#closeBuild').onclick=()=>{$('#buildPanel').classList.remove('show');cancelBuildingPlacement();};
@@ -1618,7 +1687,16 @@ $('#buildPump').onclick=()=>buyEquipment('pump',45);
 $('#buildSolar').onclick=()=>buyEquipment('solar',60);
 $('#buildStorage').onclick=()=>buyEquipment('storage',40);
 
-loadGame();loadProgram();
+$('#saveSlotSelect').addEventListener('change',event=>switchActiveSaveSlot(event.target.value));
+$('#createSaveSlot').onclick=()=>{
+ if(agents.some(agent=>agent.running||agent.autoTaskBusy)){toast('Останови роботов перед созданием новой фермы');return;}
+ try{
+  saveGame();const slots=readSaveSlots(localStorage);const slot=createSaveSlot(localStorage,`Ферма ${slots.length+1}`);
+  localStorage.setItem(ACTIVE_SAVE_SLOT_KEY,slot.id);
+  const url=new URL(location.href);url.searchParams.set('slot',slot.id);url.searchParams.delete('newgame');
+  location.assign(url.toString());
+ }catch(error){toast(error?.message||'Не удалось создать слот фермы');}
+};loadGame();loadProgram();
 const clock=new THREE.Clock();
 let pumpClock=0,fleetUiClock=0,programSpeed=1;
 function update(dt){
@@ -1707,7 +1785,7 @@ function update(dt){
  // Branches split, filters hold mismatched crops, buffers queue, and sinks deliver to storage.
  const storageTotal=Object.values(harvestStorage).reduce((a,v)=>a+v,0),storageLimit=storageBuilt?100:20;
  const delivered=stepConveyorNetwork(buildings.filter(b=>b.powered),conveyorLinks,dt,Math.max(0,storageLimit-storageTotal));
- if(delivered.length){for(const item of delivered){const type=CROPS[item.crop]?item.crop:'carrot';harvestStorage[type]=(harvestStorage[type]||0)+(Number(item.count)||1);}stats();saveGame();toast(`📦 Логистика доставила ${delivered.length} ед. на склад`);}
+ if(delivered.length){for(const item of delivered){const type=CROPS[item.crop]?item.crop:'carrot';harvestStorage[type]=(harvestStorage[type]||0)+(Number(item.count)||1);metrics.conveyorItemsDelivered=(metrics.conveyorItemsDelivered||0)+(Number(item.count)||1);}updateMissions();stats();saveGame();toast(`📦 Логистика доставила ${delivered.length} ед. на склад`);}
  // Connected chargers and robot stations draw power; an outage switches them off.
  chargerClock+=dt;if(chargerClock>=.5){const pulse=chargerClock;chargerClock=0;for(const b of buildings.filter(q=>(q.type==='charger'||q.type==='robot_station')&&q.powered))for(const a of agents){const distance=Math.hypot(a.mesh.position.x-b.x,a.mesh.position.z-b.z);const range=b.type==='charger'?2.7:3.1;if(distance<range)a.energy=Math.min(a.maxEnergy,a.energy+(b.type==='charger'?pulse*5:pulse*3));}}
  // Automatic dispatcher ranks and assigns unclaimed work to idle specialist robots.

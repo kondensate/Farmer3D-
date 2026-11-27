@@ -96,6 +96,7 @@ export function createBiomeVisualKit(THREE) {
     flowerA:new THREE.MeshStandardMaterial({color:0xf0d16c,roughness:.8}),
     flowerB:new THREE.MeshStandardMaterial({color:0xf1a5a2,roughness:.8}),
     leafLight:new THREE.MeshStandardMaterial({color:0x83b957,roughness:.9}),
+    pineLight:new THREE.MeshStandardMaterial({color:0x57864d,roughness:.92}),
     leafDark:new THREE.MeshStandardMaterial({color:0x2f7548,roughness:.9}),
     grass:new THREE.MeshStandardMaterial({color:0x8ba95b,roughness:1}),
     mushroomCap:new THREE.MeshStandardMaterial({color:0xc56f55,roughness:.88}),
@@ -111,11 +112,12 @@ export function createBiomeVisualKit(THREE) {
     smallTrunk:new THREE.CylinderGeometry(.08,.13,.8,6),
     crown:new THREE.IcosahedronGeometry(.78,1),
     crownSmall:new THREE.IcosahedronGeometry(.42,0),
-    pine:new THREE.ConeGeometry(.62,1.05,7),
+    pine:new THREE.ConeGeometry(.72,1.42,7),
+    waterDrop:new THREE.SphereGeometry(.075,7,5),
     pineSnow:new THREE.ConeGeometry(.52,.72,7),
     cactus:new THREE.CylinderGeometry(.18,.22,1.35,8),
     cactusArm:new THREE.CylinderGeometry(.075,.09,.62,7),
-    palmTrunk:new THREE.CylinderGeometry(.13,.2,2.2,7),
+    palmTrunk:new THREE.CylinderGeometry(.13,.2,2.85,7),
     broadLeaf:new THREE.BoxGeometry(.12,.045,1.25),
     fernLeaf:new THREE.BoxGeometry(.07,.035,.62),
     rock:new THREE.DodecahedronGeometry(.62,0),
@@ -151,21 +153,22 @@ export function createBiomeVisualKit(THREE) {
         part(group,G.crownSmall,mats.drySand,0,.35,0,1.25,.55,1.1);
       }
     }else if(type==="palm"){
-      part(group,G.palmTrunk,wood,0,1.1,0,1,1,1,0,true).rotation.z=-.08;
-      for(let i=0;i<8;i++){
-        const a=i*Math.PI/4;
-        const frond=part(group,G.broadLeaf,mats.leafLight,Math.cos(a)*.38,2.12,Math.sin(a)*.38,1,1,1,a,false);
-        frond.rotation.x=-.32;frond.rotation.z=Math.cos(a)*.13;
-        part(group,G.fernLeaf,leaf,Math.cos(a)*.18,2.06,Math.sin(a)*.18,.8,1.15,.8,a,false);
+      part(group,G.palmTrunk,wood,0,1.43,0,1,1,1,0,true).rotation.z=-.1;
+      for(let i=0;i<9;i++){
+        const a=i*Math.PI*2/9;
+        const frond=part(group,G.broadLeaf,mats.leafLight,Math.cos(a)*.45,2.72,Math.sin(a)*.45,1.18,1.15,1.15,a,false);
+        frond.rotation.x=-.34;frond.rotation.z=Math.cos(a)*.16;
+        part(group,G.fernLeaf,leaf,Math.cos(a)*.22,2.66,Math.sin(a)*.22,.9,1.25,.9,a,false);
       }
-      if(random()>.35)for(let i=0;i<3;i++)part(group,G.crownSmall,mats.flowerA,Math.cos(i*2.1)*.16,1.8,Math.sin(i*2.1)*.16,.42,.42,.42);
+      if(random()>.28)for(let i=0;i<4;i++)part(group,G.crownSmall,mats.flowerA,Math.cos(i*1.7)*.2,2.37,Math.sin(i*1.7)*.2,.42,.42,.42);
     }else if(id==="mountain"||id==="snow"||type.includes("pine")||type.includes("fir")){
-      part(group,G.smallTrunk,wood,0,.42,0,1,1.8,1,0,true);
+      part(group,G.smallTrunk,wood,0,.58,0,1,2.15,1,0,true);
       const evergreen=id==="snow"?mats.leafDark:leaf;
-      for(let level=0;level<4;level++){
-        const radius=1-level*.16,y=.68+level*.43;
-        part(group,G.pine,evergreen,0,y,0,radius,1,radius,0,true);
-        if(id==="snow")part(group,G.pineSnow,mats.snow,0,y+.16,0,radius*.82,.72,radius*.82,0,false);
+      for(let level=0;level<5;level++){
+        const radius=1.18-level*.17,y=.86+level*.66;
+        const tierMaterial=level%2===0?evergreen:(id==="snow"?mats.leafDark:mats.pineLight);
+        part(group,G.pine,tierMaterial,0,y,0,radius,1.04,radius,0,true);
+        if(id==="snow")part(group,G.pineSnow,mats.snow,0,y+.2,0,radius*.78,.7,radius*.78,0,false);
       }
     }else if(id==="tropical"){
       part(group,G.smallTrunk,wood,0,.42,0,1.2,1.45,1.2,0,true);
@@ -220,6 +223,7 @@ export function createBiomeVisualKit(THREE) {
   }
   function placeObject(parent,object,x,z,height,random,scale=1){
     object.position.set(x,height,z);object.rotation.y+=random()*Math.PI*2;object.scale.multiplyScalar(scale);parent.add(object);
+    if(object.userData?.windSway){object.userData.baseRotationZ=object.rotation.z;parent.userData.windObjects??=[];parent.userData.windObjects.push(object);}
   }
   function makeWater(group,id,x,z,height,random,frozen=false,kind="pond"){
     const material=frozen?mats.ice:waterMaterials[id]||waterMaterials.meadow;
@@ -350,20 +354,31 @@ export function createBiomeVisualKit(THREE) {
         placeObject(group,tree,side*(8.8+random()*5),heightAt(side*9,-13+random()*6),-13+random()*7,random,.8+random()*.75);
       }
     }
-    // A tall visible waterfall spilling from the rear cliff into the valley stream.
-    const fallX=.2,fallZ=-15.3,topY=5.6,bottomY=.55,fallHeight=topY-bottomY;
-    const fallGeo=new THREE.PlaneGeometry(2.25,fallHeight,8,12);
+    // A layered water curtain, moving highlights, and recycled splash droplets make the fall read as volume.
+    const fallX=.2,fallZ=-15.3,topY=7.6,bottomY=.48,fallHeight=topY-bottomY;
+    const fallGeo=new THREE.PlaneGeometry(2.55,fallHeight,10,18);
     const pos=fallGeo.attributes.position;
-    for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i);pos.setZ(i,Math.sin(x*3+y*1.2)*.045);}
+    for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i);pos.setZ(i,Math.sin(x*2.8+y*1.05)*.075);}
     fallGeo.computeVertexNormals();
     const fallMat=new THREE.MeshStandardMaterial({color:0xbceeff,roughness:.12,metalness:.06,transparent:true,opacity:.78,side:THREE.DoubleSide,emissive:0x24506b,emissiveIntensity:.12});
     const fall=addCustomMesh(group,fallGeo,fallMat,fallX,(topY+bottomY)*.5,fallZ);fall.userData.sharedMaterial=false;fall.castShadow=false;
-    for(let i=0;i<5;i++){
-      const streakGeo=new THREE.PlaneGeometry(.055,fallHeight*(.52+random()*.4));
-      const streak=addCustomMesh(group,streakGeo,mats.snow,fallX-.82+i*.4,(topY+bottomY)*.5,fallZ+.035);streak.userData.sharedMaterial=true;streak.material=mats.foam;
-      streak.castShadow=false;
+    const flowFoam=mats.foam.clone();flowFoam.opacity=.56;
+    const innerFall=addCustomMesh(group,new THREE.PlaneGeometry(1.55,fallHeight*.94,6,14),flowFoam,fallX-.08,(topY+bottomY)*.5,fallZ+.055);
+    innerFall.userData.sharedMaterial=false;innerFall.userData.flowHighlight=true;innerFall.castShadow=false;
+    const streaks=[];
+    for(let i=0;i<7;i++){
+      const streakGeo=new THREE.PlaneGeometry(.07+random()*.06,fallHeight*(.24+random()*.22));
+      const streak=addCustomMesh(group,streakGeo,flowFoam,fallX-1.08+i*.35,(topY+bottomY)*.5,fallZ+.095);streak.userData.sharedMaterial=true;
+      streak.userData.flowHighlight=true;streak.userData.flowOffset=random();streak.castShadow=false;streaks.push(streak);
     }
-    const foam=new THREE.Mesh(new THREE.IcosahedronGeometry(1,1),mats.foam);foam.position.set(fallX,.62,fallZ+.42);foam.scale.set(1.75,.32,.75);foam.castShadow=false;group.add(foam);
+    const foam=new THREE.Mesh(new THREE.IcosahedronGeometry(1,1),flowFoam);foam.position.set(fallX,.62,fallZ+.42);foam.scale.set(1.9,.38,.95);foam.castShadow=false;foam.userData.sharedGeometry=false;foam.userData.sharedMaterial=true;group.add(foam);
+    const droplets=[];
+    for(let i=0;i<18;i++){
+      const drop=new THREE.Mesh(G.waterDrop,flowFoam);drop.scale.setScalar(.55+random()*.9);drop.castShadow=false;drop.userData.sharedGeometry=true;drop.userData.sharedMaterial=true;
+      drop.userData.splashOffset=random();drop.userData.splashSpeed=.48+random()*.72;group.add(drop);droplets.push(drop);
+    }
+    group.userData.waterfallFlows??=[];
+    group.userData.waterfallFlows.push({surface:fall,foam,streaks,droplets,innerFall,fallX,fallZ,bottomY,fallHeight,seed:random()*Math.PI*2});
     const riverPts=[];
     for(let i=0;i<=18;i++){const t=i/18,z=-14.9+t*7.2,x=.2+Math.sin(t*Math.PI*1.4)*.68;riverPts.push({x,y:.22+Math.sin(t*Math.PI)*.05,z});}
     createRiverRibbon(group,riverPts,1.35,waterMaterials.mountain);
@@ -403,8 +418,7 @@ export function createBiomeVisualKit(THREE) {
     // Distant mesa silhouettes give the oasis the open, arid horizon from the reference.
     for(let i=0;i<7;i++){
       const x=-17+i*5.4,z=-17.5+random()*2.2,w=2.8+random()*2.1,h=3.4+random()*2.5;
-      const mesa=new THREE.Mesh(new THREE.CylinderGeometry(w*.82,w,h,7,1),rocks.desert);
-      mesa.position.set(x,h*.35,z);mesa.scale.y=.8;mesa.castShadow=true;mesa.userData.sharedGeometry=false;group.add(mesa);
+      createFacetedPeak(group,x,z,w,h,w*.72,random(),false,0xa47d52);
     }
   }
   function createBackdrop(id){
@@ -508,6 +522,30 @@ export function createBiomeVisualKit(THREE) {
     }
     return group;
   }
-  const atmosphere=Object.fromEntries(Object.entries(ART).map(([id,p])=>[id,{sky:p.sky,fog:p.fog,sun:p.sun,fogNear:id==="snow"?14:id==="tropical"?18:22,fogFar:id==="desert"?62:id==="mountain"?68:id==="tropical"?52:58}]));
-  return { terrainMaterials,soilMaterials,plotRimMaterials,waterMaterials,atmosphere,createEnvironment,createBackdrop,decoratePlot,art:ART };
+  function updateEnvironment(group,time=0,wind=0){
+    if(!group)return;
+    for(const tree of group.userData.windObjects||[]){
+      tree.rotation.z=(tree.userData.baseRotationZ||0)+Math.sin(time*1.35+tree.position.x*.34+tree.position.z*.2)*wind*.12;
+    }
+    for(const flow of group.userData.waterfallFlows||[]){
+      const pulse=.5+.5*Math.sin(time*4.1+flow.seed);
+      flow.surface.material.opacity=.68+pulse*.18;
+      flow.innerFall.material.opacity=.28+pulse*.24;
+      flow.foam.scale.set(1.8+pulse*.2,.3+pulse*.16,.86+pulse*.12);
+      for(const streak of flow.streaks){
+        const phase=(time*.52+streak.userData.flowOffset)%1;
+        streak.position.y=flow.bottomY+flow.fallHeight*(.16+phase*.68);
+        streak.position.x=flow.fallX+Math.sin(time*2.4+streak.userData.flowOffset*8)*.08;
+        streak.material.opacity=.25+.48*Math.sin(phase*Math.PI);
+      }
+      for(const drop of flow.droplets){
+        const phase=(time*drop.userData.splashSpeed+drop.userData.splashOffset)%1;
+        const arc=Math.sin(phase*Math.PI);
+        drop.position.set(flow.fallX+Math.sin(time*2.7+drop.userData.splashOffset*11)*(.32+arc*.42),flow.bottomY+.08+arc*1.05,flow.fallZ+.36+Math.cos(time*2+drop.userData.splashOffset*9)*(.18+arc*.22));
+        drop.scale.setScalar(.38+arc*.9);
+        drop.visible=arc>.12;
+      }
+    }
+  }  const atmosphere=Object.fromEntries(Object.entries(ART).map(([id,p])=>[id,{sky:p.sky,fog:p.fog,sun:p.sun,fogNear:id==="snow"?14:id==="tropical"?18:22,fogFar:id==="desert"?62:id==="mountain"?68:id==="tropical"?52:58}]));
+  return { terrainMaterials,soilMaterials,plotRimMaterials,waterMaterials,atmosphere,createEnvironment,createBackdrop,decoratePlot,updateEnvironment,art:ART };
 }
