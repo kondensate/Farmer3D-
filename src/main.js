@@ -174,12 +174,22 @@ function addWorldObstaclesToPath(blocked,start){
 }
 const plots=[],ownedBiomes=new Set(['meadow']),landMeshes=new Map();
 function createPlotAt(x,z,biome='meadow'){
- const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
- box(g,1.72,.24,1.72,biomeSoilMaterials[biome]||soil,0,.12,0);
- box(g,1.78,.07,1.78,biomeVisualKit.plotRimMaterials[biome]||mat(0x5b402b),0,.025,0);
+ const g=new THREE.Group();g.position.set(x,terrainHeightAtWorld(x,z),z);scene.add(g);
+ const wood=mat(0x875735,.94),woodLight=mat(0xb77b49,.9),woodEnd=mat(0x65432d,.98);
+ // Dark, slightly raised soil bed enclosed by four thick timber boards.
+ box(g,1.58,.16,1.58,biomeSoilMaterials[biome]||soil,0,.09,0);
+ box(g,1.52,.025,1.52,mat(0x593923,.98),0,.178,0);
+ for(const side of [-1,1]){
+  box(g,1.9,.19,.14,wood,0,.235,side*.84);
+  box(g,.14,.19,1.9,woodLight,side*.84,.235,0);
+ }
+ for(const px of [-.84,.84])for(const pz of [-.84,.84]){
+  const post=box(g,.18,.43,.18,woodEnd,px,.245,pz);post.rotation.y=(px*pz)*.08;
+  box(g,.19,.055,.19,woodLight,px,.49,pz);
+ }
  biomeVisualKit.decoratePlot(g,biome);
- for(let j=-1;j<=1;j++)box(g,1.5,.035,.035,soilDark,0,.25,j*.42);
- const crop=new THREE.Group();crop.position.y=.26;g.add(crop);
+ for(let j=-1;j<=1;j++)box(g,1.32,.025,.035,soilDark,0,.19,j*.42);
+ const crop=new THREE.Group();crop.position.y=.2;g.add(crop);
  const plot={g,crop,state:'empty',watered:false,waterSource:null,growth:0,cropType:'carrot',stage:0,biome};plots.push(plot);return plot;
 }
 function createBiomeDecorations(biomeId,centerX,centerZ){
@@ -309,6 +319,62 @@ function makeCrop(plot){
    mesh(new THREE.SphereGeometry(.075,7,5),soilDark,0,.08,0);
    return;
  }
+ // Signature crops use dedicated silhouettes rather than recoloured generic stems.
+ if(cfg.shape==='corn'){
+  const stalks=[-.43,0,.43];
+  stalks.forEach((x,index)=>{
+   const plantH=h*(.88+(index===1?.12:0));
+   mesh(new THREE.CylinderGeometry(.035,.06,plantH,6),leafMat,x,plantH/2,0);
+   for(let leafIndex=0;leafIndex<5;leafIndex++){
+    const side=leafIndex%2?1:-1,yy=plantH*(.24+leafIndex*.13);
+    const blade=mesh(new THREE.ConeGeometry(.075,.72,5),leafMat,x+side*.19,yy,0,[.72,1,.42]);
+    blade.rotation.z=side*(.72+leafIndex*.08);blade.rotation.y=(leafIndex%3)*.9;
+   }
+   if(progress>.34||plot.state==='ready'){
+    const ear=mesh(new THREE.CylinderGeometry(.09,.105,.42,7),fruitMat,x+.11,plantH*.65,.03,[1,1,1]);ear.rotation.z=-.65;
+    for(const side of [-1,1]){
+     const husk=mesh(new THREE.ConeGeometry(.055,.48,5),leafMat,x+.16+side*.07,plantH*.65,.04,[.8,1,.65]);husk.rotation.z=side*.75-.5;
+    }
+   }
+  });
+  return;
+ }
+ if(cfg.shape==='wheat'){
+  const stalkCount=6;
+  for(let i=0;i<stalkCount;i++){
+   const angle=i*Math.PI*2/stalkCount,x=Math.cos(angle)*.38,z=Math.sin(angle)*.38,plantH=h*(.72+(i%3)*.1);
+   const stalk=mesh(new THREE.CylinderGeometry(.018,.027,plantH,5),leafMat,x,plantH/2,z);stalk.rotation.z=Math.cos(angle)*.08;
+   for(let leafIndex=0;leafIndex<2;leafIndex++){
+    const blade=mesh(new THREE.ConeGeometry(.035,.34,4),leafMat,x+Math.cos(angle+leafIndex)*.08,plantH*.3+leafIndex*.18,z+Math.sin(angle+leafIndex)*.08,[.7,1,.35]);blade.rotation.z=Math.cos(angle+leafIndex)*.9;
+   }
+   if(progress>.38||plot.state==='ready'){
+    const head=mesh(new THREE.ConeGeometry(.075,.36,5),fruitMat,x,plantH+.12,z);head.rotation.z=Math.PI;
+    for(let grain=0;grain<5;grain++){
+     const side=grain%2?1:-1;mesh(new THREE.SphereGeometry(.045,6,5),fruitMat,x+side*.055,plantH+.02+grain*.055,z);
+    }
+   }
+  }
+  return;
+ }
+ if(cfg.shape==='watermelon'){
+  const vinePoints=[new THREE.Vector3(-.62,.035,-.28),new THREE.Vector3(-.34,.05,-.1),new THREE.Vector3(-.08,.04,.14),new THREE.Vector3(.25,.05,.19),new THREE.Vector3(.58,.045,.04)];
+  const vineCurve=new THREE.CatmullRomCurve3(vinePoints);
+  mesh(new THREE.TubeGeometry(vineCurve,12,.025,4,false),leafMat,0,0,0);
+  for(let i=0;i<5;i++){
+   const a=i*Math.PI*2/5,leaf=mesh(new THREE.ConeGeometry(.12,.48,4),leafMat,Math.cos(a)*.42,.09,Math.sin(a)*.34,[.65,1,.42]);leaf.rotation.z=Math.cos(a)*.85;leaf.rotation.y=a;
+  }
+  if(progress>.38||plot.state==='ready'){
+   for(const [x,z,scale] of [[-.28,-.08,[1.12,.82,.92]],[.31,.16,[.9,.72,.82]]]){
+    const fruit=mesh(new THREE.SphereGeometry(.37,14,10),fruitMat,x,.29,z,scale);fruit.rotation.z=-.12;
+    for(let stripe=0;stripe<7;stripe++){
+     const geo=new THREE.SphereGeometry(.374,14,10,stripe*Math.PI*2/7,.18,.35,2.45);
+     const band=mesh(geo,cropMat(stripe%2?0x1f6334:0x2f783e),x,.29,z,[scale[0],scale[1],scale[2]]);band.rotation.z=-.12;
+    }
+    mesh(new THREE.CylinderGeometry(.025,.035,.1,5),leafMat,x,.64,z);
+   }
+  }
+  return;
+ }
  const stem=mesh(new THREE.CylinderGeometry(.035,.06,h,7),stemMat,0,h/2,0);
  const leafCount=cfg.shape==='corn'||cfg.shape==='sunflower'?5:4;
  for(let k=0;k<leafCount;k++){
@@ -426,7 +492,7 @@ robot.position.set(0,0,7);
 let robotMoving=false,robotAction=0,robotAnimTime=0;
 let coins=90,harvest=0,water=8,isLoadingGame=false;
 let xp=0,researchPoints=0,weather='sunny',weatherClock=0,weatherStep=0,season='spring',seasonClock=0,dayClock=0,activeSeed='carrot',pumpBuilt=false,solarBuilt=false,storageBuilt=false,gameMode='campaign';
-const seedStock={carrot:8,potato:2,tomato:2,corn:2,strawberry:2,eggplant:1,cucumber:2,cabbage:2,pumpkin:1,sunflower:1,banana:0,pineapple:0,coconut:0,cocoa:0,coffee:0,mango:0,cactus_fruit:0,volcanic_herb:0,cranberry:0,rice:0};
+const seedStock={carrot:8,potato:2,tomato:2,corn:2,strawberry:2,eggplant:1,cucumber:2,cabbage:2,pumpkin:1,sunflower:1,watermelon:2,wheat:2,banana:0,pineapple:0,coconut:0,cocoa:0,coffee:0,mango:0,cactus_fruit:0,volcanic_herb:0,cranberry:0,rice:0};
 const harvestStorage={};
 const metrics={planted:0,watered:0,harvested:0,earned:0,programs:0,tilesMoved:0,robots:1,botsProgrammed:0,programActions:0,waterUsed:0,waterEfficiency:0,cropTypes:0,sales:0};
 const harvestedTypes=new Set();
