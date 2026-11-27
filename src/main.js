@@ -1659,3 +1659,4 @@ let saveAccumulator=0;function frame(){requestAnimationFrame(frame);let dt=Math.
 frame();
 addEventListener('pagehide',saveGame);document.addEventListener('visibilitychange',()=>{if(document.hidden)saveGame();});
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.fov=innerHeight>innerWidth?52:45;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});camera.fov=innerHeight>innerWidth?52:45;camera.updateProjectionMatrix();
+\ninitLanguageToggle();\n
