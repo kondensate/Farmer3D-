@@ -20,7 +20,7 @@ test("fleet catalog defines the four robot roles", () => {
 
 test("49 missions have unique IDs and valid progress targets", () => {
   assert.equal(MISSIONS.length, 49);
-  assert.equal(new Set(MISSIONS.map(m => m.id)).size, 30);
+  assert.equal(new Set(MISSIONS.map(m => m.id)).size, 49);
   for (const m of MISSIONS) {
     assert.ok(m.target > 0 && m.reward > 0, m.id);
   }
