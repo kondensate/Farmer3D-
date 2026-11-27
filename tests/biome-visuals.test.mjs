@@ -110,3 +110,41 @@ test("generated resource deposits never overlap farm plot footprints", () => {
     }
   }
 });
+
+test("mountain maps contain a real valley-and-ridge height profile", () => {
+  const map = generateWorldMap("mountain-reference-profile", "mountain");
+  const heights = map.heightMap.map(point => point.height);
+  assert.ok(Math.max(...heights) >= 3.5, "mountain ridges should rise clearly above the farm");
+  assert.ok(new Set(heights).size >= 8, "mountain terrain should contain varied elevation levels");
+  for (const point of map.heightMap.filter(point => Math.hypot(point.x, point.z) < 8.5)) {
+    assert.equal(point.height, 0, "starter farm clearing must remain level");
+  }
+});
+
+test("desert maps have gentle dune relief while preserving the starter clearing", () => {
+  const map = generateWorldMap("desert-reference-profile", "desert");
+  const heights = map.heightMap.map(point => point.height);
+  assert.ok(Math.max(...heights) - Math.min(...heights) >= .25, "desert should not be a perfectly flat plane");
+  for (const point of map.heightMap.filter(point => Math.hypot(point.x, point.z) < 8.5)) {
+    assert.equal(point.height, 0, "starter farm clearing must remain level");
+  }
+});
+
+test("mountain and desert showcase scenes include landmark geometry", () => {
+  for (const token of ["createFacetedPeak", "addMountainValley", "createRiverRibbon", "createWoodBridge", "fallGeo", "addDesertOasis", "makeIrregularWater"]) {
+    assert.ok(visuals.includes(token), `missing landmark feature: ${token}`);
+  }
+  assert.match(visuals, /height\?\?0/);
+  assert.match(visuals, /new THREE\.InstancedMesh/);
+});
+
+test("farm plots use timber retaining boards and unique watermelon, wheat and corn geometry", () => {
+  const data = readFileSync(new URL("../src/data.js", import.meta.url), "utf8");
+  assert.match(main, /box\(g,1\.9,\.19,\.14,wood/);
+  assert.match(main, /cfg\.shape==='corn'/);
+  assert.match(main, /cfg\.shape==='watermelon'/);
+  assert.match(main, /cfg\.shape==='wheat'/);
+  assert.match(data, /watermelon:\s*\{[^\n]*shape:"watermelon"/);
+  assert.match(data, /wheat:\s*\{[^\n]*shape:"wheat"/);
+  assert.match(main, /watermelon:2,wheat:2/);
+});
