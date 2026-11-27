@@ -257,7 +257,7 @@ export function createBiomeVisualKit(THREE) {
     const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;
     mesh.userData.sharedGeometry=false;mesh.userData.sharedMaterial=true;parent.add(mesh);return mesh;
   }
-  function createFacetedPeak(parent,x,z,width,height,depth,random,snowCap=false){
+  function createFacetedPeak(parent,x,z,width,height,depth,random,snowCap=false,baseColor=0x858d8d){
     const sides=7,vertices=[],indices=[];
     const rings=[
       {y:0,r:1},
@@ -279,7 +279,7 @@ export function createBiomeVisualKit(THREE) {
     }
     for(let i=0;i<sides;i++)indices.push(2*sides+i,apex,2*sides+(i+1)%sides);
     const geo=new THREE.BufferGeometry();geo.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));geo.setIndex(indices);geo.computeVertexNormals();
-    const rockMat=new THREE.MeshStandardMaterial({color:0x858d8d,roughness:1,flatShading:true});
+    const rockMat=new THREE.MeshStandardMaterial({color:baseColor,roughness:1,flatShading:true});
     const peak=addCustomMesh(parent,geo,rockMat,x,0,z);peak.userData.sharedMaterial=false;
     if(snowCap){
       const capGeo=new THREE.ConeGeometry(width*.24,height*.25,6,1);
@@ -415,11 +415,10 @@ export function createBiomeVisualKit(THREE) {
       const angle=i*Math.PI*2/18,radius=half+random()*2.8;
       const x=Math.cos(angle)*radius,z=Math.sin(angle)*radius;
       if(id==="mountain"||id==="snow"||id==="volcanic"){
-        const height=(id==="mountain"?5.2:id==="snow"?4.2:3.4)+random()*4.5;
-        const base=id==="snow"?mats.snow:id==="volcanic"?rocks.volcanic:rocks.mountain;
-        const peak=part(group,new THREE.ConeGeometry(2.6+random()*2,height,6),base,x,height*.42,z,1,1,1,random()*Math.PI,false);
-        peak.userData.sharedGeometry=false;
-        if(id==="snow")part(group,new THREE.ConeGeometry(1.15,height*.34,6),mats.snow,x,height*.82,z,1,1,1,random()*Math.PI,false);
+        const height=(id==="mountain"?10.5:id==="snow"?9.2:7.5)+random()*6.5;
+        const width=4.2+random()*3.2,depth=3.6+random()*2.4;
+        const baseColor=id==="snow"?0x9aafba:id==="volcanic"?0x554b4b:0x77847d;
+        createFacetedPeak(group,x,z,width,height,depth,random,id==="snow"||(id==="mountain"&&random()>.48),baseColor);
       }else if(id==="desert"){
         placeObject(group,createMound(id,random,"dune"),x,z,-.1,random,1.8+random());
       }else if(id==="tropical"){
