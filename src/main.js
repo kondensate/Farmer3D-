@@ -4,7 +4,7 @@ import { runProgram } from './language.js';
 import { createIde } from './ide.js';
 import { createDebuggerController } from './debugger.js';
 import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from './data.js';
-import { ROBOT_MODULES, moduleEffects, hazardTraversalMultiplier, hazardEnergyMultiplier, biomeMovementMultiplier } from './robot-equipment.js';
+import { ROBOT_MODULES, moduleEffects, hazardTraversalMultiplier, hazardEnergyMultiplier, biomeMovementMultiplier, biomeWorkCostMultiplier } from './robot-equipment.js';
 import { GRID_STEP, worldToCell, cellToWorld, cellKey, findPath, buildBlockedCells } from './navigation.js';
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
 import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, MAP_TILE_SIZE, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, RESOURCE_CATALOG, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
@@ -1213,9 +1213,9 @@ async function executeAutomationTask(agent,task){
  await navigateToSpecificPlot(agent,plot);
  if(agent.stopRequested)return;
  if(task.type==='plant'&&plot.state==='empty'){
-  if(plantPlot(plot,task.crop,agent))agent.energy=Math.max(0,agent.energy-.5);
+  if(plantPlot(plot,task.crop,agent))agent.energy=Math.max(0,agent.energy-.5*biomeWorkCostMultiplier(agent.modules,activeBiome));
  }else if(task.type==='water'&&['seed','growing'].includes(plot.state)&&!plot.watered){
-  if(!waterPlot(plot,agent))throw new Error('Нет воды для автоматического полива');agent.energy=Math.max(0,agent.energy-.35);
+  if(!waterPlot(plot,agent))throw new Error('Нет воды для автоматического полива');agent.energy=Math.max(0,agent.energy-.35*biomeWorkCostMultiplier(agent.modules,activeBiome));
  }else if(task.type==='harvest'&&plot.state==='ready'){
   if(!harvestPlot(plot,agent))throw new Error('Не удалось собрать назначенный урожай');agent.energy=Math.max(0,agent.energy-.5);
  }
@@ -1344,7 +1344,7 @@ async function programAction(name,args=[],agent=activeAgent()){
   if(agent.type==='dronebot')throw new Error('DroneBot сканирует, но не добывает ресурсы');
   if(Object.values(agent.inventory).reduce((sum,value)=>sum+value,0)>=agent.capacity)throw new Error('Инвентарь заполнен — вернись на базу');
   if(!collectNearbyWorldResource(agent))throw new Error('Рядом нет ресурсной залежи. Сначала вызови go_to_resource()');
-  agent.energy=Math.max(0,agent.energy-.4);
+  agent.energy=Math.max(0,agent.energy-.4*biomeWorkCostMultiplier(agent.modules,activeBiome));
  }else if(name==='return_to_base'){
   await returnToBase(agent);
  }else if(name==='transfer_to'||name==='transfer_from'){
