@@ -7,6 +7,7 @@ on:
       - farmerbot-3.0
       - farmerbot-3.0-stage-b
       - farmerbot-3.0-stage-c
+      - farmerbot-4.0
   pull_request:
     branches:
       - main
