@@ -130,6 +130,32 @@ export const BIOMES = Object.freeze({
   })
 });
 
+export const RESOURCE_CATALOG = Object.freeze({
+  wood: { id: "wood", name: "Древесина", icon: "🪵", color: 0x98633e, kind: "organic" },
+  stone: { id: "stone", name: "Камень", icon: "🪨", color: 0x818b87, kind: "mineral" },
+  water: { id: "water", name: "Чистая вода", icon: "💧", color: 0x4c9fb4, kind: "liquid" },
+  sand: { id: "sand", name: "Песок", icon: "🏖️", color: 0xd6b676, kind: "bulk" },
+  "rare-mineral": { id: "rare-mineral", name: "Редкий минерал", icon: "💎", color: 0x6cb9bf, kind: "mineral" },
+  groundwater: { id: "groundwater", name: "Подземная вода", icon: "🫧", color: 0x3789b5, kind: "liquid" },
+  iron: { id: "iron", name: "Железная руда", icon: "⛏️", color: 0x8d7165, kind: "mineral" },
+  copper: { id: "copper", name: "Медная руда", icon: "🟠", color: 0xb86e43, kind: "mineral" },
+  freshwater: { id: "freshwater", name: "Пресная вода", icon: "💧", color: 0x64b7c8, kind: "liquid" },
+  ice: { id: "ice", name: "Лёд", icon: "🧊", color: 0x9ed8e7, kind: "mineral" },
+  crystal: { id: "crystal", name: "Кристалл", icon: "🔹", color: 0x86c3dd, kind: "mineral" },
+  fruit: { id: "fruit", name: "Тропические плоды", icon: "🥭", color: 0xe39b48, kind: "organic" },
+  rubber: { id: "rubber", name: "Каучук", icon: "🟤", color: 0x866449, kind: "organic" },
+  rainwater: { id: "rainwater", name: "Дождевая вода", icon: "🌧️", color: 0x579cb5, kind: "liquid" },
+  mushroom: { id: "mushroom", name: "Грибы", icon: "🍄", color: 0xc76e54, kind: "organic" },
+  berries: { id: "berries", name: "Лесные ягоды", icon: "🫐", color: 0x7c5ab0, kind: "organic" },
+  obsidian: { id: "obsidian", name: "Обсидиан", icon: "⬛", color: 0x38343e, kind: "mineral" },
+  sulfur: { id: "sulfur", name: "Сера", icon: "🟡", color: 0xd2c04e, kind: "mineral" },
+  "volcanic-mineral": { id: "volcanic-mineral", name: "Вулканический минерал", icon: "🔶", color: 0xc46a40, kind: "mineral" },
+  peat: { id: "peat", name: "Торф", icon: "🟫", color: 0x51402e, kind: "bulk" },
+  herb: { id: "herb", name: "Лекарственные травы", icon: "🌿", color: 0x6c9b57, kind: "organic" },
+  clay: { id: "clay", name: "Глина", icon: "🟤", color: 0x9b6b50, kind: "bulk" },
+  "marsh-gas": { id: "marsh-gas", name: "Болотный газ", icon: "🫧", color: 0x96a95b, kind: "gas" }
+});
+
 export const BIOME_ORDER = Object.freeze(["meadow", "desert", "mountain", "snow", "tropical", "forest", "volcanic", "swamp"]);
 export const BIOME_WEATHER_TYPES = Object.freeze(["sunny", "cloudy", "rain", "heavy-rain", "thunderstorm", "snow", "blizzard", "fog", "wind", "drought", "ashfall", "heatwave"]);
 export const WEATHER_LABELS = Object.freeze({
