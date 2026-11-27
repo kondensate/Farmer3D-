@@ -25,6 +25,7 @@ export function findPath(start, goal, blocked = new Set(), limit = GRID_LIMIT, t
   const heightAt = typeof terrain?.heightAt === "function" ? terrain.heightAt : () => 0;
   const maxStep = Number.isFinite(terrain?.maxStep) ? Math.max(0, terrain.maxStep) : Infinity;
   const slopeCost = Number.isFinite(terrain?.slopeCost) ? Math.max(0, terrain.slopeCost) : 0;
+  const traversalCost = typeof terrain?.traversalCost === "function" ? terrain.traversalCost : () => 0;
   const heuristic = c => Math.abs(c.x - g.x) + Math.abs(c.z - g.z);
   const open = [{ ...s, g: 0, f: heuristic(s) }];
   const cameFrom = new Map();
@@ -51,7 +52,9 @@ export function findPath(start, goal, blocked = new Set(), limit = GRID_LIMIT, t
       if (closed.has(nk)) continue;
       const rise = Math.abs((Number(heightAt(next.x,next.z))||0) - (Number(heightAt(current.x,current.z))||0));
       if (rise > maxStep) continue;
-      const tentative = current.g + 1 + rise * slopeCost;
+      const extraCost = Number(traversalCost(next.x, next.z, current.x, current.z));
+      const hazardCost = Number.isFinite(extraCost) ? Math.max(0, extraCost) : 0;
+      const tentative = current.g + 1 + rise * slopeCost + hazardCost;
       if (tentative >= (cost.get(nk) ?? Infinity)) continue;
       cameFrom.set(nk,key); cost.set(nk,tentative);
       open.push({ ...next, g: tentative, f: tentative + heuristic(next) });
