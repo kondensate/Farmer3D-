@@ -1046,6 +1046,7 @@ function loadGame(){
    if(!plots[i])return;plots[i].watered=!!v.watered;plots[i].waterSource=v.waterSource||null;plots[i].growth=Number(v.growth)||0;
    plots[i].cropType=CROPS[v.cropType]?v.cropType:'carrot';plots[i].biome=BIOMES[v.biome]?v.biome:(plots[i].biome||'meadow');
    setState(plots[i],['empty','seed','growing','ready'].includes(v.state)?v.state:'empty');
+   setPlotWetVisual(plots[i],plots[i].watered);
   });
   if(d.equipment){pumpBuilt=!!d.equipment.pump;solarBuilt=!!d.equipment.solar;storageBuilt=!!d.equipment.storage;
    if(pumpBuilt)buildEquipment('pump');if(solarBuilt)buildEquipment('solar');if(storageBuilt)buildEquipment('storage');}
