@@ -42,14 +42,14 @@ test('IDE exposes per-robot debugger state, variables, next command and changed 
   assert.ok(html.includes('ide-value.changed'));
 });
 
-test('save format advances to v8 and preserves v2-v7 migration paths', () => {
+test('save format advances to v9 and preserves v2-v8 migration paths', () => {
   for (const version of [8,7,6,5,4,3,2]) assert.match(main, new RegExp(`farmerbot3d_save_v${version}`));
   assert.match(main, /unlockedBiomes:\[\.\.\.ownedBiomes\]/);
   assert.match(main, /unlockedWorldBiomes:\[\.\.\.unlockedWorldBiomes\]/);
   assert.match(main, /resourceStorage:worldResourceStorage/);
   assert.match(main, /resourceNodes:resourceNodes\.map/);
   assert.match(main, /function collectNearbyWorldResource\(agent=activeAgent\(\)\)/);
-  assert.match(main, /Number\(d\.version\|\|0\)<8/);
+  assert.match(main, /Number\(d\.version\|\|0\)<9/);
   assert.match(main, /activeBiome,seed:worldSeed/);
   assert.match(main, /buildings:buildings\.map/);
   assert.match(main, /researchedTechs:\[\.\.\.researchedTechs\]/);
@@ -70,9 +70,12 @@ test('Stage B resource transfer commands are registered in the safe DSL', () => 
 });
 
 test('Stage B saves and restores power and conveyor graphs', () => {
-  assert.match(main, /automation:\{powerLinks,conveyorLinks,autoDispatchEnabled\}/);
+  assert.match(main, /automation:\{powerLinks,conveyorLinks,waterLinks,autoDispatchEnabled\}/);
   assert.match(main, /powerLinks\.splice/);
   assert.match(main, /conveyorLinks\.splice/);
+  assert.match(main, /waterLinks\.splice/);
+  assert.match(main, /updateWaterNetwork\(buildings,waterLinks/);
+  assert.match(main, /waterState\.supplied\.get\(String\(b\.id\)\)/);
   assert.match(main, /legacyUnwired/);
   assert.match(main, /updatePowerGrid\(buildings,powerLinks/);
   assert.match(main, /stepConveyorNetwork\(buildings\.filter\(b=>b\.powered\)/);

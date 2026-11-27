@@ -1,6 +1,45 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from "../src/automation.js";
+import { updateWaterNetwork } from "../src/water-network.js";
+
+test("water network only supplies pumps connected to a well and a frozen network fails closed", () => {
+  const buildings = [
+    { id: 1, type: "water_well", waterNode: true, waterRole: "source", waterOutput: 2 },
+    { id: 2, type: "tank", waterNode: true, waterRole: "storage" },
+    { id: 3, type: "water_pump", waterNode: true, waterRole: "consumer", waterDemand: 1 }
+  ];
+  const links = [{ from: 1, to: 2 }, { from: 2, to: 3 }];
+  const state = updateWaterNetwork(buildings, links, 1);
+  assert.equal(state.supplied.get("3"), true);
+  assert.equal(state.production, 2);
+  assert.ok(state.pressure.get("3") > 0);
+  assert.equal(updateWaterNetwork(buildings, links, 1, { frozen: true }).supplied.get("3"), false);
+  assert.equal(updateWaterNetwork(buildings, [], 1).supplied.get("3"), false);
+});
+
+test("water production is limited to working pipe components and desert output is lower", () => {
+  const buildings = [
+    { id: 1, type: "water_well", waterNode: true, waterRole: "source", waterOutput: 2 },
+    { id: 2, type: "tank", waterNode: true, waterRole: "storage" },
+    { id: 3, type: "water_pump", waterNode: true, waterRole: "consumer", waterDemand: 1 },
+    { id: 4, type: "water_well", waterNode: true, waterRole: "source", waterOutput: 10 }
+  ];
+  const links = [{ from: 1, to: 2 }, { from: 2, to: 3 }];
+  assert.equal(updateWaterNetwork(buildings, links, 1).production, 2);
+  assert.equal(updateWaterNetwork(buildings, links, 1, { biome: "desert" }).production, 1.4);
+});
+
+test("powered pumps stop consuming water when their electrical network is down", () => {
+  const buildings = [
+    { id: 1, waterNode: true, waterRole: "source", waterOutput: 2 },
+    { id: 2, waterNode: true, waterRole: "consumer", waterDemand: 1 }
+  ];
+  const links = [{ from: 1, to: 2 }];
+  const state = updateWaterNetwork(buildings, links, 1, { powered: new Map([["2", false]]) });
+  assert.equal(state.supplied.get("2"), false);
+  assert.equal(state.outages, 1);
+});
 
 test("power grid routes generation through cables and fails consumers closed during a shortage", () => {
   const buildings = [

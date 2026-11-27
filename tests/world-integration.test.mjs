@@ -33,10 +33,10 @@ test("building placement remains constrained to owned ground", () => {
   assert.match(main, /corners\.every\(\(\[sx,sz\]\)=>isOwnedLandAt/);
 });
 
-test("version 7 saves retain selected biome, seed and unlocked regions", () => {
-  assert.match(main, /version:8,[\s\S]*?activeBiome,seed:worldSeed/);
+test("version 8 saves migrate selected biome, seed and unlocked regions into the v9 format", () => {
+  assert.match(main, /version:9,[\s\S]*?activeBiome,seed:worldSeed/);
   assert.match(main, /SAVE_KEY='farmerbot3d_save_v8'/);
   assert.match(main, /unlockedWorldBiomes:\[\.\.\.unlockedWorldBiomes\]/);
-  assert.match(main, /Number\(d\.version\|\|0\)<8/);
+  assert.match(main, /Number\(d\.version\|\|0\)<9/);
   assert.match(main, /resourceStorage:worldResourceStorage/);
 });

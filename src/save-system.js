@@ -100,7 +100,7 @@ export function readSaveSlot(storage, id) {
   try {
     const data = JSON.parse(raw);
     if (!data || typeof data !== "object" || Array.isArray(data)) return { status: "corrupt", data: null, raw };
-    if (data.version !== undefined && (!Number.isInteger(Number(data.version)) || Number(data.version) < 2 || Number(data.version) > 8)) return { status: "corrupt", data: null, raw };
+    if (data.version !== undefined && (!Number.isInteger(Number(data.version)) || Number(data.version) < 2 || Number(data.version) > 9)) return { status: "corrupt", data: null, raw };
     return { status: "ok", data, raw };
   } catch {
     return { status: "corrupt", data: null, raw };
