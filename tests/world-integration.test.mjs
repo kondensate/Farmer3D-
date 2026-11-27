@@ -20,4 +20,11 @@ test("land market is inside the scrollable construction panel", () => {
 test("winter snow can wet fields and reduces growth through climate effects", () => {
   assert.match(main, /weather==='rain'\|\|weather==='snow'/);
   assert.match(main, /getEnvironmentEffects\(p\.biome\|\|'meadow',season,weather\)\.growth/);
+  assert.match(main, /water>=waterCostForPlot\(targetPlot\.biome\|\|'meadow',season\)/);
+});
+
+test("building placement is limited to meadow and purchased biome parcels", () => {
+  assert.match(main, /function isOwnedLandAt\(x,z\)/);
+  assert.match(main, /ownedBiomes\.has\(parcel\.biome\)/);
+  assert.match(main, /corners\.every\(\(\[sx,sz\]\)=>isOwnedLandAt/);
 });
