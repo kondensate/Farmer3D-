@@ -1,0 +1,35 @@
+{
+  "id": "snow",
+  "name": "Snow Valley",
+  "rendering": "procedural-low-poly",
+  "texture": {
+    "generator": "src/biome-visuals.js",
+    "ground": "#c9dce5",
+    "soil": "#9aaeb5",
+    "repeat": {
+      "u": 18,
+      "v": 18
+    },
+    "wrapping": "RepeatWrapping",
+    "roughness": 0.96,
+    "accents": [
+      "#eff8fb",
+      "#a9c6d7",
+      "#7fabbc",
+      "#e0eef2"
+    ]
+  },
+  "materials": {
+    "stone": "#a6b9c4",
+    "foliage": "#486d69",
+    "trunk": "#675746",
+    "water": "#8bc8dc",
+    "plotRim": "#9aabb3"
+  },
+  "atmosphere": {
+    "sky": "#c5e0ef",
+    "fog": "#e0edf3",
+    "sun": "#e3efff"
+  },
+  "notes": "Palette specification for runtime-generated seamless CanvasTexture and shared Three.js low-poly meshes."
+}
