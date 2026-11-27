@@ -1,0 +1,35 @@
+{
+  "id": "volcanic",
+  "name": "Volcanic",
+  "rendering": "procedural-low-poly",
+  "texture": {
+    "generator": "src/biome-visuals.js",
+    "ground": "#514743",
+    "soil": "#403633",
+    "repeat": {
+      "u": 18,
+      "v": 18
+    },
+    "wrapping": "RepeatWrapping",
+    "roughness": 0.96,
+    "accents": [
+      "#a55b3e",
+      "#292a30",
+      "#78604c",
+      "#d17b43"
+    ]
+  },
+  "materials": {
+    "stone": "#554c4b",
+    "foliage": "#66694a",
+    "trunk": "#493932",
+    "water": "#4a888f",
+    "plotRim": "#56413a"
+  },
+  "atmosphere": {
+    "sky": "#b18c7f",
+    "fog": "#8d7468",
+    "sun": "#ffb27a"
+  },
+  "notes": "Palette specification for runtime-generated seamless CanvasTexture and shared Three.js low-poly meshes."
+}
