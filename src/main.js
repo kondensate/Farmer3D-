@@ -709,7 +709,7 @@ function nearest(agent=activeAgent()){
 }
 function waterPlot(plot,agent=activeAgent(),source='robot'){
  if(!plot||!['seed','growing'].includes(plot.state)||plot.watered)return false;
- const cost=waterCostForPlot(plot.biome||'meadow',season);
+ const cost=waterCostForPlot(plot.biome||'meadow',season,weather);
  if(agent.type==='waterbot'){if(gameMode!=='sandbox'&&agent.water<cost){toast(`Нужно ${cost} воды для этого климата`);return false;}if(gameMode!=='sandbox')agent.water-=cost;}
  else{if(gameMode!=='sandbox'&&water<cost){toast(`Нужно ${cost} воды для этого климата`);return false;}if(gameMode!=='sandbox')water-=cost;}
  metrics.watered++;metrics.waterUsed+=cost;plot.watered=true;plot.waterSource=source;plot.growth=0;setState(plot,'growing');
@@ -987,7 +987,7 @@ function programLogFor(agent,message){
 }
 function programLog(message){programLogFor(activeAgent(),message);}
 function programSense(name,args=[],agent=activeAgent()){
- const p=nearest(agent),pos=agent.mesh.position,requiredWater=p?waterCostForPlot(p.biome||'meadow',season):1;
+ const p=nearest(agent),pos=agent.mesh.position,requiredWater=p?waterCostForPlot(p.biome||'meadow',season,weather):1;
  switch(name){
   case 'can_harvest':case 'is_ready':return !!p&&p.state==='ready'&&agent.type!=='waterbot'&&agent.type!=='dronebot';
   case 'can_plant':return !!p&&p.state==='empty'&&agent.type!=='waterbot'&&agent.type!=='harvestbot'&&agent.type!=='dronebot'&&(seedStock[args[0]||activeSeed]||0)>0;
@@ -1177,7 +1177,7 @@ function update(dt){
  pumpClock+=dt;
  if(pumpBuilt&&pumpClock>14){
   pumpClock=0;const targetPlot=plots.find(p=>['seed','growing'].includes(p.state)&&!p.watered);
-  if(targetPlot&&(water>=waterCostForPlot(targetPlot.biome||'meadow',season)||gameMode==='sandbox'))waterPlot(targetPlot,agents[0],'pump');
+  if(targetPlot&&(water>=waterCostForPlot(targetPlot.biome||'meadow',season,weather)||gameMode==='sandbox'))waterPlot(targetPlot,agents[0],'pump');
  }
  for(const p of plots){
   if(p.state==='growing'&&p.watered){
@@ -1195,13 +1195,13 @@ function update(dt){
  }
  // Stage B grid: generate, route, buffer and allocate energy each simulation tick.
  const climateEffects=getEnvironmentEffects(activeBiome,season,weather);
- powerState=updatePowerGrid(buildings,powerLinks,dt,{solarFactor:Math.max(.08,daylight)*climateEffects.solar,windFactor:weather==='wind'||weather==='blizzard'?1.35:weather==='rain'||weather==='heavy-rain'?1.15:weather==='drought'||weather==='heatwave'?.75:.9});
+ powerState=updatePowerGrid(buildings,powerLinks,dt,{solarFactor:Math.max(.08,daylight)*climateEffects.solar,windFactor:weather==='wind'||weather==='blizzard'?1.35:weather==='rain'||weather==='heavy-rain'?1.15:['drought','heatwave'].includes(weather)?.75:.9});
  for(const b of buildings)b.powered=!!powerState.powered.get(String(b.id))||!!b.legacyUnwired;
  // Powered pumps irrigate one thirsty plot at a time.
  pumpClock+=dt;
  if(pumpClock>=8){
   pumpClock=0;const targetPlot=buildings.some(b=>b.type==='water_pump'&&b.powered)&&plots.find(p=>['seed','growing'].includes(p.state)&&!p.watered);
-  if(targetPlot&&(water>=waterCostForPlot(targetPlot.biome||'meadow',season)||gameMode==='sandbox'))waterPlot(targetPlot,agents[0],'pump');
+  if(targetPlot&&(water>=waterCostForPlot(targetPlot.biome||'meadow',season,weather)||gameMode==='sandbox'))waterPlot(targetPlot,agents[0],'pump');
  }
  // Powered source conveyors pick ripe crops and push them into the directed belt graph.
  conveyorClock+=dt;
