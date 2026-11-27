@@ -1056,6 +1056,16 @@ function interact(agent=activeAgent()){
 }
 $('#act').addEventListener('pointerdown',e=>{e.preventDefault();interact();});
 $('#openBiomes').onclick=()=>{if(agents.some(agent=>agent.running)){toast('Останови программы роботов перед переходом между мирами');return;}saveGame();renderBiomeSelector();$('#biomeSelectScreen').classList.add('show');};
+$('#restartFarm').onclick=()=>{
+ if(!window.confirm('Начать игру заново? Будут удалены монеты, урожай, роботы, постройки, открытые биомы и сохранённые программы. Это действие нельзя отменить.'))return;
+ try{
+  const keys=Object.keys(localStorage);
+  for(const key of keys){
+   if(/^farmerbot3d_save_v[2-8]$/.test(key)||key.startsWith('farmerbot3d_worldprofile_v1_')||key==='farmerbot3d_unlocked_biomes_v1'||key.startsWith('farmerbot3d_program_')||key==='farmerbot3d_program_v2')localStorage.removeItem(key);
+  }
+ }catch(error){console.error('Не удалось очистить сохранение игры',error);toast('Не удалось очистить сохранение');return;}
+ location.reload();
+};
 $('#shop').onclick=()=>$('#shopPanel').classList.add('show');$('#closeShop').onclick=()=>$('#shopPanel').classList.remove('show');
 $('#sell').onclick=()=>{
  const units=Object.values(harvestStorage).reduce((a,b)=>a+b,0);

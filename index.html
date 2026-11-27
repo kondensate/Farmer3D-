@@ -123,6 +123,7 @@
 .worldSelectFoot strong{color:#e5f2d5}
 @media(max-width:720px){.biomeSelectGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.biomeSelectCard{min-height:150px;padding:9px}.worldSelectShell{gap:9px}.worldSelectHead{align-items:flex-start;flex-direction:column}.worldSelectIntro{font-size:11px}.worldSelectFoot{align-items:flex-start;flex-direction:column}}
 
+ .restartFarmButton{border:1px solid #a96d5d;background:#452a24;color:#ffe0d4;border-radius:10px;padding:10px 13px;font:800 11px ui-monospace,monospace;cursor:pointer;min-height:40px}.restartFarmButton:active{transform:translateY(1px);background:#60352c}
 </style>
 </head>
 <body>
@@ -135,7 +136,7 @@
   </div>
   <div class="worldSelectIntro">Каждый регион задаёт свой климат, растительность, ресурсы, сложность и условия выращивания. Новые территории будут открываться по мере развития фермы.</div>
   <div id="biomeSelectGrid" class="biomeSelectGrid"></div>
-  <div class="worldSelectFoot"><span><strong>Сохранения Alpha 4:</strong> существующие фермы загружаются без сброса и остаются на зелёных равнинах.</span><span>Seed мира будет сохранён вместе с фермой.</span></div>
+  <div class="worldSelectFoot"><span><strong>Сохранения:</strong> прогресс автоматически сохраняется на этом устройстве.</span><span>Seed мира будет сохранён вместе с фермой.</span><button class="restartFarmButton" id="restartFarm" type="button">↻ НАЧАТЬ ВСЁ ЗАНОВО</button></div>
  </div>
 </div>
 
