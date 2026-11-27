@@ -108,3 +108,19 @@ test("generated map protects the starter plots and base from natural obstacles",
     assert.ok(map.resources.every(r => Number.isFinite(r.x) && Number.isFinite(r.z) && r.amount > 0));
   }
 });
+
+
+test("mountain maps contain elevation while the starter farm and route stay level", () => {
+  const map = generateWorldMap("altitude-seed", "mountain");
+  const baseClearing = map.heightMap.filter(cell => Math.hypot(cell.x,cell.z-7) < 8.5);
+  const farmClearing = map.heightMap.filter(cell => Math.hypot(cell.x,cell.z) < 8.5);
+  assert.ok(baseClearing.length > 0 && farmClearing.length > 0);
+  assert.ok(baseClearing.every(cell => cell.height === 0));
+  assert.ok(farmClearing.every(cell => cell.height === 0));
+  assert.ok(map.heightMap.some(cell => cell.height > 0));
+  for (const step of map.safeRoute) {
+    const cell = map.heightMap.find(point => point.x === step.x && point.z === step.z);
+    assert.equal(cell?.height, 0);
+    assert.ok(!map.obstacles.some(o => o.x === step.x && o.z === step.z));
+  }
+});
