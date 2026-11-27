@@ -309,6 +309,10 @@ function makeCrop(plot){
     case 'rice':
       for(let i=0;i<4;i++){const x=(i-1.5)*.09;mesh(new THREE.ConeGeometry(.045,.3,5),fruitMat,x,h+.1,.03).rotation.z=-.18;}
       break;
+    case 'mushroom':
+      for(let i=0;i<3;i++){const x=(i-1)*.17;mesh(new THREE.CylinderGeometry(.035,.055,.2,7),cropMat(0xe5d5bb),x,.13,0);}
+      for(let i=0;i<3;i++){const x=(i-1)*.17;mesh(new THREE.SphereGeometry(.14,9,7),fruitMat,x,.28,0,[1,.55,1]);}
+      break;
    }
  }
 }
@@ -835,7 +839,7 @@ function collectNearbyWorldResource(agent=activeAgent()){
  const resource=RESOURCE_CATALOG[liveNode.type]||RESOURCE_CATALOG.stone;
  liveNode.mesh.scale.setScalar(.65+.35*(liveNode.amount/Math.max(1,node.amount)));
  if(liveNode.amount<=0){scene.remove(liveNode.mesh);liveNode.mesh.visible=false;}
- addXP(1);stats();saveGame();programLogFor(agent,`Собран ресурс: ${resource.name} · +1`);
+ addXP(1);metrics.resourceCollected=(metrics.resourceCollected||0)+1;metrics[`${activeBiome}ResourcesCollected`]=(metrics[`${activeBiome}ResourcesCollected`]||0)+1;updateMissions();stats();saveGame();programLogFor(agent,`Собран ресурс: ${resource.name} · +1`);
  toast(`${resource.icon} ${resource.name}: +1 · осталось в залежи ${liveNode.amount}`);
  return true;
 }
