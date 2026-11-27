@@ -300,6 +300,9 @@ function applyStartingBiome(biomeId,seed){
 }
 
 const particleGeo=new THREE.BoxGeometry(.075,.075,.075),particles=[];
+const waterDropGeometry=new THREE.SphereGeometry(.045,6,5);
+const waterDropMaterial=new THREE.MeshBasicMaterial({color:0x9beaff,transparent:true,opacity:.92});
+const waterJetMaterial=new THREE.MeshBasicMaterial({color:0x77d8f4,transparent:true,opacity:.62});
 function burst(pos,color=0xf2d36e,count=10){
  for(let i=0;i<count;i++){const q=new THREE.Mesh(particleGeo,new THREE.MeshBasicMaterial({color}));q.position.copy(pos);q.userData.v=new THREE.Vector3((Math.random()-.5)*2,1+Math.random()*1.8,(Math.random()-.5)*2);q.userData.life=.7+Math.random()*.2;scene.add(q);particles.push(q);}
 }
@@ -1060,13 +1063,24 @@ function nearest(agent=activeAgent()){
  for(const p of plots){const d=Math.hypot(p.g.position.x-pos.x,p.g.position.z-pos.z);if(d<bd){bd=d;best=p;}}
  return best;
 }
+function waterSpray(plot){
+ const x=plot.g.position.x,z=plot.g.position.z,y=plot.g.position.y+.62;
+ const jet=new THREE.Mesh(new THREE.CylinderGeometry(.025,.055,.5,6),waterJetMaterial);
+ jet.position.set(x+.18,y,z-.08);jet.rotation.z=-.24;jet.userData={life:.24,v:new THREE.Vector3(.05,.4,-.06),sharedMaterial:true,ownsGeometry:true};scene.add(jet);particles.push(jet);
+ for(let i=0;i<9;i++){
+  const drop=new THREE.Mesh(waterDropGeometry,waterDropMaterial);
+  drop.position.set(x+(Math.random()-.5)*1.1,y+Math.random()*.35,z+(Math.random()-.5)*1.1);
+  drop.userData={life:.38+Math.random()*.22,v:new THREE.Vector3((Math.random()-.5)*1.5,.6+Math.random()*1.4,(Math.random()-.5)*1.5),sharedMaterial:true};
+  scene.add(drop);particles.push(drop);
+ }
+}
 function waterPlot(plot,agent=activeAgent(),source='robot'){
  if(!plot||!['seed','growing'].includes(plot.state)||plot.watered)return false;
  const cost=waterCostForPlot(plot.biome||'meadow',season,weather);
  if(agent.type==='waterbot'){if(gameMode!=='sandbox'&&agent.water<cost){toast(`Нужно ${cost} воды для этого климата`);return false;}if(gameMode!=='sandbox')agent.water-=cost;}
  else{if(gameMode!=='sandbox'&&water<cost){toast(`Нужно ${cost} воды для этого климата`);return false;}if(gameMode!=='sandbox')water-=cost;}
  metrics.watered++;metrics.waterUsed+=cost;plot.watered=true;plot.waterSource=source;plot.growth=0;setState(plot,'growing');
- stats();updateMissions();burst(plot.g.position.clone().add(new THREE.Vector3(0,.45,0)),0x70c9ed,9);saveGame();return true;
+ stats();updateMissions();burst(plot.g.position.clone().add(new THREE.Vector3(0,.45,0)),0x70c9ed,9);waterSpray(plot);saveGame();return true;
 }
 function harvestPlot(plot,agent=activeAgent()){
  if(!plot||plot.state!=='ready')return false;
@@ -1700,7 +1714,7 @@ function update(dt){
  for(let i=particles.length-1;i>=0;i--){
   const q=particles[i];q.userData.life-=dt;q.position.addScaledVector(q.userData.v,dt);q.userData.v.y-=3*dt;
   q.scale.multiplyScalar(Math.max(.01,1-dt*1.4));
-  if(q.userData.life<=0){scene.remove(q);q.material.dispose();particles.splice(i,1);}
+  if(q.userData.life<=0){scene.remove(q);if(!q.userData.sharedMaterial)q.material.dispose();if(q.userData.ownsGeometry)q.geometry.dispose();particles.splice(i,1);}
  }
  fleetUiClock+=dt;
  if(fleetUiClock>1){fleetUiClock=0;if($('#networkPanel').classList.contains('show'))renderFleetUI();}
