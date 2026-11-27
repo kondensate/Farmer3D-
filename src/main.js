@@ -1063,6 +1063,19 @@ function interact(agent=activeAgent()){
 }
 $('#act').addEventListener('pointerdown',e=>{e.preventDefault();interact();});
 $('#openBiomes').onclick=()=>{if(agents.some(agent=>agent.running)){toast('Останови программы роботов перед переходом между мирами');return;}saveGame();renderBiomeSelector();$('#biomeSelectScreen').classList.add('show');};
+$('#resetGame').onclick=()=>$('#resetConfirm').classList.add('show');
+$('#cancelReset').onclick=()=>$('#resetConfirm').classList.remove('show');
+$('#resetConfirm').addEventListener('click',event=>{if(event.target.id==='resetConfirm')$('#resetConfirm').classList.remove('show');});
+$('#confirmReset').onclick=()=>{
+ if(agents.some(agent=>agent.running)){toast('Сначала останови программы роботов');return;}
+ const keep=[...unlockedWorldBiomes];
+ const keys=[];
+ for(let n=0;n<localStorage.length;n++){const key=localStorage.key(n);if(key&&(key.startsWith('farmerbot3d_')||key.startsWith('farmerbot2d_')))keys.push(key);}
+ keys.forEach(key=>localStorage.removeItem(key));
+ localStorage.setItem(UNLOCKED_BIOMES_KEY,JSON.stringify(['meadow']));
+ $('#resetConfirm').classList.remove('show');
+ location.reload();
+};
 $('#shop').onclick=()=>$('#shopPanel').classList.add('show');$('#closeShop').onclick=()=>$('#shopPanel').classList.remove('show');
 $('#sell').onclick=()=>{
  const units=Object.values(harvestStorage).reduce((a,b)=>a+b,0);
