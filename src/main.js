@@ -553,6 +553,9 @@ function stats(){
  const lvl=1+Math.floor(xp/100);$('#level').textContent=lvl;$('#xp').textContent=xp%100;
  $('#weather').textContent=WEATHER_LABELS[weather]||weather;
  $('#biomeName').textContent=BIOMES[activeBiome]?.name||'Зелёные равнины';
+ const climate=getEnvironmentEffects(activeBiome,season,weather);
+ $('#temperature').textContent=`${Math.round(climate.temperature)} °C`;
+ $('#humidity').textContent=BIOMES[activeBiome]?.humidity||'Умеренная';
  const seasonInfo=SEASONS.find(item=>item.id===season)||SEASONS[0];$('#season').textContent=`${seasonInfo.icon} ${seasonInfo.name}`;
 }
 const claimedMissions=new Set(),programmedBots=new Set();
