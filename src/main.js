@@ -1113,24 +1113,45 @@ tend_plot()
 wait(10)
 tend_plot()
 print("Осталось воды:", get_water())`;$('#code').dispatchEvent(new Event('input'));};
-// Каждое нажатие стрелки перемещает робота ровно на одну клетку.
+// Управление роботом с клавиатуры, мыши и сенсорных кнопок.
 const moveBtns=[...document.querySelectorAll('[data-move]')];
-async function moveOneTile(direction,button){
- const agent=activeAgent();if(agent.running||agent.moving)return;
- button.classList.add('active');
- const vectors={forward:[0,-1],back:[0,1],left:[-1,0],right:[1,0]};
- const [dx,dz]=vectors[direction];agent.mesh.rotation.y=Math.atan2(dx,dz);
- try{await moveAgent(agent,1);}catch(error){toast(error.message||'Маршрут недоступен');}
- saveGame();button.classList.remove('active');
+const movementVectors={forward:[0,-1],back:[0,1],left:[-1,0],right:[1,0]};
+let keyboardMoveLocked=false;
+async function moveOneTile(direction,button=null){
+ const agent=activeAgent();
+ if(!agent||agent.running||agent.moving)return;
+ if(button)button.classList.add('active');
+ const [dx,dz]=movementVectors[direction]||[0,0];
+ agent.mesh.rotation.y=Math.atan2(dx,dz);
+ try{
+  const moved=await moveAgent(agent,1);
+  if(moved)saveGame();
+ }catch(error){toast(error.message||'Маршрут недоступен');}
+ finally{if(button)button.classList.remove('active');}
 }
-moveBtns.forEach(b=>{
- b.addEventListener('pointerdown',e=>{
-  e.preventDefault();
-  if(b.dataset.pressed==='1')return;
-  b.dataset.pressed='1';
-  moveOneTile(b.dataset.move,b);
+moveBtns.forEach(button=>{
+ button.addEventListener('pointerdown',event=>{
+  event.preventDefault();
+  if(button.dataset.pressed==='1')return;
+  button.dataset.pressed='1';
+  moveOneTile(button.dataset.move,button);
  });
- ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>b.addEventListener(ev,()=>{b.dataset.pressed='0';}));
+ ['pointerup','pointercancel','lostpointercapture'].forEach(type=>button.addEventListener(type,()=>{button.dataset.pressed='0';}));
+});
+const keyboardDirections={
+ ArrowUp:'forward',KeyW:'forward',ArrowDown:'back',KeyS:'back',
+ ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right'
+};
+window.addEventListener('keydown',event=>{
+ if(event.repeat||event.ctrlKey||event.metaKey||event.altKey)return;
+ const tag=event.target?.tagName?.toLowerCase();
+ if(['input','textarea','select'].includes(tag)||event.target?.isContentEditable)return;
+ const direction=keyboardDirections[event.code];
+ if(!direction)return;
+ event.preventDefault();
+ if(keyboardMoveLocked)return;
+ keyboardMoveLocked=true;
+ moveOneTile(direction).finally(()=>{keyboardMoveLocked=false;});
 });
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function isBlocked(agent,dest){
