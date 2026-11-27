@@ -8,7 +8,7 @@ const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 test("saved world parcels are recreated before saved plots are restored", () => {
   assert.match(main, /if\(d\.world\)[\s\S]*?createBiomeLand\(id\)/);
   assert.match(main, /if\(Array\.isArray\(d\.plots\)\)d\.plots\.forEach/);
-  assert.match(main, /biome:v\.biome/);
+  assert.match(main, /plots\[i\]\.biome=BIOMES\[v\.biome\]\?v\.biome/);
 });
 
 test("land market is inside the scrollable construction panel", () => {
