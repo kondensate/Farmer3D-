@@ -351,15 +351,27 @@ export function generateWorldMap(seed = 1, biomeId = STARTER_BIOME, options = {}
       }
     }
   }
-  // Guaranteed resources are placed outside the starter clearing but inside a walkable ring.
+  // Guaranteed deposits must be reachable: never place them inside a generated obstacle.
   for (let i = 0; i < 3; i++) {
-    const angle = i * Math.PI * 2 / 3 + .35;
-    const radius = 10 + i;
-    resources.push({
+    const baseAngle = i * Math.PI * 2 / 3 + .35;
+    let position = null;
+    for (let attempt = 0; attempt < 48 && !position; attempt++) {
+      const angle = baseAngle + attempt * .31;
+      const radius = 10 + i + Math.floor(attempt / 16);
+      const candidate = {
+        x: Math.round(Math.cos(angle) * radius),
+        z: Math.round(Math.sin(angle) * radius)
+      };
+      const insideMap = Math.abs(candidate.x) < half - 1 && Math.abs(candidate.z) < half - 1;
+      const outsideClearing = Math.hypot(candidate.x, candidate.z - start.z) >= 8.5;
+      const occupied = obstacles.some(item => item.x === candidate.x && item.z === candidate.z)
+        || resources.some(item => item.x === candidate.x && item.z === candidate.z);
+      if (insideMap && outsideClearing && !occupied) position = candidate;
+    }
+    if (position) resources.push({
       id: `starter-resource-${i + 1}`,
       type: definition.resources[i % definition.resources.length],
-      x: Math.round(Math.cos(angle) * radius),
-      z: Math.round(Math.sin(angle) * radius),
+      ...position,
       amount: 4 + i
     });
   }
