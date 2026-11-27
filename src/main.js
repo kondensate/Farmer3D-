@@ -52,10 +52,36 @@ function createPlotAt(x,z,biome='meadow'){
  const crop=new THREE.Group();crop.position.y=.26;g.add(crop);
  const plot={g,crop,state:'empty',watered:false,waterSource:null,growth:0,cropType:'carrot',stage:0,biome};plots.push(plot);return plot;
 }
+function createBiomeDecorations(biomeId,centerX,centerZ){
+ const corners=[[-3.65,-3.55],[-3.65,3.55],[3.65,-3.55],[3.65,3.55]];
+ if(biomeId==='desert'){
+  const cactusMat=mat(0x548653),spineMat=mat(0xd0d29a);
+  for(const [dx,dz] of corners){
+   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.15,.19,.9,7),cactusMat);trunk.position.set(centerX+dx,.45,centerZ+dz);scene.add(trunk);
+   for(const side of [-1,1]){const arm=box(scene,.12,.42,.12,cactusMat,centerX+dx+side*.2,.48,centerZ+dz);arm.rotation.z=-side*.22;box(scene,.12,.12,.12,spineMat,centerX+dx+side*.2,.7,centerZ+dz);}
+  }
+ }else if(biomeId==='mountain'){
+  const rockMat=mat(0x858a84);
+  corners.forEach(([dx,dz],i)=>{const rock=new THREE.Mesh(new THREE.IcosahedronGeometry(.35+(i%2)*.12,0),rockMat);rock.position.set(centerX+dx,.22,centerZ+dz);rock.rotation.set(.2*i,.45*i,.12*i);rock.scale.set(1.3,.8,1);scene.add(rock);});
+ }else if(biomeId==='snow'){
+  const trunkMat=mat(0x6c5846),pineMat=mat(0x547d78),snowMat=mat(0xe7f1f2);
+  for(const [dx,dz] of corners){
+   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.08,.12,.55,6),trunkMat);trunk.position.set(centerX+dx,.28,centerZ+dz);scene.add(trunk);
+   for(let level=0;level<3;level++){const cone=new THREE.Mesh(new THREE.ConeGeometry(.42-level*.06,.72,7),level===2?snowMat:pineMat);cone.position.set(centerX+dx,.55+level*.36,centerZ+dz);cone.castShadow=true;scene.add(cone);}
+  }
+ }else if(biomeId==='tropical'){
+  const trunkMat=mat(0x8d6540),palmMat=mat(0x3d995d);
+  for(const [dx,dz] of corners){
+   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.2,1.35,7),trunkMat);trunk.position.set(centerX+dx,.67,centerZ+dz);trunk.rotation.z=-.12;scene.add(trunk);
+   for(let i=0;i<6;i++){const angle=i*Math.PI/3,frond=box(scene,.14,.055,1.15,palmMat,centerX+dx+Math.cos(angle)*.48,1.42,centerZ+dz+Math.sin(angle)*.48);frond.rotation.y=angle;frond.rotation.x=-.38;}
+  }
+ }
+}
 function createBiomeLand(biomeId){
  const parcel=LAND_PARCELS[biomeId];if(!parcel||landMeshes.has(biomeId))return false;
  ownedBiomes.add(biomeId);
  const pad=box(scene,parcel.size,.12,parcel.size,biomeTerrainMaterials[biomeId],parcel.x,-.08,parcel.z);landMeshes.set(biomeId,pad);
+ createBiomeDecorations(biomeId,parcel.x,parcel.z);
  for(const point of landParcelPlotPositions(biomeId))createPlotAt(point.x,point.z,biomeId);
  return true;
 }
