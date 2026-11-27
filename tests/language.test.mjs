@@ -154,7 +154,7 @@ test("interpreter awaits debugger gates before executing each line", async () =>
 
 test("resource collection and navigation are safe DSL actions", async () => {
   const actions = [];
-  const result = await runProgram("go_to_resource()\\ncollect_resource()", {
+  const result = await runProgram("go_to_resource()\ncollect_resource()", {
     action: async (name,args) => actions.push([name,args]),
     log: () => {}
   });
