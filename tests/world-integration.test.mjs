@@ -23,7 +23,7 @@ test("new worlds use the dedicated eight-biome selector instead of parcel cards"
 test("precipitation is applied to crops and weather is selected per biome", () => {
   assert.match(main, /\['rain','heavy-rain','thunderstorm','snow','blizzard'\]\.includes\(weather\)/);
   assert.match(main, /getEnvironmentEffects\(p\.biome\|\|'meadow',season,weather\)\.growth/);
-  assert.match(main, /water>=waterCostForPlot\(targetPlot\.biome\|\|'meadow',season\)/);
+  assert.match(main, /water>=waterCostForPlot\(targetPlot\.biome\|\|'meadow',season,weather\)/);
   assert.match(main, /getBiomeWeather\(activeBiome,season,weatherStep,worldSeed\)/);
 });
 
