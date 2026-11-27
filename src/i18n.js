@@ -18,7 +18,7 @@ const pairs = {
 };
 const toEnglish = new Map(Object.entries(pairs));
 const toRussian = new Map(Object.entries(pairs).map(([ru,en])=>[en,ru]));
-let language = localStorage.getItem('farmerbot_language') || 'ru';
+let language = localStorage.getItem('ui_language') || 'ru';
 let observer;
 function convert(value, target) {
   const dict = target === 'en' ? toEnglish : toRussian;
@@ -66,7 +66,7 @@ export function initLanguageToggle() {
   if (!button) return;
   button.addEventListener('click', () => {
     language = language === 'ru' ? 'en' : 'ru';
-    localStorage.setItem('farmerbot_language', language);
+    localStorage.setItem('ui_language', language);
     applyLanguage();
   });
   applyLanguage();
