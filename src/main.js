@@ -4,11 +4,12 @@ import { runProgram } from './language.js';
 import { createIde } from './ide.js';
 import { createDebuggerController } from './debugger.js';
 import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from './data.js';
-import { GRID_STEP, worldToCell, cellToWorld, findPath, buildBlockedCells } from './navigation.js';
+import { GRID_STEP, worldToCell, cellToWorld, cellKey, findPath, buildBlockedCells } from './navigation.js';
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
-import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
+import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, MAP_TILE_SIZE, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
 let ide=null;
 let activeBiome='meadow',worldSeed='legacy-meadow',generatedWorld=null;
+let terrainMesh=null,terrainHeightMap=new Map(),worldObstacleCells=new Set();
 const unlockedWorldBiomes=new Set(['meadow']);
 const sensorNames=['can_harvest','can_plant','can_water','is_ready','get_water','get_coins','get_harvest','tile_state','count_ready','count_empty','front_is_clear','at_plot','distance_to_plot','has_water','get_energy','get_position','get_inventory','get_plant_age','scan','has_ready_plot','has_empty_plot','has_thirsty_plot'];
 const root=document.querySelector('#game');
@@ -42,10 +43,42 @@ function box(parent,w,h,d,m,x,y,z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,
 const ground=box(scene,38,.4,38,grass,0,-.3,0);
 const grid=new THREE.GridHelper(38,38,0x557b45,0x6f9656);grid.position.y=-.095;grid.material.transparent=true;grid.material.opacity=.28;scene.add(grid);
 const startingWorldGroup=new THREE.Group();scene.add(startingWorldGroup);
+function terrainHeightAtWorld(x,z){
+ const cell={x:Math.round(x/MAP_TILE_SIZE),z:Math.round(z/MAP_TILE_SIZE)};
+ return Number(terrainHeightMap.get(cellKey(cell)))||0;
+}
+function terrainNavigationOptions(agent){
+ const limits={meadow:1.2,desert:1.0,mountain:.75,snow:.85,tropical:.8,forest:.8,volcanic:.9,swamp:.45};
+ return {heightAt:(x,z)=>Number(terrainHeightMap.get(cellKey({x,z})))||0,maxStep:limits[activeBiome]??1,slopeCost:1.8};
+}
+function rebuildWorldTerrain(map){
+ if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.dispose();terrainMesh=null;}
+ terrainHeightMap=new Map(map.heightMap.map(point=>[cellKey(point),point.height]));
+ worldObstacleCells=new Set();
+ for(const obstacle of map.obstacles){
+  const cell=worldToCell({x:obstacle.x*MAP_TILE_SIZE,z:obstacle.z*MAP_TILE_SIZE});
+  worldObstacleCells.add(cellKey(cell));
+ }
+ const geometry=new THREE.PlaneGeometry(map.size*map.tileSize,map.size*map.tileSize,map.size,map.size);
+ const positions=geometry.attributes.position,rowLength=map.size+1,half=Math.floor(map.size/2);
+ for(let row=0;row<=map.size;row++)for(let column=0;column<=map.size;column++){
+  const x=-half+column,z=-half+row,index=row*rowLength+column;
+  positions.setY(index,terrainHeightMap.get(cellKey({x,z}))??0);
+ }
+ geometry.rotateX(-Math.PI/2);geometry.computeVertexNormals();
+ terrainMesh=new THREE.Mesh(geometry,biomeTerrainMaterials[map.biome]||biomeTerrainMaterials.meadow);
+ terrainMesh.receiveShadow=true;scene.add(terrainMesh);
+ grid.visible=map.biome==='meadow';grid.position.y=.025;
+}
+function addWorldObstaclesToPath(blocked,start){
+ for(const key of worldObstacleCells)blocked.add(key);
+ blocked.delete(cellKey(start));
+ return blocked;
+}
 // distant hills / trees
 for(let i=0;i<22;i++){let a=i*Math.PI*2/22;let x=Math.cos(a)*15,z=Math.sin(a)*15;if(Math.abs(x)<8&&Math.abs(z)<8)continue;
 let trunk=new THREE.Mesh(new THREE.CylinderGeometry(.12,.17,1,7),mat(0x65452b));trunk.position.set(x,.35,z);startingWorldGroup.add(trunk);
-let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,1),mat(i%2?0x397348:0x4e8950));crown.position.set(x,1.25,z);crown.castShadow=true;startingWorldGroup.add(crown);}
+let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,1),mat(i%2?0x397348:0x4e8950));crown.position.set(x,terrainHeightAtWorld(x,z)+1.25,z);crown.castShadow=true;startingWorldGroup.add(crown);}
 const plots=[],ownedBiomes=new Set(['meadow']),landMeshes=new Map();
 function createPlotAt(x,z,biome='meadow'){
  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
@@ -99,23 +132,23 @@ function clearStartingWorldGroup(){
 function addStartingTree(x,z,kind='tree'){
  const trunkColor=activeBiome==='volcanic'?0x383332:activeBiome==='snow'?0x6c5846:0x765338;
  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.09,.16,1.05,6),mat(trunkColor));
- trunk.position.set(x,.52,z);startingWorldGroup.add(trunk);
+ trunk.position.set(x,terrainHeightAtWorld(x,z)+.52,z);startingWorldGroup.add(trunk);
  if(kind==='palm'){
   const crown=mat(0x3d995d);
-  for(let i=0;i<6;i++){const angle=i*Math.PI/3;const frond=new THREE.Mesh(new THREE.BoxGeometry(.13,.055,1.55),crown);frond.position.set(x+Math.cos(angle)*.45,1.18,z+Math.sin(angle)*.45);frond.rotation.y=angle;frond.rotation.x=-.38;startingWorldGroup.add(frond);}
+  for(let i=0;i<6;i++){const angle=i*Math.PI/3;const frond=new THREE.Mesh(new THREE.BoxGeometry(.13,.055,1.55),crown);frond.position.set(x+Math.cos(angle)*.45,terrainHeightAtWorld(x,z)+1.18,z+Math.sin(angle)*.45);frond.rotation.y=angle;frond.rotation.x=-.38;startingWorldGroup.add(frond);}
  }else if(kind.includes('pine')||kind.includes('fir')){
   const leafMat=mat(activeBiome==='snow'?0x547d78:0x315c3c);
-  for(let i=0;i<3;i++){const cone=new THREE.Mesh(new THREE.ConeGeometry(.58-i*.1,.95,7),leafMat);cone.position.set(x,.62+i*.44,z);cone.castShadow=true;startingWorldGroup.add(cone);}
+  for(let i=0;i<3;i++){const cone=new THREE.Mesh(new THREE.ConeGeometry(.58-i*.1,.95,7),leafMat);cone.position.set(x,terrainHeightAtWorld(x,z)+.62+i*.44,z);cone.castShadow=true;startingWorldGroup.add(cone);}
  }else{
   const colors={forest:0x315b36,meadow:0x4e8950,tropical:0x2d7e48,swamp:0x506b43,volcanic:0x595247};
   const crown=new THREE.Mesh(new THREE.IcosahedronGeometry(kind==='broadleaf'?1.05:.78,1),mat(colors[activeBiome]||0x4e8950));
-  crown.position.set(x,1.25,z);crown.castShadow=true;startingWorldGroup.add(crown);
+  crown.position.set(x,terrainHeightAtWorld(x,z)+1.25,z);crown.castShadow=true;startingWorldGroup.add(crown);
  }
 }
 function addStartingRock(x,z,kind='rock'){
  const color=activeBiome==='volcanic'?0x343034:activeBiome==='snow'?0x9cabb2:activeBiome==='desert'?0x9c8057:0x777b78;
  const rock=new THREE.Mesh(new THREE.IcosahedronGeometry(kind==='cliff'?1.15:.62,0),mat(color));
- rock.position.set(x,.35,z);rock.scale.set(1.35,.8,1);rock.rotation.y=(x-z)*.17;rock.castShadow=true;startingWorldGroup.add(rock);
+ rock.position.set(x,terrainHeightAtWorld(x,z)+.35,z);rock.scale.set(1.35,.8,1);rock.rotation.y=(x-z)*.17;rock.castShadow=true;startingWorldGroup.add(rock);
 }
 function createStartingWorldVisuals(map){
  clearStartingWorldGroup();
@@ -123,28 +156,28 @@ function createStartingWorldVisuals(map){
  for(const item of map.vegetation){
   const x=item.x*scale,z=item.z*scale;
   if(['cactus'].includes(item.type)){
-   const cactusMat=mat(0x548653),body=new THREE.Mesh(new THREE.CylinderGeometry(.16,.2,1.05,7),cactusMat);body.position.set(x,.53,z);startingWorldGroup.add(body);
-   for(const side of [-1,1]){const arm=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,.48,6),cactusMat);arm.position.set(x+side*.23,.48,z);arm.rotation.z=-side*.45;startingWorldGroup.add(arm);}
+   const cactusMat=mat(0x548653),body=new THREE.Mesh(new THREE.CylinderGeometry(.16,.2,1.05,7),cactusMat);body.position.set(x,terrainHeightAtWorld(x,z)+.53,z);startingWorldGroup.add(body);
+   for(const side of [-1,1]){const arm=new THREE.Mesh(new THREE.CylinderGeometry(.07,.08,.48,6),cactusMat);arm.position.set(x+side*.23,terrainHeightAtWorld(x,z)+.48,z);arm.rotation.z=-side*.45;startingWorldGroup.add(arm);}
   }else if(item.type.includes('shrub')||item.type.includes('grass')||item.type.includes('moss')||item.type==='mushroom'){
-   const sphere=new THREE.Mesh(new THREE.IcosahedronGeometry(.3,0),mat(item.type==='mushroom'?0xc66b54:0x64814a));sphere.position.set(x,.2,z);sphere.scale.set(1,.55,1);startingWorldGroup.add(sphere);
+   const sphere=new THREE.Mesh(new THREE.IcosahedronGeometry(.3,0),mat(item.type==='mushroom'?0xc66b54:0x64814a));sphere.position.set(x,terrainHeightAtWorld(x,z)+.2,z);sphere.scale.set(1,.55,1);startingWorldGroup.add(sphere);
   }else addStartingTree(x,z,item.type);
  }
  for(const item of map.obstacles){
   const x=item.x*scale,z=item.z*scale;
   if(['river','deep-water','flood-zone','frozen-lake'].includes(item.type)){
    const waterMat=mat(activeBiome==='snow'?0x9ccbd8:0x397f8e,.35);
-   const patch=new THREE.Mesh(new THREE.BoxGeometry(2.1,.035,1.2),waterMat);patch.position.set(x,-.075,z);patch.rotation.y=(x+z)*.12;startingWorldGroup.add(patch);
+   const patch=new THREE.Mesh(new THREE.BoxGeometry(2.1,.035,1.2),waterMat);patch.position.set(x,terrainHeightAtWorld(x,z)+.006,z);patch.rotation.y=(x+z)*.12;startingWorldGroup.add(patch);
   }else if(['lava','crater','steam-vent','hot-rock'].includes(item.type)){
    const hot=mat(item.type==='lava'?0xe6572d:0x4b4240,.45);
-   const patch=new THREE.Mesh(new THREE.CylinderGeometry(.35,.6,.12,7),hot);patch.position.set(x,.04,z);startingWorldGroup.add(patch);
-   if(item.type==='steam-vent'){const steam=new THREE.Mesh(new THREE.ConeGeometry(.18,.65,6),mat(0xb9aaa0,.9));steam.position.set(x,.38,z);startingWorldGroup.add(steam);}
+   const patch=new THREE.Mesh(new THREE.CylinderGeometry(.35,.6,.12,7),hot);patch.position.set(x,terrainHeightAtWorld(x,z)+.04,z);startingWorldGroup.add(patch);
+   if(item.type==='steam-vent'){const steam=new THREE.Mesh(new THREE.ConeGeometry(.18,.65,6),mat(0xb9aaa0,.9));steam.position.set(x,terrainHeightAtWorld(x,z)+.38,z);startingWorldGroup.add(steam);}
   }else if(['tree','dense-tree','fallen-tree','stump','thicket','reed-bed'].includes(item.type)){
    if(item.type==='stump'||item.type==='fallen-tree')addStartingRock(x,z,'rock');else addStartingTree(x,z,item.type.includes('pine')?'pine':item.type);
   }else addStartingRock(x,z,item.type==='cliff'||item.type==='ravine'?'cliff':'rock');
  }
  for(const item of map.resources){
   const marker=new THREE.Mesh(new THREE.OctahedronGeometry(.16,0),mat(activeBiome==='volcanic'?0xe28a4b:activeBiome==='snow'?0x9be0e8:0xd7c478));
-  marker.position.set(item.x*scale,.2,item.z*scale);startingWorldGroup.add(marker);
+  marker.position.set(item.x*scale,terrainHeightAtWorld(item.x*scale,item.z*scale)+.2,item.z*scale);startingWorldGroup.add(marker);
  }
  if(activeBiome==='swamp'||activeBiome==='tropical'){
   for(let i=0;i<7;i++){const x=(i-3)*3.2,z=(i%2? -13:13);const waterPatch=new THREE.Mesh(new THREE.BoxGeometry(2.2,.035,1.3),mat(0x397f8e,.35));waterPatch.position.set(x,-.075,z);startingWorldGroup.add(waterPatch);}
@@ -154,6 +187,7 @@ function applyStartingBiome(biomeId,seed){
  const definition=BIOMES[biomeId]||BIOMES.meadow;
  activeBiome=definition.id;worldSeed=String(seed||'farmerbot-world-1');
  generatedWorld=generateWorldMap(worldSeed,activeBiome);
+ rebuildWorldTerrain(generatedWorld);
  ground.material=activeBiome==='meadow'?grass:(biomeTerrainMaterials[activeBiome]||grass);
  ground.material.needsUpdate=true;
  scene.background.setHex(definition.terrain);scene.fog.color.setHex(definition.terrain);
@@ -325,7 +359,7 @@ function buildEquipment(type){
 
 function createBuildingMesh(type,x,z,rotation=0,preview=false){
  const def=BUILDINGS[type];if(!def)return null;
- const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rotation;
+ const g=new THREE.Group();g.position.set(x,terrainHeightAtWorld(x,z),z);g.rotation.y=rotation;
  if(preview){
   const material=new THREE.MeshStandardMaterial({color:0x9bd568,transparent:true,opacity:.48,roughness:.5,depthWrite:false});
   const footprint=new THREE.Mesh(new THREE.BoxGeometry(def.width,.14,def.depth),material);footprint.position.y=.08;g.add(footprint);g.userData.previewMaterial=material;
@@ -464,6 +498,9 @@ function isOwnedLandAt(x,z){
 function canPlaceBuilding(type,x,z,ignoreId=null,rotation=placementRotation){
  const d=buildingFootprint(type,rotation);if(Math.abs(x)+d.width/2>17||Math.abs(z)+d.depth/2>17)return false;
  const corners=[[-1,-1],[-1,1],[1,-1],[1,1]];if(!corners.every(([sx,sz])=>isOwnedLandAt(x+sx*d.width/2,z+sz*d.depth/2)))return false;
+ const cornerHeights=corners.map(([sx,sz])=>terrainHeightAtWorld(x+sx*d.width/2,z+sz*d.depth/2));
+ if(Math.max(...cornerHeights)-Math.min(...cornerHeights)>(activeBiome==='mountain'?.6:.4))return false;
+ const centerCell=worldToCell({x,z});if(worldObstacleCells.has(cellKey(centerCell)))return false;
  for(const b of buildings){if(b.id===ignoreId)continue;const other=buildingFootprint(b.type,b.rotation);if(Math.abs(x-b.x)<(d.width+other.width)/2-.15&&Math.abs(z-b.z)<(d.depth+other.depth)/2-.15)return false;}
  if(Math.hypot(x,z-7)<1.6)return false;
  if(agents.some(a=>Math.abs(a.mesh.position.x-x)<d.width/2+.4&&Math.abs(a.mesh.position.z-z)<d.depth/2+.4))return false;
@@ -506,11 +543,11 @@ function chooseAutomationLink(kind,id){
  pendingAutomationLink=null;renderAutomationLinks();renderBuildingUI();saveGame();toast(kind==='power'?'⚡ Кабель подключён':'⇢ Конвейерная линия подключена');
 }
 function deleteBuilding(id){const index=buildings.findIndex(b=>b.id===id);if(index<0)return;const b=buildings[index];disposeBuildingMesh(b.mesh);buildings.splice(index,1);powerLinks.splice(0,powerLinks.length,...powerLinks.filter(e=>Number(e.from)!==id&&Number(e.to)!==id));conveyorLinks.splice(0,conveyorLinks.length,...conveyorLinks.filter(e=>Number(e.from)!==id&&Number(e.to)!==id));renderAutomationLinks();renderBuildingUI();saveGame();toast(`${BUILDINGS[b.type].name}: удалено`);}
-function updatePlacementPreview(e){if(!placingBuilding||!previewMesh)return;const rect=renderer.domElement.getBoundingClientRect();const ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hit=ray.intersectObject(ground,false)[0];if(!hit)return;const x=Math.round(hit.point.x/GRID_STEP)*GRID_STEP,z=Math.round(hit.point.z/GRID_STEP)*GRID_STEP;previewMesh.position.set(x,.02,z);const valid=canPlaceBuilding(placingBuilding.type,x,z,placingBuilding.moveId,placementRotation);previewMesh.userData.previewMaterial.color.set(valid?0x9bd568:0xe56e5c);}
+function updatePlacementPreview(e){if(!placingBuilding||!previewMesh)return;const rect=renderer.domElement.getBoundingClientRect();const ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hit=ray.intersectObject(terrainMesh||ground,false)[0];if(!hit)return;const x=Math.round(hit.point.x/GRID_STEP)*GRID_STEP,z=Math.round(hit.point.z/GRID_STEP)*GRID_STEP;previewMesh.position.set(x,terrainHeightAtWorld(x,z)+.02,z);const valid=canPlaceBuilding(placingBuilding.type,x,z,placingBuilding.moveId,placementRotation);previewMesh.userData.previewMaterial.color.set(valid?0x9bd568:0xe56e5c);}
 const buildPointerStarts=new Map();
 renderer.domElement.addEventListener('pointerdown',e=>{if(placingBuilding)buildPointerStarts.set(e.pointerId,{x:e.clientX,y:e.clientY});});
 renderer.domElement.addEventListener('pointermove',e=>{if(placingBuilding)updatePlacementPreview(e);});
-renderer.domElement.addEventListener('pointerup',e=>{const start=buildPointerStarts.get(e.pointerId);buildPointerStarts.delete(e.pointerId);if(!placingBuilding||!start||Math.hypot(e.clientX-start.x,e.clientY-start.y)>10)return;const rect=renderer.domElement.getBoundingClientRect(),ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hit=ray.intersectObject(ground,false)[0];if(hit)placeBuildingAt(hit.point.x,hit.point.z);});
+renderer.domElement.addEventListener('pointerup',e=>{const start=buildPointerStarts.get(e.pointerId);buildPointerStarts.delete(e.pointerId);if(!placingBuilding||!start||Math.hypot(e.clientX-start.x,e.clientY-start.y)>10)return;const rect=renderer.domElement.getBoundingClientRect(),ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1),ray=new THREE.Raycaster();ray.setFromCamera(ndc,camera);const hit=ray.intersectObject(terrainMesh||ground,false)[0];if(hit)placeBuildingAt(hit.point.x,hit.point.z);});
 function recordChallengeHarvest(){if(gameMode!=='challenges'||challengeDone)return;challengeHarvested++;if(challengeHarvested>=5){challengeDone=true;challengeResult='УСПЕХ';coins+=40;addXP(25);toast('🏆 Испытание пройдено: +40 🪙 и 25 XP');}renderChallengeStatus();saveGame();}
 function renderChallengeStatus(){const el=$('#challengeStatus');if(!el)return;if(gameMode==='challenges'){el.textContent=challengeDone?`Испытание завершено: ${challengeResult} · урожай ${challengeHarvested}/5`: `ИСПЫТАНИЕ · ${Math.max(0,Math.ceil(challengeSeconds))} сек. · собери 5 культур (${challengeHarvested}/5)`;}else if(gameMode==='sandbox')el.textContent='SANDBOX: ресурсы и строительство бесплатны, все технологии можно открыть без затрат.';else if(gameMode==='freeplay')el.textContent='FREE PLAY: свободная экономика и развитие фермы без таймера.';else el.textContent='CAMPAIGN: выполняй миссии и открывай технологии за опыт и монеты.';}
 const BASE_POSITION=new THREE.Vector3(0,0,7);
@@ -824,16 +861,15 @@ function isBlocked(agent,dest){
 function routeForAgent(agent,target){
  const start=worldToCell(agent.mesh.position),goal=worldToCell(target);
  const obstacleBuildings=buildings.map(b=>({...b,...buildingFootprint(b.type,b.rotation)}));
- const blocked=buildBlockedCells({buildings:obstacleBuildings,agents,ignoreAgentId:agent.id});
- blocked.delete(`${start.x},${start.z}`);
- return findPath(start,goal,blocked);
+ const blocked=addWorldObstaclesToPath(buildBlockedCells({buildings:obstacleBuildings,agents,ignoreAgentId:agent.id}),start);
+ return findPath(start,goal,blocked,GRID_LIMIT,terrainNavigationOptions(agent));
 }
 async function followPath(agent,path,emergency=false){
  if(!path)return false;
  for(const cell of path.slice(1)){
   if(agent.stopRequested)return false;
   const world=cellToWorld(cell);const dx=world.x-agent.mesh.position.x,dz=world.z-agent.mesh.position.z;agent.mesh.rotation.y=Math.atan2(dx,dz);
-  const dest=new THREE.Vector3(world.x,agent.mesh.position.y,world.z);
+  const dest=new THREE.Vector3(world.x,terrainHeightAtWorld(world.x,world.z)+(agent.type==='dronebot'?.75:0),world.z);
   if(!await animateAgentTo(agent,dest,emergency))return false;
  }
  return true;
@@ -851,12 +887,12 @@ async function navigateToNearestPlot(agent,state='any'){
  const matches=plots.filter(p=>state==='ready'?p.state==='ready':state==='empty'?p.state==='empty':state==='thirsty'?['seed','growing'].includes(p.state)&&!p.watered:p.state!=='empty');
  if(!matches.length)throw new Error(`Нет подходящих грядок (${state})`);
  const start=worldToCell(agent.mesh.position),obstacleBuildings=buildings.map(b=>({...b,...buildingFootprint(b.type,b.rotation)}));
- const blocked=buildBlockedCells({buildings:obstacleBuildings,agents,ignoreAgentId:agent.id});blocked.delete(`${start.x},${start.z}`);
+ const blocked=addWorldObstaclesToPath(buildBlockedCells({buildings:obstacleBuildings,agents,ignoreAgentId:agent.id}),start);
  let best=null;
  for(const plot of matches){
   const c=worldToCell(plot.g.position);
   for(const stop of [{x:c.x+1,z:c.z},{x:c.x-1,z:c.z},{x:c.x,z:c.z+1},{x:c.x,z:c.z-1}]){
-   const path=findPath(start,stop,blocked);if(path&&(!best||path.length<best.path.length))best={path,plot};
+   const path=findPath(start,stop,blocked,GRID_LIMIT,terrainNavigationOptions(agent));if(path&&(!best||path.length<best.path.length))best={path,plot};
   }
  }
  if(!best)throw new Error('Не удалось найти свободный маршрут к грядке');
@@ -891,9 +927,9 @@ async function moveAgent(agent,count){
 }
 async function navigateToSpecificPlot(agent,plot){
  const start=worldToCell(agent.mesh.position),obstacleBuildings=buildings.map(b=>({...b,...buildingFootprint(b.type,b.rotation)}));
- const blocked=buildBlockedCells({buildings:obstacleBuildings,agents,ignoreAgentId:agent.id});blocked.delete(`${start.x},${start.z}`);
+ const blocked=addWorldObstaclesToPath(buildBlockedCells({buildings:obstacleBuildings,agents,ignoreAgentId:agent.id}),start);
  const c=worldToCell(plot.g.position),stops=[{x:c.x+1,z:c.z},{x:c.x-1,z:c.z},{x:c.x,z:c.z+1},{x:c.x,z:c.z-1}];
- let best=null;for(const stop of stops){const path=findPath(start,stop,blocked);if(path&&(!best||path.length<best.length))best=path;}
+ let best=null;for(const stop of stops){const path=findPath(start,stop,blocked,GRID_LIMIT,terrainNavigationOptions(agent));if(path&&(!best||path.length<best.length))best=path;}
  if(!best||!await followPath(agent,best))throw new Error('Не удалось добраться до назначенной грядки');
  return true;
 }
@@ -1234,7 +1270,7 @@ function update(dt){
   }
   a.mesh.userData.anim=(a.mesh.userData.anim||0)+dt;
   if(a.type!=='farmbot'){
-   a.mesh.position.y=(a.type==='dronebot'?.75:0)+(a.moving?Math.sin(a.mesh.userData.anim*12)*.035:Math.sin(a.mesh.userData.anim*2)*.018);
+   a.mesh.position.y=terrainHeightAtWorld(a.mesh.position.x,a.mesh.position.z)+(a.type==='dronebot'?.75:0)+(a.moving?Math.sin(a.mesh.userData.anim*12)*.035:Math.sin(a.mesh.userData.anim*2)*.018);
    if(a.type==='dronebot')a.mesh.traverse(o=>{if(o.userData.rotor)o.rotation.y+=dt*18;});
   }
  }
