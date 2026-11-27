@@ -10,7 +10,7 @@ const BUILDINGS = { ...CORE_BUILDINGS, ...BIOME_BUILDINGS };
 import { ROBOT_MODULES, moduleEffects, hazardTraversalMultiplier, hazardEnergyMultiplier, biomeMovementMultiplier, biomeWorkCostMultiplier } from './robot-equipment.js';
 import { GRID_STEP, worldToCell, cellToWorld, cellKey, findPath, buildBlockedCells } from './navigation.js';
 import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForTask, stepConveyorNetwork } from './automation.js';
-import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, MAP_TILE_SIZE, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, RESOURCE_CATALOG, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
+import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, MAP_TILE_SIZE, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, RESOURCE_CATALOG, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';\nimport { createBiomeVisualLibrary, createBiomeDecorationGroup, BIOME_VISUAL_PALETTES } from './biome-visuals.js';
 let ide=null;
 let activeBiome='meadow',worldSeed='legacy-meadow',generatedWorld=null;
 let terrainMesh=null,terrainHeightMap=new Map(),worldObstacleCells=new Set(),worldHazardCells=new Map();
