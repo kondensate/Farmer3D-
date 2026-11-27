@@ -1,0 +1,35 @@
+{
+  "id": "forest",
+  "name": "Forest",
+  "rendering": "procedural-low-poly",
+  "texture": {
+    "generator": "src/biome-visuals.js",
+    "ground": "#52794a",
+    "soil": "#654a34",
+    "repeat": {
+      "u": 18,
+      "v": 18
+    },
+    "wrapping": "RepeatWrapping",
+    "roughness": 0.96,
+    "accents": [
+      "#8eaa58",
+      "#345f3b",
+      "#9e7949",
+      "#496d45"
+    ]
+  },
+  "materials": {
+    "stone": "#777f72",
+    "foliage": "#35633b",
+    "trunk": "#684a32",
+    "water": "#4a918c",
+    "plotRim": "#6c5438"
+  },
+  "atmosphere": {
+    "sky": "#9dbba9",
+    "fog": "#acc1ae",
+    "sun": "#ffe4bd"
+  },
+  "notes": "Palette specification for runtime-generated seamless CanvasTexture and shared Three.js low-poly meshes."
+}
