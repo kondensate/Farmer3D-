@@ -388,11 +388,10 @@ function createBuildingMesh(type,x,z,rotation=0,preview=false){
  scene.add(g);return g;
 }
 function renderLandMarket(){
- const list=$('#landMarket');if(!list)return;
- const info=$('#worldStatus'),seasonInfo=SEASONS.find(item=>item.id===season)||SEASONS[0];
- if(info)info.textContent=`${seasonInfo.icon} ${seasonInfo.name} · Погода: ${weather==='rain'?'дождь':weather==='drought'?'засуха':weather==='snow'?'снег':'ясно'} · Открыто участков: ${ownedBiomes.size}/5 · Всего грядок: ${plots.length}`;
- list.innerHTML=Object.values(LAND_PARCELS).map(parcel=>{const biome=BIOMES[parcel.biome],owned=ownedBiomes.has(parcel.biome),cost=gameMode==='sandbox'?0:biome.price;return `<div class="buildCard ${owned?'done':''}"><b>${biome.icon} ${biome.name}</b><small>${biome.growth<1?'Медленный рост':biome.growth>1?'Ускоренный рост':'Обычный рост'} · потребность в воде ×${biome.water.toFixed(2)}</small><small>${owned?'Открыто · 9 дополнительных грядок':`Цена участка: ${cost} 🪙`}</small><button data-buy-land="${parcel.biome}" ${owned?'disabled':''}>${owned?'ОТКРЫТО':'КУПИТЬ УЧАСТОК'}</button></div>`;}).join('');
- list.querySelectorAll('[data-buy-land]').forEach(button=>button.onclick=()=>buyLand(button.dataset.buyLand));
+ const info=$('#worldStatus');if(!info)return;
+ const seasonInfo=SEASONS.find(item=>item.id===season)||SEASONS[0];
+ const biomeInfo=BIOMES[activeBiome]||BIOMES.meadow;
+ info.textContent=`${biomeInfo.icon} ${biomeInfo.name} · ${seasonInfo.icon} ${seasonInfo.name} · ${WEATHER_LABELS[weather]||weather} · Открыто биомов: ${unlockedWorldBiomes.size}/${BIOME_ORDER.length} · Seed: ${worldSeed}`;
 }
 function buyLand(biomeId){
  const transaction=purchaseLand(biomeId,ownedBiomes,coins,gameMode);
