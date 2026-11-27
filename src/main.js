@@ -355,7 +355,7 @@ function cancelBuildingPlacement(){
 function rotateBuildingPlacement(){if(!placingBuilding)return;placementRotation=(placementRotation+Math.PI/2)%(Math.PI*2);previewMesh.rotation.y=placementRotation;}
 function buildingFootprint(type,rotation=0){const d=BUILDINGS[type],c=Math.abs(Math.cos(rotation)),s=Math.abs(Math.sin(rotation));return {width:d.width*c+d.depth*s,depth:d.depth*c+d.width*s};}
 function isOwnedLandAt(x,z){
- if(Math.abs(x)<=6.2&&Math.abs(z)<=9.4)return true;
+ if((Math.abs(x)<=6.2&&Math.abs(z)<=6.2)||(Math.abs(x)<=2.5&&z>=5.5&&z<=9.4))return true;
  return Object.values(LAND_PARCELS).some(parcel=>ownedBiomes.has(parcel.biome)&&Math.abs(x-parcel.x)<=parcel.size/2&&Math.abs(z-parcel.z)<=parcel.size/2);
 }
 function canPlaceBuilding(type,x,z,ignoreId=null,rotation=placementRotation){
