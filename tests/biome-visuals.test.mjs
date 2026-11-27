@@ -62,8 +62,11 @@ test("decorative placement preserves the starter clearing and robot corridor", (
 
 test("shared biome geometry is not disposed when a world is rebuilt", () => {
   assert.match(visuals, /mesh\.userData\.sharedGeometry=true/);
+  assert.match(visuals, /mesh\.userData\.sharedMaterial=true/);
+  assert.match(visuals, /G\.waterfall/);
   assert.match(main, /object\.geometry&&!object\.userData\?\.sharedGeometry/);
   assert.doesNotMatch(main, /terrainMesh\.material\.dispose\(\)/);
+  assert.match(main, /materials\.forEach\(material=>material\.dispose\(\)\)/);
 });
 
 test("biome-specific sky, fog, and sunlight are applied", () => {
