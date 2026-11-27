@@ -9,7 +9,7 @@ import { updatePowerGrid, transferInventory, buildFarmTaskQueue, selectAgentForT
 import { BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, MAP_TILE_SIZE, SEASON_LENGTH_SECONDS, WORLD_SCHEMA_VERSION, WEATHER_LABELS, RESOURCE_CATALOG, advanceSeason, getSeasonWeather, getBiomeWeather, getBiomeUnlockState, unlockBiome, generateWorldMap, getEnvironmentEffects, waterCostForPlot, landParcelPlotPositions, purchaseLand } from './world.js';
 let ide=null;
 let activeBiome='meadow',worldSeed='legacy-meadow',generatedWorld=null;
-let terrainMesh=null,terrainHeightMap=new Map(),worldObstacleCells=new Set();
+let terrainMesh=null,terrainHeightMap=new Map(),worldObstacleCells=new Set(),worldHazardCells=new Map();
 const resourceNodes=[],worldResourceStorage={};
 const unlockedWorldBiomes=new Set(['meadow']);
 const sensorNames=['can_harvest','can_plant','can_water','is_ready','get_water','get_coins','get_harvest','tile_state','count_ready','count_empty','front_is_clear','at_plot','distance_to_plot','has_water','get_energy','get_position','get_inventory','get_plant_age','scan','has_ready_plot','has_empty_plot','has_thirsty_plot','has_resource_nearby','get_nearby_resource','count_resources'];
@@ -119,15 +119,31 @@ function terrainHeightAtWorld(x,z){
 }
 function terrainNavigationOptions(agent){
  const limits={meadow:1.2,desert:1.0,mountain:.75,snow:.85,tropical:.8,forest:.8,volcanic:.9,swamp:.45};
- return {heightAt:(x,z)=>Number(terrainHeightMap.get(cellKey({x,z})))||0,maxStep:limits[activeBiome]??1,slopeCost:1.8};
+ return {
+  heightAt:(x,z)=>Number(terrainHeightMap.get(cellKey({x,z})))||0,
+  maxStep:limits[activeBiome]??1,
+  slopeCost:1.8,
+  traversalCost:(x,z)=>{
+   let penalty=0;
+   for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
+    const type=worldHazardCells.get(cellKey({x:x+dx,z:z+dz}));
+    if(!type)continue;
+    const distance=Math.abs(dx)+Math.abs(dz);
+    const severity={lava:5,'steam-vent':3,'hot-rock':2,crater:3,quicksand:4,mud:2,'deep-water':3,'flood-zone':3,'frozen-lake':2,ice:1,snowdrift:1}[type]||0;
+    if(severity)penalty+=severity/(distance+1);
+   }
+   return penalty;
+  }
+ };
 }
 function rebuildWorldTerrain(map){
  if(terrainMesh){scene.remove(terrainMesh);terrainMesh.geometry.dispose();terrainMesh.material.dispose();terrainMesh=null;}
  terrainHeightMap=new Map(map.heightMap.map(point=>[cellKey(point),point.height]));
- worldObstacleCells=new Set();
+ worldObstacleCells=new Set();worldHazardCells=new Map();
  for(const obstacle of map.obstacles){
   const cell=worldToCell({x:obstacle.x*MAP_TILE_SIZE,z:obstacle.z*MAP_TILE_SIZE});
-  worldObstacleCells.add(cellKey(cell));
+  const key=cellKey(cell);
+  worldObstacleCells.add(key);worldHazardCells.set(key,obstacle.type);
  }
  const geometry=new THREE.PlaneGeometry(map.size*map.tileSize,map.size*map.tileSize,map.size,map.size);
  const positions=geometry.attributes.position,rowLength=map.size+1,half=Math.floor(map.size/2);
@@ -1101,7 +1117,15 @@ async function animateAgentTo(agent,dest,emergency=false){
   };requestAnimationFrame(tick);
  });
  if(agent.stopRequested)return false;
- if(!emergency)agent.energy=Math.max(0,agent.energy-.65);metrics.tilesMoved++;
+ if(!emergency){
+  const cell=worldToCell(dest),nearbyHazard=[...worldHazardCells.entries()].reduce((cost,[key,type])=>{
+   const [hx,hz]=key.split(',').map(Number),distance=Math.abs(hx-cell.x)+Math.abs(hz-cell.z);
+   if(distance>1)return cost;
+   const severity={lava:1.8,'steam-vent':1.2,'hot-rock':.8,crater:1.1,quicksand:1.5,mud:.7,'deep-water':1,'flood-zone':1,'frozen-lake':.65,ice:.4,snowdrift:.3}[type]||0;
+   return cost+severity;
+  },0);
+  agent.energy=Math.max(0,agent.energy-.65-nearbyHazard*.18);
+ }metrics.tilesMoved++;
  renderFleetUI();return true;
 }
 async function moveAgent(agent,count){
