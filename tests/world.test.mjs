@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  BIOMES, BIOME_ORDER, SEASONS, LAND_PARCELS, SEASON_LENGTH_SECONDS,
+  BIOMES, BIOME_ORDER, RESOURCE_CATALOG, SEASONS, LAND_PARCELS, SEASON_LENGTH_SECONDS,
   advanceSeason, getSeasonWeather, getBiomeWeather, getEnvironmentEffects,
   waterCostForPlot, landParcelPlotPositions, purchaseLand,
   getBiomeUnlockState, unlockBiome, generateWorldMap, createSeededRandom
@@ -122,5 +122,15 @@ test("mountain maps contain elevation while the starter farm and route stay leve
     const cell = map.heightMap.find(point => point.x === step.x && point.z === step.z);
     assert.equal(cell?.height, 0);
     assert.ok(!map.obstacles.some(o => o.x === step.x && o.z === step.z));
+  }
+});
+
+
+test("every generated biome resource has a collectible resource definition", () => {
+  for (const id of BIOME_ORDER) {
+    for (const resourceId of BIOMES[id].resources) {
+      assert.ok(RESOURCE_CATALOG[resourceId], `missing resource definition: ${resourceId}`);
+      assert.ok(RESOURCE_CATALOG[resourceId].name && RESOURCE_CATALOG[resourceId].icon);
+    }
   }
 });
