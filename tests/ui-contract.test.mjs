@@ -84,7 +84,7 @@ test('new consumers require power links while legacy pre-v5 consumers are preser
 
 
 test('Stage C world market, season HUD and seasonal biome simulation are wired', () => {
-  for (const id of ['season','worldStatus','landMarket']) assert.ok(html.includes(\`id="\${id}"\`), \`missing \${id}\`);
+  for (const id of ['season','worldStatus','landMarket']) assert.ok(html.includes('id="'+id+'"'), 'missing '+id);
   assert.match(main, /function renderLandMarket\(\)/);
   assert.match(main, /function buyLand\(biomeId\)/);
   assert.match(main, /createBiomeLand\(biomeId\)/);
