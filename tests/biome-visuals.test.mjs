@@ -150,6 +150,14 @@ test("mountain and desert showcase scenes include landmark geometry", () => {
   assert.match(visuals, /new THREE\.InstancedMesh/);
 });
 
+test("irrigation visibly darkens soil and emits water droplets", () => {
+  assert.match(main, /function setPlotWetVisual\(plot,wet=true\)/);
+  assert.match(main, /function waterSpray\(plot\)/);
+  assert.match(main, /setPlotWetVisual\(plot,true\)/);
+  assert.match(main, /waterSpray\(plot\)/);
+  assert.match(main, /waterDropGeometry/);
+});
+
 test("farm plots use timber retaining boards and unique watermelon, wheat and corn geometry", () => {
   const data = readFileSync(new URL("../src/data.js", import.meta.url), "utf8");
   assert.match(main, /box\(g,1\.9,\.19,\.14,wood/);
