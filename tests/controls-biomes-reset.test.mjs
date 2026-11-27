@@ -42,3 +42,14 @@ test("the current starter biome can be selected to enter a fresh farm", () => {
   assert.doesNotMatch(main, /owned&&id===activeBiome\?'disabled'/);
   assert.match(main, /if\(id===activeBiome\)\{\$\('#biomeSelectScreen'\)\.classList\.remove\('show'\);return;\}/);
 });
+
+test("Russian and English language toggle is available and remembered", () => {
+  const i18n = readFileSync(new URL("../src/i18n.js", import.meta.url), "utf8");
+  assert.match(html, /id="languageToggle"/);
+  assert.match(main, /import \{ initLanguageToggle \} from '\.\/i18n\.js'/);
+  assert.match(main, /initLanguageToggle\(\)/);
+  assert.match(i18n, /localStorage\.getItem\('farmerbot_language'\)/);
+  assert.match(i18n, /language === 'ru' \? 'en' : 'ru'/);
+  assert.match(i18n, /Green Plains/);
+  assert.match(i18n, /START FARM/);
+});
