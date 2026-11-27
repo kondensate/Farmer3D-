@@ -49,6 +49,7 @@ test("biomes and seasons change growth, water and climate effects", () => {
   assert.ok(snowWinter.movement < 1);
   assert.ok(getEnvironmentEffects("volcanic", "summer").temperature > 50);
   assert.ok(waterCostForPlot("desert", "summer") >= 2);
+  assert.ok(waterCostForPlot("desert", "summer", "heatwave") >= waterCostForPlot("desert", "summer", "rain"));
 });
 
 test("legacy purchasable parcels remain compatible with existing saves", () => {
