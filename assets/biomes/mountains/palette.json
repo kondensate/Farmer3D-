@@ -1,0 +1,35 @@
+{
+  "id": "mountain",
+  "name": "Mountain Lands",
+  "rendering": "procedural-low-poly",
+  "texture": {
+    "generator": "src/biome-visuals.js",
+    "ground": "#858d83",
+    "soil": "#746b5c",
+    "repeat": {
+      "u": 18,
+      "v": 18
+    },
+    "wrapping": "RepeatWrapping",
+    "roughness": 0.96,
+    "accents": [
+      "#b0b3a6",
+      "#696f70",
+      "#9d8c74",
+      "#657e60"
+    ]
+  },
+  "materials": {
+    "stone": "#777f7d",
+    "foliage": "#436b4b",
+    "trunk": "#73543c",
+    "water": "#4b9fae",
+    "plotRim": "#777d78"
+  },
+  "atmosphere": {
+    "sky": "#94c1dd",
+    "fog": "#c1d1d4",
+    "sun": "#ffe1b0"
+  },
+  "notes": "Palette specification for runtime-generated seamless CanvasTexture and shared Three.js low-poly meshes."
+}
