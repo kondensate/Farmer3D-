@@ -1,5 +1,7 @@
 export const CROPS = {
   carrot:      { name:"Морковь", icon:"🥕", color:0xf28a32, leaf:0x5c9c48, growTime:18, price:7, seedCost:2, waterNeed:1, shape:"root" },
+  watermelon:  { name:"Арбуз", icon:"🍉", color:0x4b9447, leaf:0x397b3e, growTime:32, price:19, seedCost:5, waterNeed:3, shape:"watermelon" },
+  wheat:       { name:"Пшеница", icon:"🌾", color:0xd7b95e, leaf:0x7b9e46, growTime:24, price:10, seedCost:2, waterNeed:1, shape:"wheat" },
   potato:      { name:"Картофель", icon:"🥔", color:0xc49a62, leaf:0x609b4c, growTime:22, price:8, seedCost:2, waterNeed:1, shape:"tuber" },
   tomato:      { name:"Помидор", icon:"🍅", color:0xe64c3d, leaf:0x4d984a, growTime:25, price:12, seedCost:3, waterNeed:2, shape:"tomato" },
   corn:        { name:"Кукуруза", icon:"🌽", color:0xf0c849, leaf:0x4f9141, growTime:30, price:14, seedCost:3, waterNeed:2, shape:"corn" },
