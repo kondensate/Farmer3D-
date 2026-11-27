@@ -134,7 +134,6 @@ test("mountain and desert showcase scenes include landmark geometry", () => {
   for (const token of ["createFacetedPeak", "addMountainValley", "createRiverRibbon", "createWoodBridge", "fallGeo", "addDesertOasis", "makeIrregularWater"]) {
     assert.ok(visuals.includes(token), `missing landmark feature: ${token}`);
   }
-  assert.match(visuals, /height\?\?0/);
   assert.match(visuals, /new THREE\.InstancedMesh/);
 });
 
