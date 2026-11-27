@@ -178,7 +178,7 @@ let crown=new THREE.Mesh(new THREE.IcosahedronGeometry(.8,1),mat(i%2?0x397348:0x
 const plots=[],ownedBiomes=new Set(['meadow']),landMeshes=new Map();
 function createPlotAt(x,z,biome='meadow'){
  const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);
- box(g,1.72,.24,1.72,biome==='meadow'?soil:(biomeSoilMaterials[biome]||soil),0,.12,0);
+ box(g,1.72,.24,1.72,biomeSoilMaterials[biome]||soil,0,.12,0);
  box(g,1.78,.07,1.78,biomeVisualKit.plotRimMaterials[biome]||mat(0x5b402b),0,.025,0);
  for(let j=-1;j<=1;j++)box(g,1.5,.035,.035,soilDark,0,.25,j*.42);
  const crop=new THREE.Group();crop.position.y=.26;g.add(crop);
@@ -273,7 +273,7 @@ function applyStartingBiome(biomeId,seed){
  activeBiome=definition.id;worldSeed=String(seed||'farmerbot-world-1');
  generatedWorld=generateWorldMap(worldSeed,activeBiome);
  rebuildWorldTerrain(generatedWorld);
- ground.material=activeBiome==='meadow'?grass:(biomeTerrainMaterials[activeBiome]||grass);
+ ground.material=biomeTerrainMaterials[activeBiome]||biomeTerrainMaterials.meadow;
  ground.material.needsUpdate=true;
  const atmosphere=biomeVisualKit.atmosphere[activeBiome]||biomeVisualKit.atmosphere.meadow;scene.background.setHex(atmosphere.sky);scene.fog.color.setHex(atmosphere.fog);scene.fog.near=atmosphere.fogNear;scene.fog.far=atmosphere.fogFar;
  for(const plot of plots){scene.remove(plot.g);plot.g.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
