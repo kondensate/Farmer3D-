@@ -43,7 +43,9 @@ const grassTex=pixelTexture('#719b55','#b6c879',12),soilTex=pixelTexture('#80563
 const mat=(c,r=.85)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
 const grass=new THREE.MeshStandardMaterial({map:grassTex,roughness:1}),soil=new THREE.MeshStandardMaterial({map:soilTex,roughness:1}),soilDark=mat(0x563922),leaf=mat(0x5b9a43),gold=mat(0xeebc45),metal=mat(0xd5dfd1,.45),blue=mat(0x397f91,.55),dark=mat(0x20313a),white=mat(0xf2f1dc);
 const biomeSoilMaterials=Object.fromEntries(Object.values(BIOMES).map(item=>[item.id,mat(item.soil)]));
-const biomeTerrainMaterials=Object.fromEntries(Object.values(BIOMES).map(item=>[item.id,mat(item.terrain)]));
+const biomeVisualLibrary=createBiomeVisualLibrary(THREE);
+const biomeTerrainMaterials=biomeVisualLibrary.terrainMaterials;
+let biomeDecorationGroup=null;
 function box(parent,w,h,d,m,x,y,z){let o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o}
 const ground=box(scene,38,.4,38,grass,0,-.3,0);
 const grid=new THREE.GridHelper(38,38,0x557b45,0x6f9656);grid.position.y=-.095;grid.material.transparent=true;grid.material.opacity=.28;scene.add(grid);
@@ -290,9 +292,13 @@ function applyStartingBiome(biomeId,seed){
  activeBiome=definition.id;worldSeed=String(seed||'farmerbot-world-1');
  generatedWorld=generateWorldMap(worldSeed,activeBiome);
  rebuildWorldTerrain(generatedWorld);
- ground.material=activeBiome==='meadow'?grass:(biomeTerrainMaterials[activeBiome]||grass);
+ ground.material=biomeTerrainMaterials[activeBiome]||grass;
  ground.material.needsUpdate=true;
- scene.background.setHex(definition.terrain);scene.fog.color.setHex(definition.terrain);
+ if(biomeDecorationGroup){scene.remove(biomeDecorationGroup);biomeDecorationGroup.userData.dispose?.();biomeDecorationGroup=null;}
+ biomeDecorationGroup=createBiomeDecorationGroup(THREE,activeBiome,worldSeed,[{x:0,z:0,radius:9},{x:0,z:7,radius:9},...generatedWorld.obstacles.map(item=>({x:item.x*MAP_TILE_SIZE,z:item.z*MAP_TILE_SIZE,radius:1.35})),...generatedWorld.resources.map(item=>({x:item.x*MAP_TILE_SIZE,z:item.z*MAP_TILE_SIZE,radius:1.1})),...generatedWorld.safeRoute.map(item=>({x:item.x*MAP_TILE_SIZE,z:item.z*MAP_TILE_SIZE,radius:1.25}))]);
+ scene.add(biomeDecorationGroup);
+ const palette=BIOME_VISUAL_PALETTES[activeBiome]||BIOME_VISUAL_PALETTES.meadow;
+ scene.background.set(palette.fog);scene.fog.color.set(palette.fog);
  for(const plot of plots){scene.remove(plot.g);plot.g.traverse(o=>{if(o.geometry)o.geometry.dispose();});}
  plots.length=0;
  for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++)createPlotAt(x*2.4,z*2.4,activeBiome);
