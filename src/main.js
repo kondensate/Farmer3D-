@@ -354,8 +354,13 @@ function cancelBuildingPlacement(){
 }
 function rotateBuildingPlacement(){if(!placingBuilding)return;placementRotation=(placementRotation+Math.PI/2)%(Math.PI*2);previewMesh.rotation.y=placementRotation;}
 function buildingFootprint(type,rotation=0){const d=BUILDINGS[type],c=Math.abs(Math.cos(rotation)),s=Math.abs(Math.sin(rotation));return {width:d.width*c+d.depth*s,depth:d.depth*c+d.width*s};}
+function isOwnedLandAt(x,z){
+ if(Math.abs(x)<=6.2&&Math.abs(z)<=9.4)return true;
+ return Object.values(LAND_PARCELS).some(parcel=>ownedBiomes.has(parcel.biome)&&Math.abs(x-parcel.x)<=parcel.size/2&&Math.abs(z-parcel.z)<=parcel.size/2);
+}
 function canPlaceBuilding(type,x,z,ignoreId=null,rotation=placementRotation){
  const d=buildingFootprint(type,rotation);if(Math.abs(x)+d.width/2>17||Math.abs(z)+d.depth/2>17)return false;
+ const corners=[[-1,-1],[-1,1],[1,-1],[1,1]];if(!corners.every(([sx,sz])=>isOwnedLandAt(x+sx*d.width/2,z+sz*d.depth/2)))return false;
  for(const b of buildings){if(b.id===ignoreId)continue;const other=buildingFootprint(b.type,b.rotation);if(Math.abs(x-b.x)<(d.width+other.width)/2-.15&&Math.abs(z-b.z)<(d.depth+other.depth)/2-.15)return false;}
  if(Math.hypot(x,z-7)<1.6)return false;
  if(agents.some(a=>Math.abs(a.mesh.position.x-x)<d.width/2+.4&&Math.abs(a.mesh.position.z-z)<d.depth/2+.4))return false;
@@ -1038,9 +1043,9 @@ function update(dt){
  }
  // Pump waters one thirsty plot automatically, consuming the shared water reserve.
  pumpClock+=dt;
- if(pumpBuilt&&pumpClock>14&&(water>0||gameMode==='sandbox')){
+ if(pumpBuilt&&pumpClock>14){
   pumpClock=0;const targetPlot=plots.find(p=>['seed','growing'].includes(p.state)&&!p.watered);
-  if(targetPlot)waterPlot(targetPlot,agents[0],'pump');
+  if(targetPlot&&(water>=waterCostForPlot(targetPlot.biome||'meadow',season)||gameMode==='sandbox'))waterPlot(targetPlot,agents[0],'pump');
  }
  for(const p of plots){
   if(p.state==='growing'&&p.watered){
@@ -1063,7 +1068,7 @@ function update(dt){
  pumpClock+=dt;
  if(pumpClock>=8){
   pumpClock=0;const targetPlot=buildings.some(b=>b.type==='water_pump'&&b.powered)&&plots.find(p=>['seed','growing'].includes(p.state)&&!p.watered);
-  if(targetPlot&&(water>0||gameMode==='sandbox'))waterPlot(targetPlot,agents[0],'pump');
+  if(targetPlot&&(water>=waterCostForPlot(targetPlot.biome||'meadow',season)||gameMode==='sandbox'))waterPlot(targetPlot,agents[0],'pump');
  }
  // Powered source conveyors pick ripe crops and push them into the directed belt graph.
  conveyorClock+=dt;
