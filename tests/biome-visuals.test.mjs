@@ -121,6 +121,19 @@ test("mountain maps contain a real valley-and-ridge height profile", () => {
   }
 });
 
+test("mountain slope transitions remain traversable from the flat starter farm", () => {
+  const map = generateWorldMap("mountain-slope-traversal", "mountain");
+  const heights = new Map(map.heightMap.map(point => [`${point.x}:${point.z}`, point.height]));
+  let maxStep = 0;
+  for (const point of map.heightMap) {
+    for (const [dx, dz] of [[1, 0], [0, 1]]) {
+      const next = heights.get(`${point.x + dx}:${point.z + dz}`);
+      if (next !== undefined) maxStep = Math.max(maxStep, Math.abs(point.height - next));
+    }
+  }
+  assert.ok(maxStep <= .75, `maximum adjacent elevation change ${maxStep} exceeds the robot step limit`);
+});
+
 test("desert maps have gentle dune relief while preserving the starter clearing", () => {
   const map = generateWorldMap("desert-reference-profile", "desert");
   const heights = map.heightMap.map(point => point.height);
