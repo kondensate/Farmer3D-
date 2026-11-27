@@ -956,7 +956,8 @@ function saveGame(){
 }
 function loadGame(){
  try{
-  const raw=localStorage.getItem(SAVE_KEY)||localStorage.getItem(PREVIOUS_SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY)||localStorage.getItem(OLDER_SAVE_KEY)||localStorage.getItem(OLD_SAVE_KEY)||localStorage.getItem(OLDER_SAVE_KEY_2)||localStorage.getItem(OLDEST_SAVE_KEY);if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();renderBiomeSelector();$('#biomeSelectScreen').classList.add('show');return;}
+  const query=new URLSearchParams(location.search);const forceNewGame=query.get('newgame')==='1';if(forceNewGame){query.delete('newgame');const cleanUrl=location.pathname+(query.toString()?`?${query}`:'')+location.hash;history.replaceState(null,'',cleanUrl);}
+  const raw=forceNewGame?null:(localStorage.getItem(SAVE_KEY)||localStorage.getItem(PREVIOUS_SAVE_KEY)||localStorage.getItem(LEGACY_SAVE_KEY)||localStorage.getItem(OLDER_SAVE_KEY)||localStorage.getItem(OLD_SAVE_KEY)||localStorage.getItem(OLDER_SAVE_KEY_2)||localStorage.getItem(OLDEST_SAVE_KEY));if(!raw){stats();renderSeedStock();renderFleetUI();renderMissions();renderBiomeSelector();$('#biomeSelectScreen').classList.add('show');return;}
   const d=JSON.parse(raw);isLoadingGame=true;
   coins=Number.isFinite(d.coins)?d.coins:90;harvest=Number(d.harvest)||0;water=Number.isFinite(d.water)?d.water:8;xp=Number(d.xp)||0;researchPoints=Number.isFinite(d.researchPoints)?d.researchPoints:xp;
   if(d.seedStock)Object.assign(seedStock,d.seedStock);
@@ -1085,11 +1086,14 @@ $('#confirmReset').onclick=async()=>{
   const keys=[];
   for(let n=0;n<localStorage.length;n++){
    const key=localStorage.key(n);
-   if(key&&(key.startsWith('farmerbot3d')||key.startsWith('farmerbot2d')))keys.push(key);
+   if(key&&key.toLowerCase().startsWith('farmerbot'))keys.push(key);
   }
   keys.forEach(key=>localStorage.removeItem(key));
   $('#resetConfirm').classList.remove('show');
-  location.replace(location.pathname+location.search.split('?')[0]+'?fresh='+Date.now());
+  const restartUrl=new URL(location.href);
+  restartUrl.searchParams.set('newgame','1');
+  restartUrl.searchParams.set('fresh',String(Date.now()));
+  location.replace(restartUrl.toString());
  }catch(error){
   button.disabled=false;button.textContent='НАЧАТЬ ЗАНОВО';
   console.error('Не удалось сбросить сохранение',error);
