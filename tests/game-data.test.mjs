@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { CROPS, ROBOT_TYPES, MISSIONS, BUILDINGS, TECHNOLOGIES } from "../src/data.js";
 import { BIOMES, BIOME_ORDER } from "../src/world.js";
 
-test("catalog includes 21 distinct growable crops, with 11 regional varieties", () => {
-  assert.equal(Object.keys(CROPS).length, 21);
+test("catalog includes 23 distinct growable crops, with 11 regional varieties", () => {
+  assert.equal(Object.keys(CROPS).length, 23);
   for (const [key, crop] of Object.entries(CROPS)) {
     assert.ok(crop.name && crop.icon && crop.shape, key);
     assert.ok(crop.growTime > 0 && crop.price > 0 && crop.seedCost > 0, key);
