@@ -106,6 +106,12 @@ test("generated map protects the starter plots and base from natural obstacles",
       assert.ok(!map.obstacles.some(o => Math.hypot(o.x, o.z - map.start.z) < 8.5));
     }
     assert.ok(map.resources.every(r => Number.isFinite(r.x) && Number.isFinite(r.z) && r.amount > 0));
+    for (const resource of map.resources) {
+      assert.ok(!map.obstacles.some(obstacle => obstacle.x === resource.x && obstacle.z === resource.z),
+        `${id}: resource ${resource.id} overlaps an obstacle`);
+    }
+    assert.ok(map.resources.filter(resource => resource.id.startsWith("starter-resource-")).length >= 3,
+      `${id}: expected three guaranteed starter deposits`);
   }
 });
 
